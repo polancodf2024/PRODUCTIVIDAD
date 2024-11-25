@@ -1,0 +1,7 @@
+[server]
+enableXsrfProtection = true
+maxUploadSize = 20
+
+[client]
+hideMenuItems = true
+
