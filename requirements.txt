@@ -1,10 +1,3 @@
-streamlit
-pandas
-filelock
-openpyxl
-paramiko
-requests
-beautifulsoup4
 os
 csv
 ssl
@@ -14,3 +7,11 @@ random
 re
 pathlib
 email
+streamlit==1.41.1
+pandas==2.2.3
+filelock==3.16.1
+openpyxl==3.1.5
+paramiko==3.5.0
+requests==2.32.3
+beautifulsoup4==4.12.3
+
