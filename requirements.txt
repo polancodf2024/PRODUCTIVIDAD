@@ -2,3 +2,6 @@ streamlit
 pandas
 filelock
 openpyxl
+paramiko
+requests
+beautifulsoup4
