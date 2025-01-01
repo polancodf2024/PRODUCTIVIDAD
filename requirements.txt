@@ -5,3 +5,12 @@ openpyxl
 paramiko
 requests
 beautifulsoup4
+os
+csv
+ssl
+smtplib
+tempfile
+random
+re
+pathlib
+email
