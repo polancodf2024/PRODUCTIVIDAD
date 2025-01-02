@@ -737,3 +737,8 @@ if st.session_state.mostrar_ocurrencias:
 
 if st.button("Cerrar Sesión."):
     st.write("Gracias por usar la aplicación. Hasta luego.")
+
+# Redirección automática al menú principal después de terminar
+st.success("El proceso ha terminado. Redirigiendo al menú principal...")
+js = "window.location.href = 'https://appuctividad-menu-principal.streamlit.app/';"
+st.components.v1.html(f"<script>{js}</script>", height=0)
