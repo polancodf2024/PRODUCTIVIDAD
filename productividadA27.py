@@ -737,4 +737,3 @@ if st.session_state.mostrar_ocurrencias:
 
 if st.button("Cerrar Sesión."):
     st.write("Gracias por usar la aplicación. Hasta luego.")
-    st.markdown("[Ir a Extracción desde PubMed](https://appuctividad-menu-principal.streamlit.app/)", unsafe_allow_html=True)
