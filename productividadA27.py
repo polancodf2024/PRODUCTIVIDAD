@@ -685,7 +685,7 @@ def send_email_with_attachment(email_recipient, subject, body, attachment_path):
 # Mostrar el logo y título
 st.image("escudo_COLOR.jpg", width=150)
 
-st.title("Extracción de Artículos desde PubMed")
+st.title("Extracción de Artículos PubMed")
 
 numero_economico = st.text_input("Ingresa tu número económico:")
 clave_ingresada = st.text_input(
