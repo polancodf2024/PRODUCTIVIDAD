@@ -220,7 +220,7 @@ def enviar_archivo_usuario(correo, archivo):
 def interfaz_principal():
     # Mostrar el logo y título
     st.image("escudo_COLOR.jpg", width=150)
-    st.title("Validación de Usuario por Número Económico")
+    st.title("Registro de Tutorías")
 
     if not st.session_state.validado:
         # Solicitar número económico
