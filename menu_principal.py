@@ -4,6 +4,16 @@ from ejecutar_pubmed import ejecutar_pubmed
 from ejecutar_nuevos import ejecutar_nuevos
 from ejecutar_tutorias import ejecutar_tutorias
 
+# Inicialización de variables en st.session_state
+if "mostrar_ocurrencias" not in st.session_state:
+    st.session_state.mostrar_ocurrencias = False
+
+if "validado" not in st.session_state:
+    st.session_state.validado = False
+
+if "numero_economico" not in st.session_state:
+    st.session_state.numero_economico = None
+
 # Interfaz de Streamlit
 # Mostrar el logo y título
 st.image("escudo_COLOR.jpg", width=150)
