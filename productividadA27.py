@@ -232,8 +232,6 @@ def crear_nombres_txt(nombres, apellidos, correo):
             for afiliacion in afiliaciones:
                 file.write(f"({nombre}) AND ({afiliacion})\n")
 
-    return numero_economico
-
 
 def buscar_en_pubmed(termino):
     """Busca los resultados en PubMed para un término específico con manejo mejorado de tiempos de espera."""
@@ -682,58 +680,63 @@ def send_email_with_attachment(email_recipient, subject, body, attachment_path):
 
 
 # Interfaz de Streamlit
-# Mostrar el logo y título
-st.image("escudo_COLOR.jpg", width=150)
+def interfaz_principal():
+    # Mostrar el logo y título
+    st.image("escudo_COLOR.jpg", width=150)
 
-st.title("Extracción de Artículos PubMed")
+    st.title("Extracción de Artículos PubMed")
 
-numero_economico = st.text_input("Ingresa tu número económico:")
-clave_ingresada = st.text_input(
-    "Ingresa la clave enviada a tu correo:", type="password")
+    numero_economico = st.text_input("Ingresa tu número económico:")
+    clave_ingresada = st.text_input(
+        "Ingresa la clave enviada a tu correo:", type="password")
 
-if st.button("Enviar Clave"):
-    if numero_economico:
-        nombres, apellidos, numeco, correo = obtener_datos_personales(
-            numero_economico)
-        if correo:
-            clave = generar_clave()
-            st.session_state.clave_generada = clave  # Guardar clave en la sesión
-            st.session_state.nombres = nombres
-            st.session_state.apellidos = apellidos
-            st.session_state.numero_economico = numeco
-            st.session_state.correo = correo
-            enviar_clave(correo, clave)
-    else:
-        st.error("Por favor, ingresa tu número económico.")
+    if st.button("Enviar Clave"):
+        if numero_economico:
+            nombres, apellidos, numeco, correo = obtener_datos_personales(
+                numero_economico)
+            if correo:
+                clave = generar_clave()
+                st.session_state.clave_generada = clave  # Guardar clave en la sesión
+                st.session_state.nombres = nombres
+                st.session_state.apellidos = apellidos
+                st.session_state.numero_economico = numeco
+                st.session_state.correo = correo
+                enviar_clave(correo, clave)
+        else:
+            st.error("Por favor, ingresa tu número económico.")
 
-if st.button("Validar Clave", key="validar_clave"):
-    if "clave_generada" in st.session_state and clave_ingresada == st.session_state.clave_generada:
-        st.success("Clave válida. Acceso concedido.")
+    if st.button("Validar Clave", key="validar_clave"):
+        if "clave_generada" in st.session_state and clave_ingresada == st.session_state.clave_generada:
+            st.success("Clave válida. Acceso concedido.")
+            st.error("Revise la carpeta Spam si no encuentra el correo enviado.")
 
-        nombres = st.session_state.nombres
-        apellidos = st.session_state.apellidos
-        numero_economico = st.session_state.numero_economico
-        correo = st.session_state.correo  # Simplificado
+            nombres = st.session_state.nombres
+            apellidos = st.session_state.apellidos
+            numero_economico = st.session_state.numero_economico
+            correo = st.session_state.correo  # Simplificado
 
-        st.write(f"Nombre: {nombres}")
-        st.write(f"Apellidos: {apellidos}")
-        st.write(f"Número Económico: {numero_economico}")
-        st.write(f"Correo Electrónico: {correo}")
+            st.write(f"Nombre: {nombres}")
+            st.write(f"Apellidos: {apellidos}")
+            st.write(f"Número Económico: {numero_economico}")
+            st.write(f"Correo Electrónico: {correo}")
 
-        with st.spinner("Procesando, por favor espera..."):
-            if nombres and apellidos and numero_economico and correo:
-                numero_economico = crear_nombres_txt(
-                    nombres, apellidos, numero_economico)
-                if procesar_nombres(numero_economico):
-                    st.session_state.mostrar_ocurrencias = True
-    else:
-        st.error("Clave incorrecta. Acceso denegado.")
+            with st.spinner("Procesando, por favor espera..."):
+                if nombres and apellidos and numero_economico and correo:
+                    crear_nombres_txt(nombres, apellidos, correo)
+                    if procesar_nombres(numero_economico):
+                        st.session_state.mostrar_ocurrencias = True
+                        st.error("La producción que se muestra corresponde al año 2020 en adelante.")
 
+        else:
+            st.error("Clave incorrecta. Acceso denegado.")
 
-# Mostrar editor de ocurrencias si el estado está activado
-if st.session_state.mostrar_ocurrencias:
-    mostrar_editor_ocurrencias(st.session_state.numero_economico)
+    # Mostrar editor de ocurrencias si el estado está activado
+    if st.session_state.mostrar_ocurrencias:
+        mostrar_editor_ocurrencias(st.session_state.numero_economico)
 
+    if st.button("Cerrar Sesión."):
+        st.write("Gracias por usar la aplicación. Hasta luego.")
 
-if st.button("Cerrar Sesión."):
-    st.write("Gracias por usar la aplicación. Hasta luego.")
+if __name__ == "__main__":
+    interfaz_principal()
+
