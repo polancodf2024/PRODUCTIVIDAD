@@ -388,8 +388,10 @@ def enviar_archivo_usuario(correo, archivo):
         st.error(f"Error al enviar el archivo: {e}")
 
 
-def ejecutar_nuevos():
-    st.title("Captura de Artículos")
+def interfaz_principal():
+    # Mostrar el logo y título
+    st.image("escudo_COLOR.jpg", width=150)
+    st.title("Extracción de Artículos PubMed")
 
     if not st.session_state.validado:
         # Solicitar número económico
@@ -516,3 +518,12 @@ def ejecutar_nuevos():
 
         if st.button("Cerrar Sesión."):
             st.write("Gracias por usar la aplicación. Hasta luego.")
+
+
+def main():
+    interfaz_principal()
+
+if __name__ == "__main__":
+    main()
+
+

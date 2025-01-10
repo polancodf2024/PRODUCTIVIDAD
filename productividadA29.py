@@ -683,7 +683,11 @@ def send_email_with_attachment(email_recipient, subject, body, attachment_path):
         server.sendmail(EMAIL_USER, email_recipient, mensaje.as_string())
 
 
-def ejecutar_pubmed():
+# Interfaz de Streamlit
+def interfaz_principal():
+    # Mostrar el logo y título
+    st.image("escudo_COLOR.jpg", width=150)
+
     st.title("Extracción de Artículos PubMed")
 
     numero_economico = st.text_input("Ingresa tu número económico:")
@@ -736,3 +740,7 @@ def ejecutar_pubmed():
 
     if st.button("Cerrar Sesión."):
         st.write("Gracias por usar la aplicación. Hasta luego.")
+
+if __name__ == "__main__":
+    interfaz_principal()
+

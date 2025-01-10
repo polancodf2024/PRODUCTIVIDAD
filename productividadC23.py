@@ -48,7 +48,7 @@ def actualizar_archivo_remoto(numero_economico, nuevos_registros):
     Actualiza el archivo remoto combinando los registros existentes y los nuevos.
     Si el archivo remoto no existe, se crea uno nuevo.
     """
-    archivo_remoto = f"ocurrencias_Nuevos_{numero_economico}.txt"
+    archivo_remoto = f"ocurrencias_Tutorias_{numero_economico}.txt"
 
     try:
         ssh = paramiko.SSHClient()
@@ -151,125 +151,6 @@ def enviar_clave(correo, clave):
 def generar_clave():
     return "".join([str(random.randint(0, 9)) for _ in range(6)])
 
-# Función para determinar el grupo basado en JIF5Years
-def determinar_grupo(jif5years):
-    if pd.isna(jif5years):
-        return "Grupo 1"
-    elif jif5years <= 0.9:
-        return "Grupo 2"
-    elif 1 <= jif5years <= 2.99:
-        return "Grupo 3"
-    elif 3 <= jif5years <= 5.99:
-        return "Grupo 4"
-    elif 6 <= jif5years <= 8.99:
-        return "Grupo 5"
-    elif 9 <= jif5years <= 11.99:
-        return "Grupo 6"
-    else:
-        return "Grupo 7"
-
-def buscar_revista(nombre_revista, file_path):
-    """Busca la revista y determina su grupo basado en su JIF5Years."""
-    sheet_name = '2024最新完整版IF'
-    df = pd.read_excel(file_path, sheet_name=sheet_name)
-
-    df['Name_lower'] = df['Name'].str.lower()
-    df['Abbr_Name_lower'] = df['Abbr Name'].str.lower()
-    df['JIF5Years'] = pd.to_numeric(df['JIF5Years'], errors='coerce')
-
-    exact_match = df[(df['Name_lower'] == nombre_revista.lower()) |
-                     (df['Abbr_Name_lower'] == nombre_revista.lower())]
-
-    if not exact_match.empty:
-        jif5years = exact_match.iloc[0]['JIF5Years']
-        return determinar_grupo(jif5years)
-    else:
-        all_names = df['Name_lower'].tolist() + df['Abbr_Name_lower'].tolist()
-        closest_match = get_close_matches(nombre_revista.lower(), all_names, n=1, cutoff=0.5)
-        if closest_match:
-            match = closest_match[0]
-            matched_row = df[(df['Name_lower'] == match) | (df['Abbr_Name_lower'] == match)].iloc[0]
-            jif5years = matched_row['JIF5Years']
-            return determinar_grupo(jif5years)
-        else:
-            return "Grupo no encontrado"
-
-def extraer_concepto_central(revista):
-    """
-    Determina el concepto central de una revista usando reglas simples y similitud textual.
-    Devuelve el concepto en español o 'Concepto no identificado' si no encuentra coincidencias.
-    """
-    # Lista ampliada de conceptos y palabras clave
-    conceptos = {
-        "cardiología": ["cardiology", "heart", "vascular", "cardiac", "myocardial", "circulation"],
-        "genética cardiovascular": ["genetics", "genomics", "hereditary", "dna", "mutation", "inheritance"],
-        "medicina vascular": ["vascular medicine", "vascular", "angiology", "endothelium", "artery", "vein"],
-        "hipertensión": ["hypertension", "blood pressure", "arterial pressure", "systolic", "diastolic"],
-        "insuficiencia cardíaca": ["heart failure", "cardiac failure", "congestive heart failure", "chf"],
-        "medicina general": ["general medicine", "medicine", "nature medicine", "clinical medicine", "practice"],
-        "investigación médica": ["research", "medical research", "clinical research", "scientific investigation", "studies"],
-        "cirugía cardiovascular": ["cardiovascular surgery", "cardiac surgery", "surgical", "bypass", "angioplasty"],
-        "imágenes médicas": ["medical imaging", "radiology", "diagnostic imaging", "nuclear medicine", "mri", "ct"],
-        "electrofisiología": ["electrophysiology", "heart rhythm", "arrhythmia", "atrial fibrillation"],
-        "prevención cardiovascular": ["prevention", "preventive cardiology", "risk reduction", "health"],
-        "cardiopatías congénitas": ["congenital heart", "congenital defects", "pediatric cardiology"],
-        "epidemiología cardiovascular": ["epidemiology", "population health", "statistics", "trials", "cohort"],
-        "farmacología cardiovascular": ["pharmacology", "drugs", "medications", "pharma", "therapeutics"],
-        "metabolismo": ["metabolism", "lipids", "cholesterol", "triglycerides", "diabetes", "obesity"],
-        "rehabilitación cardiovascular": ["rehabilitation", "cardiac rehab", "exercise", "recovery"],
-        "biomedicina": ["biomedicine", "biomedical", "bioscience", "bioinformatics", "biotechnology", "biomarkers"],
-    }
-
-    # Lista específica para revistas conocidas, incluidas las de prefijo "Bio"
-    revistas_conceptos = {
-        "nature medicine": "medicina general",
-        "journal of the american college of cardiology": "cardiología",
-        "european heart journal": "cardiología",
-        "circulation": "cardiología",
-        "hypertension": "hipertensión",
-        "journal of clinical hypertension": "hipertensión",
-        "american heart journal": "cardiología",
-        "international journal of cardiology": "cardiología",
-        "clinical cardiology": "cardiología",
-        "vascular health and risk management": "medicina vascular",
-        "heart rhythm": "electrofisiología",
-        "diabetes care": "metabolismo",
-        "journal of lipid research": "metabolismo",
-        "bioinformatics": "biomedicina",
-        "biomarkers": "biomedicina",
-        "biotechnology advances": "biomedicina",
-        "biological psychiatry": "biomedicina",
-        "biochimica et biophysica acta": "biomedicina",
-        "biomedicine & pharmacotherapy": "biomedicina",
-        "biosensors and bioelectronics": "biomedicina",
-    }
-
-    # Normalizar el nombre
-    nombre_lower = revista.lower()
-
-    # Verificar coincidencias exactas
-    if nombre_lower in revistas_conceptos:
-        return revistas_conceptos[nombre_lower]
-
-    # Limpiar y preprocesar el nombre
-    palabras_comunes = {"journal", "review", "bulletin", "annals", "reports", "international", "american", "european"}
-    palabras = [palabra for palabra in nombre_lower.split() if palabra not in palabras_comunes]
-    nombre_normalizado = " ".join(palabras)
-
-    # Buscar coincidencias parciales
-    for concepto, patrones in conceptos.items():
-        coincidencias = get_close_matches(nombre_normalizado, patrones, n=1, cutoff=0.3)
-        if coincidencias:
-            return concepto
-
-    # Manejo específico para revistas con prefijo "Bio"
-    if nombre_lower.startswith("bio"):
-        return "biomedicina"
-
-    # Registrar conceptos no identificados
-    with open("conceptos_no_identificados.txt", "a") as file:
-        file.write(f"{nombre_revista}\n")
-    return "Concepto no identificado"
 
 
 # Función para guardar datos en un archivo
@@ -277,7 +158,7 @@ def guardar_datos(numero_economico, datos):
     """
     Añade los registros al archivo local de ocurrencias con un nombre basado en el número económico.
     """
-    archivo_ocurrencias = f"temporal_Nuevos_{numero_economico}.txt"
+    archivo_ocurrencias = f"temporal_Tutorias_{numero_economico}.txt"
     try:
         # Abrir el archivo en modo 'a' para agregar nuevos registros
         with open(archivo_ocurrencias, "a", encoding="utf-8") as file:
@@ -288,58 +169,6 @@ def guardar_datos(numero_economico, datos):
         st.error(f"Error al guardar datos localmente: {e}")
         return None
 
-# Función para obtener el grupo de la revista
-def buscar_revista(nombre_revista, file_path):
-    """Busca la revista y determina su grupo basado en su JIF5Years."""
-    sheet_name = '2024最新完整版IF'
-    df = pd.read_excel(file_path, sheet_name=sheet_name)
-
-    df['Name_lower'] = df['Name'].str.lower()
-    df['Abbr_Name_lower'] = df['Abbr Name'].str.lower()
-    df['JIF5Years'] = pd.to_numeric(df['JIF5Years'], errors='coerce')
-
-    exact_match = df[(df['Name_lower'] == nombre_revista.lower()) |
-                     (df['Abbr_Name_lower'] == nombre_revista.lower())]
-
-    if not exact_match.empty:
-        jif5years = exact_match.iloc[0]['JIF5Years']
-        return determinar_grupo(jif5years)
-    else:
-        all_names = df['Name_lower'].tolist() + df['Abbr_Name_lower'].tolist()
-        closest_match = get_close_matches(nombre_revista.lower(), all_names, n=1, cutoff=0.5)
-        if closest_match:
-            match = closest_match[0]
-            matched_row = df[(df['Name_lower'] == match) | (df['Abbr_Name_lower'] == match)].iloc[0]
-            jif5years = matched_row['JIF5Years']
-            return determinar_grupo(jif5years)
-        else:
-            return "Grupo no encontrado"
-
-# Función para extraer el concepto central de la  revista
-def extraer_concepto_central(revista):
-    """
-    Determina el concepto central de una revista usando reglas simples y similitud textual.
-    Devuelve el concepto en español o 'Concepto no identificado' si no encuentra coincidencias.
-    """
-    conceptos = {
-        "cardiología": ["cardiology", "heart", "vascular", "cardiac", "myocardial", "circulation"],
-        "genética cardiovascular": ["genetics", "genomics", "hereditary", "dna", "mutation", "inheritance"],
-        "medicina vascular": ["vascular medicine", "vascular", "angiology", "endothelium", "artery", "vein"],
-        "hipertensión": ["hypertension", "blood pressure", "arterial pressure", "systolic", "diastolic"],
-        # ... (Otros conceptos omitidos por brevedad)
-    }
-
-    nombre_lower = revista.lower()
-
-    for concepto, patrones in conceptos.items():
-        coincidencias = get_close_matches(nombre_lower, patrones, n=1, cutoff=0.3)
-        if coincidencias:
-            return concepto
-
-    if nombre_lower.startswith("bio"):
-        return "biomedicina"
-
-    return "Concepto no identificado"
 
 
 # Función para subir archivo al servidor remoto
@@ -361,8 +190,8 @@ def subir_archivo_servidor(nombre_archivo):
 
 # Función para enviar archivo al usuario
 def enviar_archivo_usuario(correo, archivo):
-    subject = "Registro de Artículos Científicos"
-    body = "Hola,\n\nAdjuntamos el archivo con los registros de artículos científicos que has proporcionado.\n\nSaludos."
+    subject = "Registro de Tutorías"
+    body = "Hola,\n\nAdjuntamos el archivo con los registros de tutorías que has proporcionado.\n\nSaludos."
 
     mensaje = MIMEMultipart()
     mensaje['From'] = EMAIL_USER
@@ -388,8 +217,10 @@ def enviar_archivo_usuario(correo, archivo):
         st.error(f"Error al enviar el archivo: {e}")
 
 
-def ejecutar_nuevos():
-    st.title("Captura de Artículos")
+def interfaz_principal():
+    # Mostrar el logo y título
+    st.image("escudo_COLOR.jpg", width=150)
+    st.title("Registro de Tutorías")
 
     if not st.session_state.validado:
         # Solicitar número económico
@@ -435,46 +266,40 @@ def ejecutar_nuevos():
         st.write(f"Número Económico: {numero_economico}")
         st.write(f"Correo Electrónico: {correo}")
 
-        st.header("Captura de Datos del Artículo")
+        st.header("Captura de Datos de la Tutoría")
 
-        # Campos para ingresar datos del artículo
-        autores = st.text_input("Lista de Coautores:", value="", key="autores")
-        titulo = st.text_input("Título del Artículo:", value="", key="titulo")
-        anio = st.text_input("Año de Publicación:", value="", key="anio")
-        revista = st.text_input("Nombre de la Revista:", value="", key="revista")
-        numerovolumen = st.text_input("Número y Volumen:", value="", key="numerovolumen")
-        paginas = st.text_input("Páginas:", value="", key="paginas")
-        doi = st.text_input("DOI:", value="", key="doi")
+        # Campos para ingresar datos de la tutoría
+        autores = st.text_input("Tutor principal:", value="", key="autores")
+        tesista = st.text_input("Tesista:", value="", key="tesista")
+        titulo = st.text_input("Título:", value="", key="titulo")
+        grado = st.selectbox(
+            "Grado académico:",
+            ["Especialidad", "Licenciatura", "Maestría", "Doctorado"],
+            key="grado"
+        )
+        tipo_tutoria = st.selectbox(
+            "Tipo de Tutoría:",
+            ["TE", "TL", "TM", "TD"],
+            key="tipo_tutoria"
+        )
 
         # Botón para mostrar el registro antes de guardarlo
         if st.button("Mostrar Registro antes de Guardar"):
-            if all([autores, titulo, anio, revista, numerovolumen, paginas, doi]):
-                grupo = buscar_revista(revista, "CopyofImpactFactor2024.xlsx")
-                concepto_central = extraer_concepto_central(revista)
-                nuevo_registro = f"{autores} | {titulo} | {anio} | {revista} | {numerovolumen} | {paginas} | DOI: {doi} | {grupo} | {concepto_central}\n"
+            if all([autores, titulo, tesista, grado, tipo_tutoria]):
+                nuevo_registro = f"{autores} | {tesista} | {titulo} | {grado} | {tipo_tutoria}\n"
+
+                # Mostrar el registro generado
                 st.write("Este es el registro que se enviará:")
                 st.text(nuevo_registro)
 
-                # Opciones para grabar o no grabar
-                grabar = st.radio("¿Deseas guardar este registro?", ("Sí", "No"))
-
-                if grabar == "Sí":
-                    st.session_state.datos_articulos.append(nuevo_registro)
-                    # Guardar el registro en un archivo local nombrado con el número económico
-                    archivo_local = guardar_datos(numero_economico, [nuevo_registro])
-                    if archivo_local:
-                        st.success(f"Registro guardado en el archivo local: {archivo_local}")
-                else:
-                    st.info("El registro no ha sido guardado.")
-
-                # Nueva opción para enviar el registro por correo
+                # Opciones para enviar el registro por correo
                 enviar_por_correo = st.radio("¿Deseas enviar este registro por correo?", ("Sí", "No"))
 
                 if enviar_por_correo == "Sí":
                     if correo:
                         # Enviar el registro por correo
-                        subject = "Confirmación de Registro"
-                        body = f"Hola {nombres},\n\nEl registro de tu artículo es el siguiente:\n\n{nuevo_registro}\n\nGracias por tu colaboración."
+                        subject = "Confirmación de Registro de Tutoría"
+                        body = f"Hola {nombres},\n\nEl registro de tu tutoría es el siguiente:\n\n{nuevo_registro}\n\nGracias por tu colaboración."
                         mensaje = MIMEMultipart()
                         mensaje['From'] = EMAIL_USER
                         mensaje['To'] = correo
@@ -492,18 +317,39 @@ def ejecutar_nuevos():
                             st.error(f"Error al enviar el correo: {e}")
                     else:
                         st.error("No se ha encontrado un correo asociado a tu número económico.")
+
+                # Confirmación para guardar el registro
+                grabar = st.radio("¿Deseas guardar este registro?", ("Sí", "No"))
+
+                if grabar == "Sí":
+                    st.session_state.datos_articulos.append(nuevo_registro)
+                    archivo_local = guardar_datos(numero_economico, [nuevo_registro])
+                    if archivo_local:
+                        st.success(f"Registro guardado en el archivo local: {archivo_local}")
+                else:
+                    st.info("El registro no ha sido guardado.")
             else:
                 st.error("Por favor, completa todos los campos antes de mostrar el registro.")
 
         # Botón para subir los datos al servidor remoto
         if st.button("Subir Archivo al Servidor"):
             if st.session_state.datos_articulos:
-                # Generar el archivo local si aún no se ha hecho
-                archivo_local = guardar_datos(numero_economico, st.session_state.datos_articulos)
-                if archivo_local:
-                    actualizar_archivo_remoto(numero_economico, st.session_state.datos_articulos)
+                # Confirmación antes de subir al servidor
+                st.write("Verifica los datos que vas a subir al servidor:")
+                for registro in st.session_state.datos_articulos:
+                    st.text(registro)
+
+                subir = st.radio("¿Deseas subir estos datos al servidor?", ("Sí", "No"))
+                if subir == "Sí":
+                    # Generar el archivo local si aún no se ha hecho
+                    archivo_local = guardar_datos(numero_economico, st.session_state.datos_articulos)
+                    if archivo_local:
+                        actualizar_archivo_remoto(numero_economico, st.session_state.datos_articulos)
+                        st.success("Los datos se han subido al servidor correctamente.")
+                    else:
+                        st.error("No se pudo generar el archivo local para la subida.")
                 else:
-                    st.error("No se pudo generar el archivo local para la subida.")
+                    st.info("La subida al servidor ha sido cancelada.")
             else:
                 st.error("No hay datos para subir al servidor.")
 
@@ -516,3 +362,13 @@ def ejecutar_nuevos():
 
         if st.button("Cerrar Sesión."):
             st.write("Gracias por usar la aplicación. Hasta luego.")
+
+
+
+def main():
+    interfaz_principal()
+
+if __name__ == "__main__":
+    main()
+
+

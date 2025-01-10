@@ -264,9 +264,9 @@ def ejecutar_tutorias():
         st.write(f"Número Económico: {numero_economico}")
         st.write(f"Correo Electrónico: {correo}")
 
-        st.header("Captura de Datos del Artículo")
+        st.header("Captura de Datos de la Tutoría")
 
-        # Campos para ingresar datos del artículo
+        # Campos para ingresar datos de la tutoría
         autores = st.text_input("Tutor principal:", value="", key="autores")
         tesista = st.text_input("Tesista:", value="", key="tesista")
         titulo = st.text_input("Título:", value="", key="titulo")
@@ -281,40 +281,73 @@ def ejecutar_tutorias():
             key="tipo_tutoria"
         )
 
-        # Botón para guardar los datos del artículo
-        if st.button("Guardar Datos del Artículo"):
+        # Botón para mostrar el registro antes de guardarlo
+        if st.button("Mostrar Registro antes de Guardar"):
             if all([autores, titulo, tesista, grado, tipo_tutoria]):
                 nuevo_registro = f"{autores} | {tesista} | {titulo} | {grado} | {tipo_tutoria}\n"
 
-                # Confirmación para aceptar o rechazar el registro
-                st.write("Verifica los datos ingresados:")
-                st.write(f"Tutor principal: {autores}")
-                st.write(f"Tesista: {tesista}")
-                st.write(f"Título: {titulo}")
-                st.write(f"Grado académico: {grado}")
-                st.write(f"Tipo de Tutoría: {tipo_tutoria}")
+                # Mostrar el registro generado
+                st.write("Este es el registro que se enviará:")
+                st.text(nuevo_registro)
 
-                aceptar_registro = st.radio("¿Deseas aceptar este registro?", ("Aceptar", "Rechazar"), key="aceptar_registro")
+                # Opciones para enviar el registro por correo
+                enviar_por_correo = st.radio("¿Deseas enviar este registro por correo?", ("Sí", "No"))
 
-                if aceptar_registro == "Aceptar":
+                if enviar_por_correo == "Sí":
+                    if correo:
+                        # Enviar el registro por correo
+                        subject = "Confirmación de Registro de Tutoría"
+                        body = f"Hola {nombres},\n\nEl registro de tu tutoría es el siguiente:\n\n{nuevo_registro}\n\nGracias por tu colaboración."
+                        mensaje = MIMEMultipart()
+                        mensaje['From'] = EMAIL_USER
+                        mensaje['To'] = correo
+                        mensaje['Subject'] = subject
+                        mensaje.attach(MIMEText(body, 'plain'))
+
+                        try:
+                            context = ssl.create_default_context()
+                            with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
+                                server.starttls(context=context)
+                                server.login(EMAIL_USER, EMAIL_PASSWORD)
+                                server.sendmail(EMAIL_USER, correo, mensaje.as_string())
+                            st.success(f"Se ha enviado el registro al correo {correo}.")
+                        except Exception as e:
+                            st.error(f"Error al enviar el correo: {e}")
+                    else:
+                        st.error("No se ha encontrado un correo asociado a tu número económico.")
+
+                # Confirmación para guardar el registro
+                grabar = st.radio("¿Deseas guardar este registro?", ("Sí", "No"))
+
+                if grabar == "Sí":
                     st.session_state.datos_articulos.append(nuevo_registro)
                     archivo_local = guardar_datos(numero_economico, [nuevo_registro])
                     if archivo_local:
-                        st.success(f"Registro aceptado y guardado en el archivo local: {archivo_local}")
+                        st.success(f"Registro guardado en el archivo local: {archivo_local}")
                 else:
-                    st.warning("El registro ha sido rechazado y no se guardará.")
+                    st.info("El registro no ha sido guardado.")
             else:
-                st.error("Por favor, completa todos los campos antes de guardar.")
+                st.error("Por favor, completa todos los campos antes de mostrar el registro.")
 
         # Botón para subir los datos al servidor remoto
         if st.button("Subir Archivo al Servidor"):
             if st.session_state.datos_articulos:
-                # Generar el archivo local si aún no se ha hecho
-                archivo_local = guardar_datos(numero_economico, st.session_state.datos_articulos)
-                if archivo_local:
-                    actualizar_archivo_remoto(numero_economico, st.session_state.datos_articulos)
+                # Confirmación antes de subir al servidor
+                st.write("Verifica los datos que vas a subir al servidor:")
+                for registro in st.session_state.datos_articulos:
+                    st.text(registro)
+
+                subir = st.radio("¿Deseas subir estos datos al servidor?", ("Sí", "No"))
+                if subir == "Sí":
+                    # Generar el archivo local si aún no se ha hecho
+                    archivo_local = guardar_datos(numero_economico, st.session_state.datos_articulos)
+                    if archivo_local:
+                        actualizar_archivo_remoto(numero_economico, st.session_state.datos_articulos)
+                        st.success("Los datos se han subido al servidor correctamente.")
+                    else:
+                        st.error("No se pudo generar el archivo local para la subida.")
                 else:
-                    st.error("No se pudo generar el archivo local para la subida.")
+                    st.info("La subida al servidor ha sido cancelada.")
             else:
                 st.error("No hay datos para subir al servidor.")
 
