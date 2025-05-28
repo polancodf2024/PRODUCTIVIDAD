@@ -1,12 +1,7 @@
-# Dependencias principales (obligatorias)
-streamlit==1.32.2     # Versión estable de Streamlit
-pandas==2.2.1         # Versión compatible con Python 3.13+ (soporta Excel/CSV)
-openpyxl==3.1.2       # Lectura/escritura de .xlsx (imprescindible)
-
-# Dependencias secundarias (automáticas con pandas, pero explicitamos versiones)
-numpy==1.26.0         # Requerido por pandas
-python-dateutil==2.9.0 # Manejo de fechas
-
-# Opcionales (solo si los usas)
-xlrd==2.0.0           # Para leer .xls (antiguo formato Excel)
-xlsxwriter==3.2.0     # Para exportar .xlsx con formatos complejos
+streamlit==1.32.2
+pandas==2.1.4
+openpyxl==3.1.2
+numpy==1.24.0
+python-dateutil==2.9.0
+xlrd==2.0.0           # Para .xls (opcional)
+xlsxwriter==3.2.0     # Para exportar con formatos (opcional)
