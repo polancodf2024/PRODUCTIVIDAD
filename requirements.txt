@@ -1,3 +1,9 @@
 streamlit==1.32.2
-pandas>=2.1.4
-numpy>=1.26.0,<2
+pandas==2.1.4
+numpy==1.26.4
+requests==2.31.0
+pytz==2023.3
+paramiko==3.3.1
+python-dotenv==1.0.1
+openpyxl==3.1.2  # Necesario para leer archivos Excel (.xlsx)
+xlrd==2.0.1      # Para soporte de formatos .xls más antiguos
