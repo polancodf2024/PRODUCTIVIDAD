@@ -520,7 +520,7 @@ def main():
         key="keywords"
     )
     if len(selected_categories) < CONFIG.MAX_KEYWORDS:
-        st.warning(f"Se recomiendan {CONFIG.MAX_KEYWORDS} palabras clave (seleccionadas: {len(selected_categories)})")
+        st.warning(f"Seleccione {CONFIG.MAX_KEYWORDS} palabras clave (seleccionadas: {len(selected_categories)})")
 
     # Resumen del registro
     st.subheader("📋 Resumen del registro")

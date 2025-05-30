@@ -28,7 +28,7 @@ class Config:
         self.EMAIL_PASSWORD = st.secrets.get("email_password")
         self.NOTIFICATION_EMAIL = st.secrets.get("notification_email")
         self.CSV_FILENAME = "manual.csv"
-        self.REMOTE_PRODUCTOS_FILE = st.secrets.get("remote_manual", "manual.csv")
+        self.REMOTE_PRODUCTOS_FILE = st.secrets.get("remote_manual")
         self.TIMEOUT_SECONDS = 30
         self.MAX_KEYWORDS = 3
         self.HIGHLIGHT_COLOR = "#90EE90"
