@@ -9,6 +9,7 @@ import paramiko
 import time
 import os
 import logging
+from PIL import Image
 
 # Configuración de logging mejorada
 logging.basicConfig(
@@ -31,6 +32,7 @@ class Config:
         self.CSV_PRODUCTOS_FILE = "productos.csv"
         self.REMOTE_PRODUCTOS_FILE = st.secrets.get("remote_productos")
         self.TIMEOUT_SECONDS = 30
+        self.LOGO_PATH = "escudo_COLOR.jpg"        
         
         self.REMOTE = {
             'HOST': st.secrets.get("remote_host"),
@@ -619,6 +621,11 @@ def main():
         page_icon="📊",
         layout="centered"
     )
+
+    # Mostrar logo si existe
+    if Path(CONFIG.LOGO_PATH).exists():
+        logo = Image.open(CONFIG.LOGO_PATH)
+        st.image(logo, width=200)
 
     st.title("📊 Artículos en PubMed")
     

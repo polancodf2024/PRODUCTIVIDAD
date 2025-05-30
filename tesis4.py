@@ -11,11 +11,88 @@ from PIL import Image
 
 # Configuración de logging mejorada
 logging.basicConfig(
-    filename='manual.log',
+    filename='tesis.log',
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
     datefmt='%Y-%m-%d %H:%M:%S'
 )
+
+# ====================
+# CATEGORÍAS DE KEYWORDS
+# ====================
+KEYWORD_CATEGORIES = {
+    "Accidente Cerebrovascular": ["accidente cerebrovascular", "acv", "ictus", "stroke"],
+    "Alzheimer": ["alzheimer", "demencia", "enfermedad neurodegenerativa"],
+    "Arritmias": [
+        "arritmia", "fibrilación auricular", "fa", "flutter auricular",
+        "taquicardia ventricular", "tv", "fibrilación ventricular", "fv",
+        "bradicardia", "bloqueo auriculoventricular", "síndrome de brugada",
+        "síndrome de qt largo", "marcapasos", "desfibrilador automático"
+    ],
+    "Bioinformática": ["bioinformática", "genómica computacional", "análisis de secuencias", "biología de sistemas"],
+    "Bioquímica": ["bioquímica", "metabolismo", "enzimas", "rutas metabólicas"],
+    "Biología Molecular": ["adn", "arn", "transcripción", "replicación"],
+    "Biomarcadores Cardíacos": [
+        "troponina", "nt-probnp", "bnp", "ck-mb", "lactato deshidrogenasa",
+        "mioglobina", "péptidos natriuréticos"
+    ],
+    "Biotecnología": ["biotecnología", "terapia génica", "crispr", "organismos modificados genéticamente"],
+    "Cáncer de Mama": ["cáncer de mama", "tumor mamario", "neoplasia mamaria"],
+    "Cardiología Pediátrica": [
+        "cardiopatía congénita", "comunicación interauricular", "cia",
+        "comunicación interventricular", "civ", "tetralogía de fallot",
+        "transposición grandes vasos", "ductus arterioso persistente"
+    ],
+    "Cardiomiopatías": [
+        "cardiomiopatía", "miocardiopatía", "cardiomiopatía hipertrófica", "hcm",
+        "cardiomiopatía dilatada", "dcm", "cardiomiopatía restrictiva",
+        "displasia arritmogénica", "miocardiopatía no compactada", "amiloidosis cardíaca"
+    ],
+    "Endocrinología": ["diabetes", "tiroides", "hormonas", "metabolismo"],
+    "Enfermedad Vascular Periférica": [
+        "enfermedad arterial periférica", "eap", "claudicación intermitente",
+        "índice tobillo-brazo", "isquemia crítica", "arteriopatía obliterante"
+    ],
+    "Epidemiología": ["epidemiología", "estudios poblacionales", "incidencia", "prevalencia"],
+    "Epilepsia": ["epilepsia", "crisis epiléptica", "convulsiones"],
+    "Farmacología": ["farmacología", "fármacos", "dosis-respuesta", "toxicidad"],
+    "Gastroenterología": ["colon", "hígado", "páncreas", "enfermedad inflamatoria intestinal"],
+    "Genética": ["genética", "mutaciones", "genoma humano", "síndromes genéticos"],
+    "Hipertensión y Riesgo Cardiovascular": [
+        "hipertensión arterial", "hta", "hipertensión pulmonar",
+        "crisis hipertensiva", "mapa", "monitorización ambulatoria",
+        "riesgo cardiovascular", "score framingham", "ascvd"
+    ],
+    "Inmunología": ["autoinmunidad", "inmunodeficiencia", "alergias", "linfocitos"],
+    "Inmunoterapia": ["inmunoterapia", "terapia car-t", "checkpoint inmunológico"],
+    "Insuficiencia Cardíaca": [
+        "insuficiencia cardíaca", "ic", "fallo cardíaco", "disfunción ventricular",
+        "icfe", "icfd", "fracción de eyección reducida", "fracción de eyección preservada",
+        "nyha clase ii", "nyha clase iii", "edema pulmonar", "congestión venosa"
+    ],
+    "Investigación Clínica": ["ensayo clínico", "randomizado", "estudio de cohorte", "fase iii"],
+    "Leucemia": ["leucemia", "leucemias agudas", "leucemia mieloide"],
+    "Microbiología": ["microbiología", "bacterias", "virus", "antimicrobianos"],
+    "Nefrología": ["insuficiencia renal", "glomerulonefritis", "diálisis"],
+    "Neumología": ["asma", "epoc", "fibrosis pulmonar", "síndrome de apnea del sueño"],
+    "Neurociencia": ["neurociencia", "plasticidad neuronal", "sinapsis", "neurodegeneración"],
+    "Oncología Molecular": ["oncología molecular", "mutaciones tumorales", "biomarcadores cáncer"],
+    "Procedimientos Cardiológicos": [
+        "cateterismo cardíaco", "angioplastia", "stent coronario",
+        "bypass coronario", "cabg", "ecocardiograma", "eco stress",
+        "resonancia cardíaca", "prueba de esfuerzo", "holter"
+    ],
+    "Síndrome Coronario Agudo": [
+        "síndrome coronario agudo", "sca", "infarto agudo de miocardio", "iam",
+        "iamcest", "iamnest", "angina inestable", "troponina elevada",
+        "oclusión coronaria", "elevación st", "depresión st"
+    ],
+    "Valvulopatías": [
+        "valvulopatía", "estenosis aórtica", "insuficiencia aórtica",
+        "estenosis mitral", "insuficiencia mitral", "prolapso mitral",
+        "tavi", "taavi", "anillo mitral", "reemplazo valvular"
+    ],
+}
 
 # ====================
 # CONFIGURACIÓN INICIAL
@@ -27,8 +104,8 @@ class Config:
         self.EMAIL_USER = st.secrets.get("email_user")
         self.EMAIL_PASSWORD = st.secrets.get("email_password")
         self.NOTIFICATION_EMAIL = st.secrets.get("notification_email")
-        self.CSV_FILENAME = "manual.csv"
-        self.REMOTE_PRODUCTOS_FILE = st.secrets.get("remote_manual", "manual.csv")
+        self.CSV_FILENAME = "tesis.csv"
+        self.REMOTE_PRODUCTOS_FILE = st.secrets.get("remote_tesis", "tesis.csv")
         self.TIMEOUT_SECONDS = 30
         self.MAX_KEYWORDS = 3
         self.HIGHLIGHT_COLOR = "#90EE90"
@@ -44,84 +121,8 @@ class Config:
 
 CONFIG = Config()
 
-# ====================
-# CATEGORÍAS DE KEYWORDS
-# ====================
-KEYWORD_CATEGORIES = {
-    "Accidente Cerebrovascular": ["accidente cerebrovascular", "acv", "ictus", "stroke"],
-    "Alzheimer": ["alzheimer", "demencia", "enfermedad neurodegenerativa"],
-    "Arritmias": [
-        "arritmia", "fibrilación auricular", "fa", "flutter auricular", 
-        "taquicardia ventricular", "tv", "fibrilación ventricular", "fv",
-        "bradicardia", "bloqueo auriculoventricular", "síndrome de brugada", 
-        "síndrome de qt largo", "marcapasos", "desfibrilador automático"
-    ],
-    "Bioinformática": ["bioinformática", "genómica computacional", "análisis de secuencias", "biología de sistemas"],
-    "Bioquímica": ["bioquímica", "metabolismo", "enzimas", "rutas metabólicas"],
-    "Biología Molecular": ["adn", "arn", "transcripción", "replicación"],
-    "Biomarcadores Cardíacos": [
-        "troponina", "nt-probnp", "bnp", "ck-mb", "lactato deshidrogenasa", 
-        "mioglobina", "péptidos natriuréticos"
-    ],
-    "Biotecnología": ["biotecnología", "terapia génica", "crispr", "organismos modificados genéticamente"],
-    "Cáncer de Mama": ["cáncer de mama", "tumor mamario", "neoplasia mamaria"],
-    "Cardiología Pediátrica": [
-        "cardiopatía congénita", "comunicación interauricular", "cia", 
-        "comunicación interventricular", "civ", "tetralogía de fallot", 
-        "transposición grandes vasos", "ductus arterioso persistente"
-    ],
-    "Cardiomiopatías": [
-        "cardiomiopatía", "miocardiopatía", "cardiomiopatía hipertrófica", "hcm", 
-        "cardiomiopatía dilatada", "dcm", "cardiomiopatía restrictiva", 
-        "displasia arritmogénica", "miocardiopatía no compactada", "amiloidosis cardíaca"
-    ],
-    "Endocrinología": ["diabetes", "tiroides", "hormonas", "metabolismo"],
-    "Enfermedad Vascular Periférica": [
-        "enfermedad arterial periférica", "eap", "claudicación intermitente", 
-        "índice tobillo-brazo", "isquemia crítica", "arteriopatía obliterante"
-    ],
-    "Epidemiología": ["epidemiología", "estudios poblacionales", "incidencia", "prevalencia"],
-    "Epilepsia": ["epilepsia", "crisis epiléptica", "convulsiones"],
-    "Farmacología": ["farmacología", "fármacos", "dosis-respuesta", "toxicidad"],
-    "Gastroenterología": ["colon", "hígado", "páncreas", "enfermedad inflamatoria intestinal"],
-    "Genética": ["genética", "mutaciones", "genoma humano", "síndromes genéticos"],
-    "Hipertensión y Riesgo Cardiovascular": [
-        "hipertensión arterial", "hta", "hipertensión pulmonar", 
-        "crisis hipertensiva", "mapa", "monitorización ambulatoria", 
-        "riesgo cardiovascular", "score framingham", "ascvd"
-    ],
-    "Inmunología": ["autoinmunidad", "inmunodeficiencia", "alergias", "linfocitos"],
-    "Inmunoterapia": ["inmunoterapia", "terapia car-t", "checkpoint inmunológico"],
-    "Insuficiencia Cardíaca": [
-        "insuficiencia cardíaca", "ic", "fallo cardíaco", "disfunción ventricular", 
-        "icfe", "icfd", "fracción de eyección reducida", "fracción de eyección preservada",
-        "nyha clase ii", "nyha clase iii", "edema pulmonar", "congestión venosa"
-    ],
-    "Investigación Clínica": ["ensayo clínico", "randomizado", "estudio de cohorte", "fase iii"],
-    "Leucemia": ["leucemia", "leucemias agudas", "leucemia mieloide"],
-    "Microbiología": ["microbiología", "bacterias", "virus", "antimicrobianos"],
-    "Nefrología": ["insuficiencia renal", "glomerulonefritis", "diálisis"],
-    "Neumología": ["asma", "epoc", "fibrosis pulmonar", "síndrome de apnea del sueño"],
-    "Neurociencia": ["neurociencia", "plasticidad neuronal", "sinapsis", "neurodegeneración"],
-    "Oncología Molecular": ["oncología molecular", "mutaciones tumorales", "biomarcadores cáncer"],
-    "Procedimientos Cardiológicos": [
-        "cateterismo cardíaco", "angioplastia", "stent coronario", 
-        "bypass coronario", "cabg", "ecocardiograma", "eco stress", 
-        "resonancia cardíaca", "prueba de esfuerzo", "holter"
-    ],
-    "Síndrome Coronario Agudo": [
-        "síndrome coronario agudo", "sca", "infarto agudo de miocardio", "iam", 
-        "iamcest", "iamnest", "angina inestable", "troponina elevada", 
-        "oclusión coronaria", "elevación st", "depresión st"
-    ],
-    "Valvulopatías": [
-        "valvulopatía", "estenosis aórtica", "insuficiencia aórtica", 
-        "estenosis mitral", "insuficiencia mitral", "prolapso mitral", 
-        "tavi", "taavi", "anillo mitral", "reemplazo valvular"
-    ],
-}
 # ==================
-# CLASE SSH MEJORADA (copiada exactamente igual de productividad28.py)
+# CLASE SSH MANAGER
 # ==================
 class SSHManager:
     MAX_RETRIES = 3
@@ -179,10 +180,9 @@ class SSHManager:
                     except FileNotFoundError:
                         # Crear archivo local con estructura correcta
                         columns = [
-                            'economic_number', 'participation_key', 'investigator_name',
-                            'corresponding_author', 'coauthors', 'article_title', 'year',
-                            'pub_date', 'volume', 'number', 'pages', 'journal_full',
-                            'journal_abbrev', 'doi', 'jcr_group', 'pmid', 'selected_keywords'
+                            'economic_number', 'titulo_tesis', 'tipo_tesis', 'year',
+                            'pub_date', 'departamento', 'directores', 'paginas',
+                            'idioma', 'estudiante', 'coautores', 'selected_keywords'
                         ]
                         pd.DataFrame(columns=columns).to_csv(local_path, index=False)
                         logging.info(f"Archivo remoto no encontrado, creado local con estructura: {local_path}")
@@ -248,29 +248,7 @@ class SSHManager:
 # ====================
 # FUNCIONES PRINCIPALES
 # ====================
-def determinar_grupo(jif5years):
-    """Determina el grupo de impacto de la revista"""
-    if pd.isna(jif5years):
-        return "Grupo 1 (sin factor de impacto)"
-    try:
-        jif = float(jif5years)
-        if jif <= 0.9:
-            return "Grupo 2 (FI ≤ 0.9)"
-        elif jif <= 2.99:
-            return "Grupo 3 (FI 1-2.99)"
-        elif jif <= 5.99:
-            return "Grupo 4 (FI 3-5.99)"
-        elif jif <= 8.99:
-            return "Grupo 5 (FI 6-8.99)"
-        elif jif <= 11.99:
-            return "Grupo 6 (FI 9-11.99)"
-        else:
-            return "Grupo 7 (FI ≥ 12)"
-    except ValueError:
-        return "Grupo 1 (sin factor de impacto)"
-
 def highlight_author(author: str, investigator_name: str) -> str:
-    """Resalta el nombre del investigador principal"""
     if investigator_name and investigator_name.lower() == author.lower():
         return f"<span style='background-color: {CONFIG.HIGHLIGHT_COLOR};'>{author}</span>"
     return author
@@ -287,10 +265,9 @@ def sync_with_remote():
         if not download_success:
             # Si no existe el archivo remoto, crea uno local con estructura correcta
             columns = [
-                'economic_number', 'participation_key', 'investigator_name',
-                'corresponding_author', 'coauthors', 'article_title', 'year',
-                'pub_date', 'volume', 'number', 'pages', 'journal_full',
-                'journal_abbrev', 'doi', 'jcr_group', 'pmid', 'selected_keywords'
+                'economic_number', 'titulo_tesis', 'tipo_tesis', 'year',
+                'pub_date', 'departamento', 'directores', 'paginas',
+                'idioma', 'estudiante', 'coautores', 'selected_keywords'
             ]
 
             # Verifica si el archivo local ya existe
@@ -316,10 +293,9 @@ def sync_with_remote():
         except pd.errors.EmptyDataError:
             st.warning("El archivo remoto está vacío o corrupto")
             columns = [
-                'economic_number', 'participation_key', 'investigator_name',
-                'corresponding_author', 'coauthors', 'article_title', 'year',
-                'pub_date', 'volume', 'number', 'pages', 'journal_full',
-                'journal_abbrev', 'doi', 'jcr_group', 'pmid', 'selected_keywords'
+                'economic_number', 'titulo_tesis', 'tipo_tesis', 'year',
+                'pub_date', 'departamento', 'directores', 'paginas',
+                'idioma', 'estudiante', 'coautores', 'selected_keywords'
             ]
             pd.DataFrame(columns=columns).to_csv(CONFIG.CSV_FILENAME, index=False)
             return False
@@ -340,10 +316,9 @@ def save_to_csv(data: dict):
                 st.warning("⚠️ Trabajando con copia local debido a problemas de conexión")
 
         columns = [
-            'economic_number', 'participation_key', 'investigator_name',
-            'corresponding_author', 'coauthors', 'article_title', 'year',
-            'pub_date', 'volume', 'number', 'pages', 'journal_full',
-            'journal_abbrev', 'doi', 'jcr_group', 'pmid', 'selected_keywords'
+            'economic_number', 'titulo_tesis', 'tipo_tesis', 'year',
+            'pub_date', 'departamento', 'directores', 'paginas',
+            'idioma', 'estudiante', 'coautores', 'selected_keywords'
         ]
 
         # Verificar si el archivo existe y tiene contenido válido
@@ -405,28 +380,10 @@ def save_to_csv(data: dict):
         logging.error(f"Save CSV Error: {str(e)}")
         return False
 
-def display_author_info(data, investigator_name):
-    """Muestra información de autores con formato"""
-    st.markdown("**Autores**")
-    st.markdown(f"📌 Correspondencia: {highlight_author(data['corresponding_author'], investigator_name)}", unsafe_allow_html=True)
-    if data['coauthors']:
-        st.markdown("👥 Coautores:")
-        for author in data['coauthors'].split("; "):
-            st.markdown(f"- {highlight_author(author, investigator_name)}", unsafe_allow_html=True)
-
-def display_publication_info(data):
-    """Muestra detalles de la publicación"""
-    st.markdown("**Detalles de publicación**")
-    st.write(f"📅 Año: {data['year']}")
-    st.write(f"**📅 Fecha de publicación:**  \n`{data['pub_date']}`")
-    st.write(f"📚 Vol/Núm: {data['volume']}/{data['number']}")
-    st.write(f"🔖 Páginas: {data['pages']}")
-    st.write(f"🌐 DOI: {data['doi'] or 'No disponible'}")
-
 def main():
     st.set_page_config(
-        page_title="Artículos no en PubMed",
-        page_icon="📝",
+        page_title="Captura Tesis",
+        page_icon="📚",
         layout="centered"
     )
 
@@ -435,7 +392,7 @@ def main():
         logo = Image.open(CONFIG.LOGO_PATH)
         st.image(logo, width=200)
 
-    st.title("📝 Artículos  no en PubMed")
+    st.title("📚 Captura Tesis")
     
     # Sincronización inicial
     with st.spinner("Conectando con el servidor remoto..."):
@@ -459,16 +416,16 @@ def main():
     try:
         if not Path(CONFIG.CSV_FILENAME).exists():
             pd.DataFrame().to_csv(CONFIG.CSV_FILENAME, index=False)
-            manual_df = pd.DataFrame()
+            tesis_df = pd.DataFrame()
         else:
-            manual_df = pd.read_csv(CONFIG.CSV_FILENAME, encoding='utf-8-sig', dtype={'economic_number': str})
-            manual_df['economic_number'] = manual_df['economic_number'].astype(str).str.strip()
+            tesis_df = pd.read_csv(CONFIG.CSV_FILENAME, encoding='utf-8-sig', dtype={'economic_number': str})
+            tesis_df['economic_number'] = tesis_df['economic_number'].astype(str).str.strip()
 
-        filtered_records = manual_df[manual_df['economic_number'] == economic_number]
+        filtered_records = tesis_df[tesis_df['economic_number'] == economic_number]
 
         if not filtered_records.empty:
-            st.subheader(f"📋 Registros existentes para {economic_number}")
-            st.dataframe(filtered_records[['article_title', 'journal_full']], hide_index=True)
+            st.subheader(f"📋 Tesis registradas para {economic_number}")
+            st.dataframe(filtered_records[['titulo_tesis', 'tipo_tesis', 'year']], hide_index=True)
         
         if st.radio("¿Desea añadir un nuevo registro?", ["No", "Sí"], index=0) == "No":
             return
@@ -476,105 +433,74 @@ def main():
         st.error(f"❌ Error al leer {CONFIG.CSV_FILENAME}: {str(e)}")
         logging.error(f"CSV Read Error: {str(e)}")
 
-    st.subheader("📝 Información del artículo")
+    st.subheader("📝 Información de la tesis")
     
-    # Campos de entrada manual
-    article_title = st.text_area("📄 Título del artículo:", height=100)
-    year = st.text_input("📅 Año de publicación:")
-    pub_date = st.text_input("🗓️ Fecha completa de publicación (YYYY-MM-DD):", help="Formato: AAAA-MM-DD")
-    volume = st.text_input("📚 Volumen (ej 79(3), volumen = 79")
-    number = st.text_input("# Número (ej 79(3), número = 3)")
-    pages = st.text_input("🔖 Páginas (ej. 123-130):")
-    journal_full = st.text_input("🏛️ Nombre completo de la revista:")
-    journal_abbrev = st.text_input("🏷️ Abreviatura de la revista:")
-    jcr_group = st.selectbox(
-        "🏆 Grupo JCR:",
-        options=[
-            "Grupo 1 (sin factor de impacto)",
-            "Grupo 2 (FI ≤ 0.9)",
-            "Grupo 3 (FI 1-2.99)",
-            "Grupo 4 (FI 3-5.99)",
-            "Grupo 5 (FI 6-8.99)",
-            "Grupo 6 (FI 9-11.99)",
-            "Grupo 7 (FI ≥ 12)",
-            "Grupo no determinado"
-        ],
-        index=0
+    # Campos de entrada manual para tesis
+    titulo_tesis = st.text_area("📄 Título de la tesis:", height=100, key="titulo_tesis")
+    tipo_tesis = st.selectbox(
+        "🎓 Tipo de tesis:",
+        options=["Licenciatura", "Maestría", "Doctorado"],
+        index=0,
+        key="tipo_tesis"
     )
-    doi = st.text_input("🌐 DOI:")
-    pmid = st.text_input("🔍 PMID (opcional):")
-    corresponding_author = st.text_input("📌 Autor de correspondencia:")
-    coauthors = st.text_area("👥 Coautores (separados por punto y coma ';'):", help="Ejemplo: Autor1; Autor2; Autor3")
+    year = st.text_input("📅 Año de publicación:", key="year")
+    pub_date = st.text_input("🗓️ Fecha completa de publicación (YYYY-MM-DD):", help="Formato: AAAA-MM-DD", key="pub_date")
+    departamento = st.text_input("🏛️ Departamento (INCICh):", key="departamento")
+    directores = st.text_input("👨‍🏫 Director(es) de tesis (separados por ';'):", key="directores")
+    paginas = st.text_input("🔖 Número de páginas:", key="paginas")
+    idioma = st.text_input("🌐 Idioma principal:", key="idioma")
+    estudiante = st.text_input("👤 Nombre completo del estudiante:", key="estudiante")
+    coautores = st.text_area("👥 Coautores (si aplica, separados por ';'):", key="coautores")
     
-    # Palabras clave
-    st.subheader("🔑 Palabras clave")
+    # Sección de palabras clave
+    st.header("🔍 Palabras clave")
+    st.markdown(f"Seleccione {CONFIG.MAX_KEYWORDS} palabras clave relevantes:")
+    all_categories = list(KEYWORD_CATEGORIES.keys())
     selected_categories = st.multiselect(
-        f"Seleccione {CONFIG.MAX_KEYWORDS} palabras clave:",
-        options=list(KEYWORD_CATEGORIES.keys()),
+        "Palabras clave:",
+        options=all_categories,
         default=[],
-        max_selections=CONFIG.MAX_KEYWORDS
+        max_selections=CONFIG.MAX_KEYWORDS,
+        key="keywords"
     )
-    
     if len(selected_categories) < CONFIG.MAX_KEYWORDS:
-        st.error(f"Debe seleccionar exactamente {CONFIG.MAX_KEYWORDS} palabras clave")
-        return
-
-    # Verificación de autoría
-    st.subheader("👤 Verificación de autoría")
-    authors_list = []
-    if corresponding_author:
-        authors_list.append(corresponding_author)
-    if coauthors:
-        authors_list.extend([author.strip() for author in coauthors.split(";") if author.strip()])
-
-    if not authors_list:
-        st.error("Debe ingresar al menos un autor")
-        return
-    
-    investigator_name = st.selectbox("Seleccione su nombre como aparece en la publicación:", authors_list)
-    participation_key = "CA" if investigator_name == corresponding_author else f"{authors_list.index(investigator_name)}C"
+        st.warning(f"Se recomiendan {CONFIG.MAX_KEYWORDS} palabras clave (seleccionadas: {len(selected_categories)})")
 
     # Resumen del registro
     st.subheader("📋 Resumen del registro")
-    st.markdown("**Información del artículo**")
-    st.write(f"📄 Título: {article_title}")
+    st.markdown("**Información de la tesis**")
+    st.write(f"📄 Título: {titulo_tesis}")
+    st.write(f"🎓 Tipo: {tipo_tesis}")
     st.write(f"📅 Año: {year}")
-    st.write(f"🏛️ Revista: {journal_full}")
+    st.write(f"🏛️ Departamento: {departamento}")
     
     st.markdown("**Autores**")
-    st.markdown(f"📌 Correspondencia: {highlight_author(corresponding_author, investigator_name)}", unsafe_allow_html=True)
-    if coauthors:
+    st.markdown(f"👤 Estudiante: {highlight_author(estudiante, estudiante)}", unsafe_allow_html=True)
+    if coautores:
         st.markdown("👥 Coautores:")
-        for author in [a.strip() for a in coauthors.split(";") if a.strip()]:
-            st.markdown(f"- {highlight_author(author, investigator_name)}", unsafe_allow_html=True)
+        for author in [a.strip() for a in coautores.split(";") if a.strip()]:
+            st.markdown(f"- {highlight_author(author, estudiante)}", unsafe_allow_html=True)
     
     st.markdown("**Identificación**")
     st.write(f"🔢 Número económico: {economic_number}")
-    st.write(f"👤 Investigador: {investigator_name}")
-    st.write(f"🔑 Clave participación: {participation_key}")
     
     # Preparar datos para guardar
     data = {
         'economic_number': economic_number,
-        'participation_key': participation_key,
-        'investigator_name': investigator_name,
-        'corresponding_author': corresponding_author,
-        'coauthors': coauthors,
-        'article_title': article_title,
+        'titulo_tesis': titulo_tesis,
+        'tipo_tesis': tipo_tesis,
         'year': year,
         'pub_date': pub_date if pub_date else year,
-        'volume': volume,
-        'number': number,
-        'pages': pages,
-        'journal_full': journal_full,
-        'journal_abbrev': journal_abbrev,
-        'doi': doi,
-        'jcr_group': jcr_group,
-        'pmid': pmid,
+        'departamento': departamento,
+        'directores': directores,
+        'paginas': paginas,
+        'idioma': idioma,
+        'estudiante': estudiante,
+        'coautores': coautores,
         'selected_keywords': str(selected_categories[:CONFIG.MAX_KEYWORDS])
     }
     
-    if st.button("💾 Guardar registro", type="primary"):
+    if st.button("💾 Guardar registro de tesis", type="primary"):
         with st.spinner("Guardando datos..."):
             if save_to_csv(data):
                 st.balloons()
