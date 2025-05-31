@@ -1,13 +1,13 @@
 import streamlit as st
 import pandas as pd
+import csv
+from pathlib import Path
+from datetime import datetime
 import paramiko
 import time
 import os
 import logging
-from pathlib import Path
 from PIL import Image
-import fcntl
-from contextlib import contextmanager
 
 # Configuración de logging mejorada
 logging.basicConfig(
@@ -27,8 +27,7 @@ class Config:
         self.EMAIL_USER = st.secrets.get("email_user")
         self.EMAIL_PASSWORD = st.secrets.get("email_password")
         self.NOTIFICATION_EMAIL = st.secrets.get("notification_email")
-        self.CSV_FILENAME = "manual.csv"
-        self.REMOTE_PRODUCTOS_FILE = st.secrets.get("remote_manual")
+        self.CSV_PREFIX = "manual_"  # Prefijo para archivos CSV
         self.TIMEOUT_SECONDS = 30
         self.MAX_KEYWORDS = 3
         self.HIGHLIGHT_COLOR = "#90EE90"
@@ -122,360 +121,302 @@ KEYWORD_CATEGORIES = {
 }
 
 # ==================
-# GESTIÓN DE BLOQUEOS
-# ==================
-class LockManager:
-    @staticmethod
-    @contextmanager
-    def file_lock(file_path):
-        """Gestión robusta de bloqueos de archivos"""
-        lock_path = f"{file_path}.lock"
-        lock_file = None
-        try:
-            # Limpiar lock previo si existe y es viejo
-            if os.path.exists(lock_path):
-                lock_age = time.time() - os.path.getmtime(lock_path)
-                if lock_age > 300:  # 5 minutos
-                    try:
-                        os.remove(lock_path)
-                    except:
-                        pass
-
-            # Adquirir nuevo lock
-            lock_file = open(lock_path, "w")
-            fcntl.flock(lock_file, fcntl.LOCK_EX)
-            yield
-        finally:
-            # Liberar lock de forma segura
-            if lock_file is not None:
-                try:
-                    fcntl.flock(lock_file, fcntl.LOCK_UN)
-                    lock_file.close()
-                except:
-                    pass
-            if os.path.exists(lock_path):
-                try:
-                    os.remove(lock_path)
-                except:
-                    pass
-
-# ==================
-# GESTIÓN SSH MEJORADA
+# CLASE SSH MEJORADA
 # ==================
 class SSHManager:
     MAX_RETRIES = 3
-    RETRY_DELAY = 5
-    CONNECTION_TIMEOUT = 15
+    RETRY_DELAY = 5  # segundos
 
     @staticmethod
     def get_connection():
-        """Conexión SSH con verificación mejorada"""
-        ssh = None
-        last_error = None
+        """Establece conexión SSH segura con reintentos"""
+        ssh = paramiko.SSHClient()
+        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
         
         for attempt in range(SSHManager.MAX_RETRIES):
             try:
-                ssh = paramiko.SSHClient()
-                ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-                
                 ssh.connect(
                     hostname=CONFIG.REMOTE['HOST'],
                     port=CONFIG.REMOTE['PORT'],
                     username=CONFIG.REMOTE['USER'],
                     password=CONFIG.REMOTE['PASSWORD'],
-                    timeout=SSHManager.CONNECTION_TIMEOUT,
-                    banner_timeout=30,
-                    auth_timeout=30
+                    timeout=CONFIG.TIMEOUT_SECONDS
                 )
-                
-                # Verificación adicional de conexión
-                stdin, stdout, stderr = ssh.exec_command('echo "Test connection"', timeout=10)
-                if stdout.channel.recv_exit_status() != 0:
-                    raise Exception("La prueba de conexión falló")
-                
                 logging.info(f"Conexión SSH establecida (intento {attempt + 1})")
                 return ssh
-                
-            except paramiko.AuthenticationException as e:
-                last_error = f"Error de autenticación: {str(e)}"
-                logging.error(last_error)
-                break
-                
             except Exception as e:
-                last_error = str(e)
-                logging.warning(f"Intento {attempt + 1} fallido: {last_error}")
+                logging.warning(f"Intento {attempt + 1} fallido: {str(e)}")
                 if attempt < SSHManager.MAX_RETRIES - 1:
                     time.sleep(SSHManager.RETRY_DELAY)
-                if ssh:
-                    ssh.close()
-        
-        error_msg = f"Fallo al conectar via SSH: {last_error}"
-        logging.error(error_msg)
-        st.error(error_msg)
-        return None
+                else:
+                    logging.error("Fallo definitivo al conectar via SSH")
+                    st.error(f"Error de conexión SSH después de {SSHManager.MAX_RETRIES} intentos: {str(e)}")
+                    return None
 
     @staticmethod
     def verify_file_integrity(local_path, remote_path, sftp):
-        """Verificación mejorada de integridad de archivos"""
+        """Verifica que el archivo se transfirió correctamente"""
         try:
             local_size = os.path.getsize(local_path)
             remote_size = sftp.stat(remote_path).st_size
-            return local_size == remote_size and local_size > 0
+            return local_size == remote_size
         except Exception as e:
             logging.error(f"Error verificando integridad: {str(e)}")
             return False
 
     @staticmethod
     def download_remote_file(remote_path, local_path):
-        """Descarga con manejo mejorado de errores"""
-        ssh = None
+        """Descarga un archivo con verificación de integridad"""
         for attempt in range(SSHManager.MAX_RETRIES):
             ssh = SSHManager.get_connection()
             if not ssh:
                 return False
-
+                
             try:
                 with ssh.open_sftp() as sftp:
                     try:
                         sftp.stat(remote_path)
                     except FileNotFoundError:
-                        logging.info(f"Archivo remoto no encontrado: {remote_path}")
-                        return False
-
+                        # Crear archivo local con estructura correcta
+                        columns = [
+                            'economic_number', 'participation_key', 'investigator_name',
+                            'corresponding_author', 'coauthors', 'article_title', 'year',
+                            'pub_date', 'volume', 'number', 'pages', 'journal_full',
+                            'journal_abbrev', 'doi', 'jcr_group', 'pmid', 'selected_keywords',
+                            'estado'
+                        ]
+                        pd.DataFrame(columns=columns).to_csv(local_path, index=False)
+                        logging.info(f"Archivo remoto no encontrado, creado local con estructura: {local_path}")
+                        return True
+                        
                     sftp.get(remote_path, local_path)
-
+                    
                     if SSHManager.verify_file_integrity(local_path, remote_path, sftp):
                         logging.info(f"Archivo descargado correctamente: {remote_path} a {local_path}")
                         return True
-                    
-                    logging.warning(f"Error de integridad en descarga, reintentando... (intento {attempt + 1})")
-                    if attempt < SSHManager.MAX_RETRIES - 1:
-                        time.sleep(SSHManager.RETRY_DELAY)
-
+                    else:
+                        logging.warning(f"Error de integridad en descarga, reintentando... (intento {attempt + 1})")
+                        if attempt < SSHManager.MAX_RETRIES - 1:
+                            time.sleep(SSHManager.RETRY_DELAY)
+                        else:
+                            raise Exception("Fallo en verificación de integridad después de múltiples intentos")
+                            
             except Exception as e:
                 logging.error(f"Error en descarga (intento {attempt + 1}): {str(e)}")
                 if attempt == SSHManager.MAX_RETRIES - 1:
-                    st.error(f"Error descargando archivo remoto: {str(e)}")
-                if ssh:
-                    ssh.close()
-                if os.path.exists(local_path):
-                    try:
-                        os.remove(local_path)
-                    except:
-                        pass
-
-        return False
+                    st.error(f"Error descargando archivo remoto después de {SSHManager.MAX_RETRIES} intentos: {str(e)}")
+                    return False
+                    
+            finally:
+                ssh.close()
 
     @staticmethod
     def upload_remote_file(local_path, remote_path):
-        """Subida con manejo mejorado de errores"""
+        """Sube un archivo con verificación de integridad"""
         if not os.path.exists(local_path):
             logging.error(f"Archivo local no existe: {local_path}")
             st.error("El archivo local no existe")
             return False
-
-        ssh = None
+            
         for attempt in range(SSHManager.MAX_RETRIES):
             ssh = SSHManager.get_connection()
             if not ssh:
                 return False
-
+                
             try:
                 with ssh.open_sftp() as sftp:
-                    # Crear directorio si no existe
-                    try:
-                        sftp.stat(CONFIG.REMOTE['DIR'])
-                    except:
-                        sftp.mkdir(CONFIG.REMOTE['DIR'])
-
                     sftp.put(local_path, remote_path)
-
+                    
                     if SSHManager.verify_file_integrity(local_path, remote_path, sftp):
                         logging.info(f"Archivo subido correctamente: {local_path} a {remote_path}")
                         return True
-                    
-                    logging.warning(f"Error de integridad en subida, reintentando... (intento {attempt + 1})")
-                    if attempt < SSHManager.MAX_RETRIES - 1:
-                        time.sleep(SSHManager.RETRY_DELAY)
-
+                    else:
+                        logging.warning(f"Error de integridad en subida, reintentando... (intento {attempt + 1})")
+                        if attempt < SSHManager.MAX_RETRIES - 1:
+                            time.sleep(SSHManager.RETRY_DELAY)
+                        else:
+                            raise Exception("Fallo en verificación de integridad después de múltiples intentos")
+                            
             except Exception as e:
                 logging.error(f"Error en subida (intento {attempt + 1}): {str(e)}")
                 if attempt == SSHManager.MAX_RETRIES - 1:
-                    st.error(f"Error subiendo archivo remoto: {str(e)}")
-                if ssh:
-                    ssh.close()
-
-        return False
+                    st.error(f"Error subiendo archivo remoto después de {SSHManager.MAX_RETRIES} intentos: {str(e)}")
+                    return False
+                    
+            finally:
+                ssh.close()
 
 # ====================
 # FUNCIONES PRINCIPALES
 # ====================
-def create_empty_csv():
-    """Crea un archivo CSV vacío con estructura correcta"""
-    columns = [
-        'economic_number', 'participation_key', 'investigator_name',
-        'corresponding_author', 'coauthors', 'article_title', 'year',
-        'pub_date', 'volume', 'number', 'pages', 'journal_full',
-        'journal_abbrev', 'doi', 'jcr_group', 'pmid', 'selected_keywords', 'estado'
-    ]
-    pd.DataFrame(columns=columns).to_csv(CONFIG.CSV_FILENAME, index=False)
-    logging.info("Archivo CSV vacío creado con estructura inicial")
-
-def check_remote_connection():
-    """Verifica la conexión al servidor remoto"""
+def determinar_grupo(jif5years):
+    """Determina el grupo de impacto de la revista"""
+    if pd.isna(jif5years):
+        return "Grupo 1 (sin factor de impacto)"
     try:
-        with st.spinner("🔍 Verificando conexión al servidor..."):
-            ssh = SSHManager.get_connection()
-            if not ssh:
-                return False
-            
-            try:
-                with ssh.open_sftp() as sftp:
-                    try:
-                        sftp.listdir(CONFIG.REMOTE['DIR'])
-                        return True
-                    except IOError as e:
-                        st.error(f"No se puede acceder al directorio remoto: {str(e)}")
-                        return False
-            finally:
-                ssh.close()
-    except Exception as e:
-        st.error(f"Error en verificación de conexión: {str(e)}")
-        return False
-
-def sync_with_remote():
-    """Sincronización mejorada con el servidor remoto"""
-    try:
-        if not check_remote_connection():
-            st.warning("⚠️ No se pudo establecer conexión con el servidor remoto")
-            return False
-
-        st.info("🔄 Sincronizando con el servidor remoto...")
-        progress_bar = st.progress(0)
-        
-        remote_path = os.path.join(CONFIG.REMOTE['DIR'], CONFIG.REMOTE_PRODUCTOS_FILE)
-        temp_file = f"temp_{int(time.time())}_{CONFIG.CSV_FILENAME}"
-        
-        try:
-            with LockManager.file_lock(CONFIG.CSV_FILENAME):
-                progress_bar.progress(10)
-                
-                # 1. Descargar archivo remoto
-                if not SSHManager.download_remote_file(remote_path, temp_file):
-                    progress_bar.progress(100)
-                    if not Path(CONFIG.CSV_FILENAME).exists():
-                        create_empty_csv()
-                    return False
-                
-                progress_bar.progress(40)
-                
-                # 2. Procesar archivos
-                local_df = pd.DataFrame()
-                if Path(CONFIG.CSV_FILENAME).exists():
-                    try:
-                        local_df = pd.read_csv(CONFIG.CSV_FILENAME, dtype={'economic_number': str})
-                    except Exception as e:
-                        st.warning(f"Error leyendo archivo local: {str(e)}")
-                
-                remote_df = pd.DataFrame()
-                if Path(temp_file).exists():
-                    try:
-                        remote_df = pd.read_csv(temp_file, dtype={'economic_number': str})
-                    except Exception as e:
-                        st.error(f"Error leyendo archivo remoto: {str(e)}")
-                        return False
-                
-                progress_bar.progress(70)
-                
-                # 3. Combinar datos
-                combined_df = pd.concat([local_df, remote_df]).drop_duplicates(
-                    subset=['economic_number', 'article_title', 'doi'],
-                    keep='last'
-                ).reset_index(drop=True)
-                
-                # 4. Guardar resultado
-                combined_df.to_csv(CONFIG.CSV_FILENAME, index=False)
-                progress_bar.progress(90)
-                
-                st.success("✅ Sincronización completada")
-                return True
-
-        except Exception as e:
-            st.error(f"❌ Error durante sincronización: {str(e)}")
-            logging.error(f"Sync Error: {str(e)}", exc_info=True)
-            return False
-            
-        finally:
-            progress_bar.progress(100)
-            if temp_file and Path(temp_file).exists():
-                try:
-                    os.remove(temp_file)
-                except:
-                    pass
-
-    except Exception as e:
-        st.error(f"❌ Error inesperado en sincronización: {str(e)}")
-        return False
-
-def save_to_csv(data: dict):
-    """Guarda los datos en CSV con manejo robusto"""
-    temp_file = None
-    try:
-        # Validación de campos requeridos
-        required_fields = ['economic_number', 'article_title', 'investigator_name']
-        for field in required_fields:
-            if not data.get(field):
-                raise ValueError(f"Campo requerido faltante: {field}")
-
-        with LockManager.file_lock(CONFIG.CSV_FILENAME):
-            # 1. Preparar archivo temporal
-            temp_file = f"temp_{int(time.time())}_{CONFIG.CSV_FILENAME}"
-            
-            # 2. Cargar datos existentes
-            df_existing = pd.DataFrame()
-            if Path(CONFIG.CSV_FILENAME).exists():
-                try:
-                    df_existing = pd.read_csv(CONFIG.CSV_FILENAME, dtype={'economic_number': str})
-                except Exception as e:
-                    st.warning(f"Error leyendo archivo existente: {str(e)}")
-                    df_existing = pd.DataFrame()
-
-            # 3. Añadir nuevo registro
-            df_new = pd.DataFrame([data])
-            df_combined = pd.concat([df_existing, df_new], ignore_index=True)
-
-            # 4. Guardar en temporal primero
-            df_combined.to_csv(temp_file, index=False)
-            
-            # 5. Reemplazar archivo original
-            os.replace(temp_file, CONFIG.CSV_FILENAME)
-            
-            # 6. Sincronizar con remoto
-            remote_path = os.path.join(CONFIG.REMOTE['DIR'], CONFIG.REMOTE_PRODUCTOS_FILE)
-            if SSHManager.upload_remote_file(CONFIG.CSV_FILENAME, remote_path):
-                st.success("✅ Registro guardado y sincronizado")
-                return True
-            else:
-                st.warning("⚠️ Datos guardados localmente (no sincronizados)")
-                return False
-
-    except Exception as e:
-        st.error(f"❌ Error al guardar: {str(e)}")
-        logging.error(f"Save Error: {str(e)}", exc_info=True)
-        return False
-        
-    finally:
-        if temp_file and Path(temp_file).exists():
-            try:
-                os.remove(temp_file)
-            except:
-                pass
+        jif = float(jif5years)
+        if jif <= 0.9:
+            return "Grupo 2 (FI ≤ 0.9)"
+        elif jif <= 2.99:
+            return "Grupo 3 (FI 1-2.99)"
+        elif jif <= 5.99:
+            return "Grupo 4 (FI 3-5.99)"
+        elif jif <= 8.99:
+            return "Grupo 5 (FI 6-8.99)"
+        elif jif <= 11.99:
+            return "Grupo 6 (FI 9-11.99)"
+        else:
+            return "Grupo 7 (FI ≥ 12)"
+    except ValueError:
+        return "Grupo 1 (sin factor de impacto)"
 
 def highlight_author(author: str, investigator_name: str) -> str:
     """Resalta el nombre del investigador principal"""
     if investigator_name and investigator_name.lower() == author.lower():
         return f"<span style='background-color: {CONFIG.HIGHLIGHT_COLOR};'>{author}</span>"
     return author
+
+def sync_with_remote(economic_number):
+    """Sincroniza el archivo local con el remoto para un número económico específico"""
+    try:
+        st.info("🔄 Sincronizando con el servidor remoto...")
+        csv_filename = f"{CONFIG.CSV_PREFIX}{economic_number}.csv"
+        remote_filename = f"{CONFIG.CSV_PREFIX}{economic_number}.csv"
+        remote_path = os.path.join(CONFIG.REMOTE['DIR'], remote_filename)
+
+        # Intenta descargar el archivo remoto
+        download_success = SSHManager.download_remote_file(remote_path, csv_filename)
+
+        if not download_success:
+            # Si no existe el archivo remoto, crea uno local con estructura correcta
+            columns = [
+                'economic_number', 'participation_key', 'investigator_name',
+                'corresponding_author', 'coauthors', 'article_title', 'year',
+                'pub_date', 'volume', 'number', 'pages', 'journal_full',
+                'journal_abbrev', 'doi', 'jcr_group', 'pmid', 'selected_keywords',
+                'estado'
+            ]
+
+            # Verifica si el archivo local ya existe
+            if not Path(csv_filename).exists():
+                pd.DataFrame(columns=columns).to_csv(csv_filename, index=False)
+                st.info("ℹ️ No se encontró archivo remoto. Se creó uno nuevo localmente con la estructura correcta.")
+            else:
+                # Si el archivo local existe pero está vacío o corrupto
+                try:
+                    df = pd.read_csv(csv_filename)
+                    if df.empty:
+                        pd.DataFrame(columns=columns).to_csv(csv_filename, index=False)
+                except:
+                    pd.DataFrame(columns=columns).to_csv(csv_filename, index=False)
+
+            return False
+
+        # Verifica que el archivo descargado no esté vacío
+        try:
+            df = pd.read_csv(csv_filename)
+            if df.empty:
+                st.warning("El archivo remoto está vacío")
+        except pd.errors.EmptyDataError:
+            st.warning("El archivo remoto está vacío o corrupto")
+            columns = [
+                'economic_number', 'participation_key', 'investigator_name',
+                'corresponding_author', 'coauthors', 'article_title', 'year',
+                'pub_date', 'volume', 'number', 'pages', 'journal_full',
+                'journal_abbrev', 'doi', 'jcr_group', 'pmid', 'selected_keywords',
+                'estado'
+            ]
+            pd.DataFrame(columns=columns).to_csv(csv_filename, index=False)
+            return False
+
+        st.success("✅ Sincronización con servidor remoto completada")
+        return True
+
+    except Exception as e:
+        st.error(f"❌ Error en sincronización: {str(e)}")
+        logging.error(f"Sync Error: {str(e)}")
+        return False
+
+def save_to_csv(data: dict):
+    """Guarda los datos en el CSV local y remoto, eliminando registros marcados con 'X'"""
+    try:
+        economic_number = data['economic_number']
+        csv_filename = f"{CONFIG.CSV_PREFIX}{economic_number}.csv"
+
+        with st.spinner("Sincronizando datos con el servidor..."):
+            if not sync_with_remote(economic_number):
+                st.warning("⚠️ Trabajando con copia local debido a problemas de conexión")
+
+        columns = [
+            'economic_number', 'participation_key', 'investigator_name',
+            'corresponding_author', 'coauthors', 'article_title', 'year',
+            'pub_date', 'volume', 'number', 'pages', 'journal_full',
+            'journal_abbrev', 'doi', 'jcr_group', 'pmid', 'selected_keywords',
+            'estado'
+        ]
+
+        # Verificar si el archivo existe y tiene contenido válido
+        if not Path(csv_filename).exists():
+            df_existing = pd.DataFrame(columns=columns)
+        else:
+            try:
+                df_existing = pd.read_csv(
+                    csv_filename,
+                    encoding='utf-8-sig',
+                    dtype={'economic_number': str}
+                )
+                # Filtrar y eliminar registros con estado = 'X'
+                df_existing = df_existing[df_existing['estado'] != 'X'].copy()
+
+                # Verificar si el DataFrame está vacío
+                if df_existing.empty:
+                    df_existing = pd.DataFrame(columns=columns)
+                # Verificar si tiene todas las columnas necesarias
+                missing_cols = set(columns) - set(df_existing.columns)
+                if missing_cols:
+                    for col in missing_cols:
+                        df_existing[col] = ""
+            except (pd.errors.EmptyDataError, pd.errors.ParserError):
+                df_existing = pd.DataFrame(columns=columns)
+
+        # Preparar el nuevo registro
+        df_new = pd.DataFrame([data])
+
+        # Limpiar los datos del nuevo registro
+        for col in df_new.columns:
+            if df_new[col].dtype == object:
+                df_new[col] = df_new[col].astype(str).str.replace(r'\r\n|\n|\r', ' ', regex=True).str.strip()
+
+        # Combinar los datos existentes (sin los 'X') con los nuevos
+        df_combined = pd.concat([df_existing, df_new], ignore_index=True)
+
+        # Asegurar que todas las columnas estén presentes
+        for col in columns:
+            if col not in df_combined.columns:
+                df_combined[col] = ""
+
+        # Reordenar columnas
+        df_combined = df_combined[columns]
+
+        # Guardar localmente
+        df_combined.to_csv(csv_filename, index=False, encoding='utf-8-sig')
+
+        # Intentar subir al servidor remoto
+        with st.spinner("Subiendo datos al servidor remoto..."):
+            remote_filename = f"{CONFIG.CSV_PREFIX}{economic_number}.csv"
+            remote_path = os.path.join(CONFIG.REMOTE['DIR'], remote_filename)
+            if SSHManager.upload_remote_file(csv_filename, remote_path):
+                st.success("✅ Registro guardado exitosamente en el servidor remoto!")
+                return True
+            else:
+                st.error("❌ No se pudo subir el archivo al servidor remoto")
+                st.info("ℹ️ Los datos se guardaron localmente y se intentará subir en la próxima sincronización")
+                return False
+
+    except Exception as e:
+        st.error(f"❌ Error al guardar en CSV: {str(e)}")
+        logging.error(f"Save CSV Error: {str(e)}")
+        return False
 
 def display_author_info(data, investigator_name):
     """Muestra información de autores con formato"""
@@ -490,7 +431,7 @@ def display_publication_info(data):
     """Muestra detalles de la publicación"""
     st.markdown("**Detalles de publicación**")
     st.write(f"📅 Año: {data['year']}")
-    st.write(f"🗓️ Fecha exacta de publicación: {data['pub_date']}")
+    st.write(f"**📅 Fecha de publicación:**  \n`{data['pub_date']}`")
     st.write(f"📚 Vol/Núm: {data['volume']}/{data['number']}")
     st.write(f"🔖 Páginas: {data['pages']}")
     st.write(f"🌐 DOI: {data['doi'] or 'No disponible'}")
@@ -502,64 +443,54 @@ def main():
         layout="centered"
     )
 
-    # Mostrar logo
+    # Mostrar logo si existe
     if Path(CONFIG.LOGO_PATH).exists():
         logo = Image.open(CONFIG.LOGO_PATH)
         st.image(logo, width=200)
 
     st.title("📝 Artículos no en PubMed")
-
-    # Sección de estado de conexión
-    with st.expander("🔌 Estado de conexión", expanded=True):
-        if check_remote_connection():
-            st.success("✅ Conectado al servidor remoto")
-            if not sync_with_remote():
-                st.warning("⚠️ Usando datos locales (la sincronización falló)")
-        else:
-            st.warning("⚠️ Trabajando en modo local (sin conexión al servidor)")
-            if not Path(CONFIG.CSV_FILENAME).exists():
-                create_empty_csv()
-
+    
     # Validación del número económico
     economic_number = st.text_input("🔢 Número económico del investigador (solo dígitos):").strip()
-
+    
     if not economic_number:
         st.warning("Por favor ingrese un número económico")
         return
-
+        
     if not economic_number.isdigit():
         st.error("El número económico debe contener solo dígitos (0-9)")
         return
 
-    try:
-        # Leer datos con bloqueo
-        with LockManager.file_lock(CONFIG.CSV_FILENAME):
-            if not Path(CONFIG.CSV_FILENAME).exists():
-                create_empty_csv()
-                manual_df = pd.DataFrame()
-            else:
-                manual_df = pd.read_csv(
-                    CONFIG.CSV_FILENAME,
-                    encoding='utf-8-sig',
-                    dtype={'economic_number': str}
-                )
-                manual_df['economic_number'] = manual_df['economic_number'].astype(str).str.strip()
-                
-                # Inicialización robusta del campo 'estado'
-                if 'estado' not in manual_df.columns:
-                    manual_df['estado'] = 'A'
-                else:
-                    manual_df['estado'] = manual_df['estado'].apply(
-                        lambda x: 'A' if pd.isna(x) or str(x).strip() not in ['A', 'X'] else str(x).strip()
-                    )
+    # Sincronización inicial para el número económico específico
+    with st.spinner("Conectando con el servidor remoto..."):
+        if not sync_with_remote(economic_number):
+            st.warning("""
+            ⚠️ No se pudo conectar con el servidor remoto. 
+            Trabajando en modo local. Los datos se sincronizarán cuando se restablezca la conexión.
+            """)
 
-        # Filtrar registros del usuario actual
+    try:
+        csv_filename = f"{CONFIG.CSV_PREFIX}{economic_number}.csv"
+        
+        if not Path(csv_filename).exists():
+            pd.DataFrame().to_csv(csv_filename, index=False)
+            manual_df = pd.DataFrame()
+        else:
+            manual_df = pd.read_csv(csv_filename, encoding='utf-8-sig', dtype={'economic_number': str})
+            manual_df['economic_number'] = manual_df['economic_number'].astype(str).str.strip()
+            
+            # Asegurar que el campo 'estado' exista y tenga valores válidos
+            if 'estado' not in manual_df.columns:
+                manual_df['estado'] = 'A'
+            else:
+                manual_df['estado'] = manual_df['estado'].fillna('A').apply(lambda x: 'A' if x.strip() not in ['A', 'X'] else x.strip())
+
         filtered_records = manual_df[manual_df['economic_number'] == economic_number]
 
-        # Mostrar registros existentes
         if not filtered_records.empty:
             st.subheader(f"📋 Registros existentes para {economic_number}")
             
+            # Nota sobre el campo Estado
             st.info("""
             **Nota sobre el campo Estado:**  
             - 'A' = Artículo activo (valor por defecto)  
@@ -567,7 +498,7 @@ def main():
             Si desea eliminar un registro, cambie su Estado a 'X' y guarde los cambios.
             """)
             
-            # Editor de datos con bloqueo
+            # Mostrar tabla editable con el campo Estado
             edited_df = st.data_editor(
                 filtered_records[['article_title', 'journal_full', 'estado']],
                 column_config={
@@ -576,7 +507,6 @@ def main():
                         help="Seleccione 'A' para activo o 'X' para marcar para borrar",
                         options=["A", "X"],
                         required=True,
-                        default="A",
                         width="small"
                     )
                 },
@@ -586,136 +516,134 @@ def main():
             
             # Guardar cambios si se modificó el estado
             if not edited_df.equals(filtered_records[['article_title', 'journal_full', 'estado']]):
-                with LockManager.file_lock(CONFIG.CSV_FILENAME):
-                    manual_df.loc[filtered_records.index, 'estado'] = edited_df['estado']
-                    manual_df.to_csv(CONFIG.CSV_FILENAME, index=False, encoding='utf-8-sig')
-                    
-                    # Sincronizar con remoto
-                    remote_path = os.path.join(CONFIG.REMOTE['DIR'], CONFIG.REMOTE_PRODUCTOS_FILE)
-                    if SSHManager.upload_remote_file(CONFIG.CSV_FILENAME, remote_path):
-                        st.success("✅ Cambios guardados y sincronizados con el servidor remoto")
+                # Actualizar el DataFrame original con los cambios
+                manual_df.update(edited_df)
+                
+                # Guardar cambios localmente
+                manual_df.to_csv(csv_filename, index=False, encoding='utf-8-sig')
+                st.success("✅ Cambios en el estado guardados correctamente")
+                
+                # Sincronizar con el servidor remoto
+                with st.spinner("Sincronizando cambios con el servidor remoto..."):
+                    remote_filename = f"{CONFIG.CSV_PREFIX}{economic_number}.csv"
+                    remote_path = os.path.join(CONFIG.REMOTE['DIR'], remote_filename)
+                    if SSHManager.upload_remote_file(csv_filename, remote_path):
+                        st.success("✅ Cambios sincronizados con el servidor remoto")
                     else:
-                        st.warning("⚠️ Cambios guardados localmente (no se pudo sincronizar)")
-
+                        st.warning("⚠️ Los cambios se guardaron localmente pero no se pudieron sincronizar con el servidor remoto")
+        
         if st.radio("¿Desea añadir un nuevo registro?", ["No", "Sí"], index=0) == "No":
             return
-
-        st.subheader("📝 Información del artículo")
-
-        # Campos de entrada manual
-        article_title = st.text_area("📄 Título del artículo:", height=100)
-        year = st.text_input("📅 Año de publicación:")
-        pub_date = st.text_input("🗓️ Fecha exacta de publicación (YYYY-MM-DD):", help="Formato: AAAA-MM-DD")
-        volume = st.text_input("📚 Volumen (ej. 79(3), volumen 79):")
-        number = st.text_input("# Número (ej. 79(3), número 3):")
-        pages = st.text_input("🔖 Páginas (ej. 123-130):")
-        journal_full = st.text_input("🏛️ Nombre completo de la revista:")
-        journal_abbrev = st.text_input("🏷️ Abreviatura de la revista:")
-        jcr_group = st.selectbox(
-            "🏆 Grupo JCR:",
-            options=[
-                "Grupo 1 (sin factor de impacto)",
-                "Grupo 2 (FI ≤ 0.9)",
-                "Grupo 3 (FI 1-2.99)",
-                "Grupo 4 (FI 3-5.99)",
-                "Grupo 5 (FI 6-8.99)",
-                "Grupo 6 (FI 9-11.99)",
-                "Grupo 7 (FI ≥ 12)",
-                "Grupo no determinado"
-            ],
-            index=0
-        )
-        doi = st.text_input("🌐 DOI:")
-        pmid = st.text_input("🔍 PMID (opcional):")
-        corresponding_author = st.text_input("📌 Autor de correspondencia:")
-        coauthors = st.text_area("👥 Coautores (separados por punto y coma ';'):", help="Ejemplo: Autor1; Autor2; Autor3")
-
-        # Palabras clave
-        st.subheader("🔑 Palabras clave")
-        selected_categories = st.multiselect(
-            f"Seleccione {CONFIG.MAX_KEYWORDS} palabras clave:",
-            options=list(KEYWORD_CATEGORIES.keys()),
-            default=[],
-            max_selections=CONFIG.MAX_KEYWORDS
-        )
-
-        if len(selected_categories) < CONFIG.MAX_KEYWORDS:
-            st.error(f"Debe seleccionar exactamente {CONFIG.MAX_KEYWORDS} palabras clave")
-            return
-
-        # Verificación de autoría
-        st.subheader("👤 Verificación de autoría")
-        authors_list = []
-        if corresponding_author:
-            authors_list.append(corresponding_author)
-        if coauthors:
-            authors_list.extend([author.strip() for author in coauthors.split(";") if author.strip()])
-
-        if not authors_list:
-            st.error("Debe ingresar al menos un autor")
-            return
-
-        investigator_name = st.selectbox("Seleccione su nombre como aparece en la publicación:", authors_list)
-        
-        # CALCULAR participation_key ANTES de usarlo
-        participation_key = "CA" if investigator_name == corresponding_author else f"{authors_list.index(investigator_name)}C"
-
-        st.subheader("📋 Resumen del registro")
-        st.markdown("**Información del artículo**")
-        st.write(f"📄 Título: {article_title}")
-        st.write(f"📅 Año: {year}")
-        st.write(f"🗓️ Fecha exacta de publicación: {pub_date if pub_date else year}")
-        st.write(f"🏛️ Revista (nombre completo): {journal_full}")
-        st.write(f"🏷️ Revista (abreviatura): {journal_abbrev}")
-        st.write(f"📚 Volumen: {volume}")
-        st.write(f"📚 Número: {number}")
-        st.write(f"🔖 Páginas: {pages}")
-
-        st.markdown("**Autores**")
-        st.markdown(f"📌 Correspondencia: {highlight_author(corresponding_author, investigator_name)}", unsafe_allow_html=True)
-        if coauthors:
-            st.markdown("👥 Coautores:")
-            for author in [a.strip() for a in coauthors.split(";") if a.strip()]:
-                st.markdown(f"- {highlight_author(author, investigator_name)}", unsafe_allow_html=True)
-
-        st.markdown("**Identificación**")
-        st.write(f"🔢 Número económico: {economic_number}")
-        st.write(f"👤 Investigador: {investigator_name}")
-        st.write(f"🔑 Clave participación: {participation_key}")
-
-        # Preparar datos para guardar
-        data = {
-            'economic_number': economic_number,
-            'participation_key': participation_key,
-            'investigator_name': investigator_name,
-            'corresponding_author': corresponding_author,
-            'coauthors': coauthors,
-            'article_title': article_title,
-            'year': year,
-            'pub_date': pub_date if pub_date else year,
-            'volume': volume,
-            'number': number,
-            'pages': pages,
-            'journal_full': journal_full,
-            'journal_abbrev': journal_abbrev,
-            'doi': doi,
-            'jcr_group': jcr_group,
-            'pmid': pmid,
-            'selected_keywords': str(selected_categories[:CONFIG.MAX_KEYWORDS]),
-            'estado': 'A'
-        }
-
-        if st.button("💾 Guardar registro", type="primary"):
-            with st.spinner("Guardando datos..."):
-                if save_to_csv(data):
-                    st.balloons()
-                    st.success("✅ Registro guardado exitosamente!")
-                    st.subheader("📄 Registro completo capturado")
-                    st.json(data)
-
     except Exception as e:
-        st.error(f"❌ Error crítico: {str(e)}")
-        logging.error(f"Main Error: {str(e)}")
+        st.error(f"❌ Error al leer {csv_filename}: {str(e)}")
+        logging.error(f"CSV Read Error: {str(e)}")
+
+    st.subheader("📝 Información del artículo")
+    
+    # Campos de entrada manual
+    article_title = st.text_area("📄 Título del artículo:", height=100)
+    year = st.text_input("📅 Año de publicación:")
+    pub_date = st.text_input("🗓️ Fecha completa de publicación (YYYY-MM-DD):", help="Formato: AAAA-MM-DD")
+    volume = st.text_input("📚 Volumen (ej 79(3), volumen = 79")
+    number = st.text_input("# Número (ej 79(3), número = 3)")
+    pages = st.text_input("🔖 Páginas (ej. 123-130):")
+    journal_full = st.text_input("🏛️ Nombre completo de la revista:")
+    journal_abbrev = st.text_input("🏷️ Abreviatura de la revista:")
+    jcr_group = st.selectbox(
+        "🏆 Grupo JCR:",
+        options=[
+            "Grupo 1 (sin factor de impacto)",
+            "Grupo 2 (FI ≤ 0.9)",
+            "Grupo 3 (FI 1-2.99)",
+            "Grupo 4 (FI 3-5.99)",
+            "Grupo 5 (FI 6-8.99)",
+            "Grupo 6 (FI 9-11.99)",
+            "Grupo 7 (FI ≥ 12)",
+            "Grupo no determinado"
+        ],
+        index=0
+    )
+    doi = st.text_input("🌐 DOI:")
+    pmid = st.text_input("🔍 PMID (opcional):")
+    corresponding_author = st.text_input("📌 Autor de correspondencia:")
+    coauthors = st.text_area("👥 Coautores (separados por punto y coma ';'):", help="Ejemplo: Autor1; Autor2; Autor3")
+    
+    # Palabras clave
+    st.subheader("🔑 Palabras clave")
+    selected_categories = st.multiselect(
+        f"Seleccione {CONFIG.MAX_KEYWORDS} palabras clave:",
+        options=list(KEYWORD_CATEGORIES.keys()),
+        default=[],
+        max_selections=CONFIG.MAX_KEYWORDS
+    )
+    
+    if len(selected_categories) < CONFIG.MAX_KEYWORDS:
+        st.error(f"Debe seleccionar exactamente {CONFIG.MAX_KEYWORDS} palabras clave")
+        return
+
+    # Verificación de autoría
+    st.subheader("👤 Verificación de autoría")
+    authors_list = []
+    if corresponding_author:
+        authors_list.append(corresponding_author)
+    if coauthors:
+        authors_list.extend([author.strip() for author in coauthors.split(";") if author.strip()])
+
+    if not authors_list:
+        st.error("Debe ingresar al menos un autor")
+        return
+    
+    investigator_name = st.selectbox("Seleccione su nombre como aparece en la publicación:", authors_list)
+    participation_key = "CA" if investigator_name == corresponding_author else f"{authors_list.index(investigator_name)}C"
+
+    # Resumen del registro
+    st.subheader("📋 Resumen del registro")
+    st.markdown("**Información del artículo**")
+    st.write(f"📄 Título: {article_title}")
+    st.write(f"📅 Año: {year}")
+    st.write(f"🏛️ Revista: {journal_full}")
+    
+    st.markdown("**Autores**")
+    st.markdown(f"📌 Correspondencia: {highlight_author(corresponding_author, investigator_name)}", unsafe_allow_html=True)
+    if coauthors:
+        st.markdown("👥 Coautores:")
+        for author in [a.strip() for a in coauthors.split(";") if a.strip()]:
+            st.markdown(f"- {highlight_author(author, investigator_name)}", unsafe_allow_html=True)
+    
+    st.markdown("**Identificación**")
+    st.write(f"🔢 Número económico: {economic_number}")
+    st.write(f"👤 Investigador: {investigator_name}")
+    st.write(f"🔑 Clave participación: {participation_key}")
+    
+    # Preparar datos para guardar
+    data = {
+        'economic_number': economic_number,
+        'participation_key': participation_key,
+        'investigator_name': investigator_name,
+        'corresponding_author': corresponding_author,
+        'coauthors': coauthors,
+        'article_title': article_title,
+        'year': year,
+        'pub_date': pub_date if pub_date else year,
+        'volume': volume,
+        'number': number,
+        'pages': pages,
+        'journal_full': journal_full,
+        'journal_abbrev': journal_abbrev,
+        'doi': doi,
+        'jcr_group': jcr_group,
+        'pmid': pmid,
+        'selected_keywords': str(selected_categories[:CONFIG.MAX_KEYWORDS]),
+        'estado': 'A'  # Nuevo campo con valor por defecto 'A'
+    }
+    
+    if st.button("💾 Guardar registro", type="primary"):
+        with st.spinner("Guardando datos..."):
+            if save_to_csv(data):
+                st.balloons()
+                st.success("✅ Registro guardado exitosamente!")
+                st.subheader("📄 Registro completo capturado")
+                st.json(data)
 
 if __name__ == "__main__":
     main()
