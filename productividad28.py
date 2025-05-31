@@ -29,8 +29,8 @@ class Config:
         self.EMAIL_USER = st.secrets.get("email_user")
         self.EMAIL_PASSWORD = st.secrets.get("email_password")
         self.NOTIFICATION_EMAIL = st.secrets.get("notification_email")
-        self.CSV_PRODUCTOS_FILE = "productos.csv"
-        self.REMOTE_PRODUCTOS_FILE = st.secrets.get("remote_productos")
+        self.CSV_PRODUCTOS_PREFIX = "productos_"  # Prefijo para archivos CSV
+        self.REMOTE_PRODUCTOS_PREFIX = st.secrets.get("remote_productos_prefix", "productos_")
         self.TIMEOUT_SECONDS = 30
         self.LOGO_PATH = "escudo_COLOR.jpg"        
         
@@ -183,7 +183,8 @@ class SSHManager:
                             'economic_number', 'participation_key', 'investigator_name',
                             'corresponding_author', 'coauthors', 'article_title', 'year',
                             'pub_date', 'volume', 'number', 'pages', 'journal_full',
-                            'journal_abbrev', 'doi', 'jcr_group', 'pmid', 'selected_keywords'
+                            'journal_abbrev', 'doi', 'jcr_group', 'pmid', 'selected_keywords',
+                            'estado'
                         ]
                         pd.DataFrame(columns=columns).to_csv(local_path, index=False)
                         logging.info(f"Archivo remoto no encontrado, creado local con estructura: {local_path}")
@@ -372,9 +373,9 @@ def parse_nbib_file(content: str) -> dict:
         'article_title': '',
         'year': '',
         'pub_date': '',
-        'volume': '',
-        'number': '',
-        'pages': '',
+        'volume': '0',  # Valor por defecto 0
+        'number': '0',  # Valor por defecto 0
+        'pages': '0',  # Valor por defecto 0
         'journal_full': '',
         'journal_abbrev': '',
         'doi': '',
@@ -383,7 +384,8 @@ def parse_nbib_file(content: str) -> dict:
         'investigator_name': '',
         'economic_number': '',
         'participation_key': '',
-        'selected_keywords': []
+        'selected_keywords': [],
+        'estado': 'A'  # 'A' para activo, 'X' para marcado para borrar
     }
 
     def extract_field(pattern, multi_line=False):
@@ -393,13 +395,19 @@ def parse_nbib_file(content: str) -> dict:
         return match.group(1).strip() if match else ''
 
     try:
+        # Extraer PMID
         data['pmid'] = extract_field(r'PMID-\s+(\d+)')
+
+        # Extraer autores
         authors = re.findall(r'FAU\s+-\s+(.*?)\n', content)
         if authors:
             data['corresponding_author'] = authors[0].strip()
             data['coauthors'] = "; ".join(a.strip() for a in authors[1:])
+
+        # Extraer título del artículo
         data['article_title'] = extract_field(r'TI\s+-\s+(.*?)(?:\n[A-Z]{2}\s+-|$)', True)
 
+        # Extraer fecha de publicación
         pub_date_match = re.search(r'DP\s+-\s+(\d{4}\s+[A-Za-z]{3}\s+\d{1,2})', content)
         if pub_date_match:
             try:
@@ -413,6 +421,7 @@ def parse_nbib_file(content: str) -> dict:
             data['year'] = extract_field(r'DP\s+-\s+(\d{4})')
             data['pub_date'] = data['year']
 
+        # Interfaz para fecha de publicación
         st.subheader("📅 Fecha de publicación")
         default_date = f"{data['year']}-01-01" if data['year'] else ""
         pub_date = st.text_input("Ingrese la fecha de publicación (YYYY-MM-DD):",
@@ -426,34 +435,43 @@ def parse_nbib_file(content: str) -> dict:
             st.error("Formato de fecha inválido. Por favor use YYYY-MM-DD")
             return None
 
-        data['volume'] = extract_field(r'VI\s+-\s+(\S+)')
-        data['number'] = extract_field(r'IP\s+-\s+(\S+)')
-        data['pages'] = extract_field(r'PG\s+-\s+(\S+)')
+        # Extraer volumen, número y páginas (con 0 por defecto)
+        data['volume'] = extract_field(r'VI\s+-\s+(\S+)') or '0'
+        data['number'] = extract_field(r'IP\s+-\s+(\S+)') or '0'
+        data['pages'] = extract_field(r'PG\s+-\s+(\S+)') or '0'
+
+        # Extraer información de la revista
         data['journal_full'] = extract_field(r'JT\s+-\s+(.*?)\n')
         data['journal_abbrev'] = extract_field(r'TA\s+-\s+(.*?)\n')
         if data['journal_full'] or data['journal_abbrev']:
             data['jcr_group'] = buscar_grupo_revista(data['journal_full'] or data['journal_abbrev'])
 
+        # Extraer DOI
         doi_match = re.search(r'DO\s+-\s+(.*?)\n', content) or \
                    re.search(r'(?:LID|AID)\s+-\s+(.*?doi\.org/.*?)\s', content) or \
                    re.search(r'(?:LID|AID)\s+-\s+(10\.\S+)', content)
         if doi_match:
             data['doi'] = doi_match.group(1).strip()
+        else:
+            data['doi'] = ''  # Cadena vacía como valor por defecto
 
     except Exception as e:
         st.error(f"Error al procesar archivo .nbib: {str(e)}")
         logging.error(f"NBIB Parse Error: {str(e)}")
+        return None
 
     return data
 
-def sync_with_remote():
-    """Sincroniza el archivo local con el remoto"""
+def sync_with_remote(economic_number):
+    """Sincroniza el archivo local con el remoto para un número económico específico"""
     try:
         st.info("🔄 Sincronizando con el servidor remoto...")
-        remote_path = os.path.join(CONFIG.REMOTE['DIR'], CONFIG.REMOTE_PRODUCTOS_FILE)
+        csv_filename = f"{CONFIG.CSV_PRODUCTOS_PREFIX}{economic_number}.csv"
+        remote_filename = f"{CONFIG.REMOTE_PRODUCTOS_PREFIX}{economic_number}.csv"
+        remote_path = os.path.join(CONFIG.REMOTE['DIR'], remote_filename)
 
         # Intenta descargar el archivo remoto
-        download_success = SSHManager.download_remote_file(remote_path, CONFIG.CSV_PRODUCTOS_FILE)
+        download_success = SSHManager.download_remote_file(remote_path, csv_filename)
 
         if not download_success:
             # Si no existe el archivo remoto, crea uno local con estructura correcta
@@ -461,27 +479,28 @@ def sync_with_remote():
                 'economic_number', 'participation_key', 'investigator_name',
                 'corresponding_author', 'coauthors', 'article_title', 'year',
                 'pub_date', 'volume', 'number', 'pages', 'journal_full',
-                'journal_abbrev', 'doi', 'jcr_group', 'pmid', 'selected_keywords'
+                'journal_abbrev', 'doi', 'jcr_group', 'pmid', 'selected_keywords',
+                'estado'  # Nuevo campo añadido
             ]
 
             # Verifica si el archivo local ya existe
-            if not Path(CONFIG.CSV_PRODUCTOS_FILE).exists():
-                pd.DataFrame(columns=columns).to_csv(CONFIG.CSV_PRODUCTOS_FILE, index=False)
+            if not Path(csv_filename).exists():
+                pd.DataFrame(columns=columns).to_csv(csv_filename, index=False)
                 st.info("ℹ️ No se encontró archivo remoto. Se creó uno nuevo localmente con la estructura correcta.")
             else:
                 # Si el archivo local existe pero está vacío o corrupto
                 try:
-                    df = pd.read_csv(CONFIG.CSV_PRODUCTOS_FILE)
+                    df = pd.read_csv(csv_filename)
                     if df.empty:
-                        pd.DataFrame(columns=columns).to_csv(CONFIG.CSV_PRODUCTOS_FILE, index=False)
+                        pd.DataFrame(columns=columns).to_csv(csv_filename, index=False)
                 except:
-                    pd.DataFrame(columns=columns).to_csv(CONFIG.CSV_PRODUCTOS_FILE, index=False)
+                    pd.DataFrame(columns=columns).to_csv(csv_filename, index=False)
 
             return False
 
         # Verifica que el archivo descargado no esté vacío
         try:
-            df = pd.read_csv(CONFIG.CSV_PRODUCTOS_FILE)
+            df = pd.read_csv(csv_filename)
             if df.empty:
                 st.warning("El archivo remoto está vacío")
         except pd.errors.EmptyDataError:
@@ -490,9 +509,10 @@ def sync_with_remote():
                 'economic_number', 'participation_key', 'investigator_name',
                 'corresponding_author', 'coauthors', 'article_title', 'year',
                 'pub_date', 'volume', 'number', 'pages', 'journal_full',
-                'journal_abbrev', 'doi', 'jcr_group', 'pmid', 'selected_keywords'
+                'journal_abbrev', 'doi', 'jcr_group', 'pmid', 'selected_keywords',
+                'estado'  # Nuevo campo añadido
             ]
-            pd.DataFrame(columns=columns).to_csv(CONFIG.CSV_PRODUCTOS_FILE, index=False)
+            pd.DataFrame(columns=columns).to_csv(csv_filename, index=False)
             return False
 
         st.success("✅ Sincronización con servidor remoto completada")
@@ -503,29 +523,31 @@ def sync_with_remote():
         logging.error(f"Sync Error: {str(e)}")
         return False
 
-
-
 def save_to_csv(data: dict):
-    """Guarda los datos en el CSV local y remoto"""
+    """Guarda los datos en el CSV local y remoto, eliminando registros marcados con 'X'"""
     try:
+        economic_number = data['economic_number']
+        csv_filename = f"{CONFIG.CSV_PRODUCTOS_PREFIX}{economic_number}.csv"
+
         with st.spinner("Sincronizando datos con el servidor..."):
-            if not sync_with_remote():
+            if not sync_with_remote(economic_number):
                 st.warning("⚠️ Trabajando con copia local debido a problemas de conexión")
 
         columns = [
             'economic_number', 'participation_key', 'investigator_name',
             'corresponding_author', 'coauthors', 'article_title', 'year',
             'pub_date', 'volume', 'number', 'pages', 'journal_full',
-            'journal_abbrev', 'doi', 'jcr_group', 'pmid', 'selected_keywords'
+            'journal_abbrev', 'doi', 'jcr_group', 'pmid', 'selected_keywords',
+            'estado'
         ]
 
         # Verificar si el archivo existe y tiene contenido válido
-        if not Path(CONFIG.CSV_PRODUCTOS_FILE).exists():
+        if not Path(csv_filename).exists():
             df_existing = pd.DataFrame(columns=columns)
         else:
             try:
                 df_existing = pd.read_csv(
-                    CONFIG.CSV_PRODUCTOS_FILE,
+                    csv_filename,
                     encoding='utf-8-sig',
                     dtype={'economic_number': str}
                 )
@@ -540,6 +562,9 @@ def save_to_csv(data: dict):
             except (pd.errors.EmptyDataError, pd.errors.ParserError):
                 df_existing = pd.DataFrame(columns=columns)
 
+        # FILTRAR: Eliminar registros con estado 'X' antes de agregar el nuevo
+        df_existing = df_existing[df_existing['estado'] != 'X']
+
         # Preparar el nuevo registro
         df_new = pd.DataFrame([data])
 
@@ -548,7 +573,7 @@ def save_to_csv(data: dict):
             if df_new[col].dtype == object:
                 df_new[col] = df_new[col].astype(str).str.replace(r'\r\n|\n|\r', ' ', regex=True).str.strip()
 
-        # Combinar los datos existentes con los nuevos
+        # Combinar los datos existentes (ya filtrados) con los nuevos
         df_combined = pd.concat([df_existing, df_new], ignore_index=True)
 
         # Asegurar que todas las columnas estén presentes
@@ -560,12 +585,13 @@ def save_to_csv(data: dict):
         df_combined = df_combined[columns]
 
         # Guardar localmente
-        df_combined.to_csv(CONFIG.CSV_PRODUCTOS_FILE, index=False, encoding='utf-8-sig')
+        df_combined.to_csv(csv_filename, index=False, encoding='utf-8-sig')
 
         # Intentar subir al servidor remoto
         with st.spinner("Subiendo datos al servidor remoto..."):
-            remote_path = os.path.join(CONFIG.REMOTE['DIR'], CONFIG.REMOTE_PRODUCTOS_FILE)
-            if SSHManager.upload_remote_file(CONFIG.CSV_PRODUCTOS_FILE, remote_path):
+            remote_filename = f"{CONFIG.REMOTE_PRODUCTOS_PREFIX}{economic_number}.csv"
+            remote_path = os.path.join(CONFIG.REMOTE['DIR'], remote_filename)
+            if SSHManager.upload_remote_file(csv_filename, remote_path):
                 st.success("✅ Registro guardado exitosamente en el servidor remoto!")
                 return True
             else:
@@ -632,14 +658,6 @@ def main():
     # Precargar datos de factores de impacto
     with st.spinner("Cargando base de datos de factores de impacto..."):
         _ = JournalCache()
-        
-    # Sincronización inicial
-    with st.spinner("Conectando con el servidor remoto..."):
-        if not sync_with_remote():
-            st.warning("""
-            ⚠️ No se pudo conectar con el servidor remoto. 
-            Trabajando en modo local. Los datos se sincronizarán cuando se restablezca la conexión.
-            """)
     
     # Validación mejorada del número económico
     economic_number = st.text_input("🔢 Número económico del investigador (solo dígitos):").strip()
@@ -651,28 +669,76 @@ def main():
     if not economic_number.isdigit():
         st.error("El número económico debe contener solo dígitos (0-9)")
         return
+    
+    # Sincronización inicial para el número económico específico
+    with st.spinner("Conectando con el servidor remoto..."):
+        if not sync_with_remote(economic_number):
+            st.warning("""
+            ⚠️ No se pudo conectar con el servidor remoto. 
+            Trabajando en modo local. Los datos se sincronizarán cuando se restablezca la conexión.
+            """)
 
     try:
-        if not Path(CONFIG.CSV_PRODUCTOS_FILE).exists():
-            pd.DataFrame().to_csv(CONFIG.CSV_PRODUCTOS_FILE, index=False)
+        csv_filename = f"{CONFIG.CSV_PRODUCTOS_PREFIX}{economic_number}.csv"
+        
+        if not Path(csv_filename).exists():
+            pd.DataFrame().to_csv(csv_filename, index=False)
             productos_df = pd.DataFrame()
         else:
-            productos_df = pd.read_csv(CONFIG.CSV_PRODUCTOS_FILE, encoding='utf-8-sig', dtype={'economic_number': str})
+            productos_df = pd.read_csv(csv_filename, encoding='utf-8-sig', dtype={'economic_number': str})
             productos_df['economic_number'] = productos_df['economic_number'].astype(str).str.strip()
-
-#        if st.checkbox("📂 Mostrar todos los registros del CSV"):
-#            st.dataframe(productos_df, use_container_width=True)
 
         filtered_records = productos_df[productos_df['economic_number'] == economic_number]
 
         if not filtered_records.empty:
             st.subheader(f"📋 Registros existentes para {economic_number}")
-            st.dataframe(filtered_records[['article_title', 'journal_full']], hide_index=True)
+            
+            # Nota sobre el campo Estado
+            st.info("""
+            **Nota sobre el campo Estado:**  
+            - 'A' = Artículo activo (valor por defecto)  
+            - 'X' = Artículo marcado para borrar  
+            Si desea eliminar un registro, cambie su Estado a 'X' y guarde los cambios.
+            """)
+            
+            # Mostrar tabla editable con el campo Estado
+            edited_df = st.data_editor(
+                filtered_records[['article_title', 'journal_full', 'estado']],
+                column_config={
+                    "estado": st.column_config.SelectboxColumn(
+                        "Estado",
+                        help="Seleccione 'A' para activo o 'X' para marcar para borrar",
+                        options=["A", "X"],
+                        required=True,
+                        width="small"
+                    )
+                },
+                hide_index=True,
+                use_container_width=True
+            )
+            
+            # Guardar cambios si se modificó el estado
+            if not edited_df.equals(filtered_records[['article_title', 'journal_full', 'estado']]):
+                # Actualizar el DataFrame original con los cambios
+                productos_df.update(edited_df)
+                
+                # Guardar cambios localmente
+                productos_df.to_csv(csv_filename, index=False, encoding='utf-8-sig')
+                st.success("✅ Cambios en el estado guardados correctamente")
+                
+                # Sincronizar con el servidor remoto
+                with st.spinner("Sincronizando cambios con el servidor remoto..."):
+                    remote_filename = f"{CONFIG.REMOTE_PRODUCTOS_PREFIX}{economic_number}.csv"
+                    remote_path = os.path.join(CONFIG.REMOTE['DIR'], remote_filename)
+                    if SSHManager.upload_remote_file(csv_filename, remote_path):
+                        st.success("✅ Cambios sincronizados con el servidor remoto")
+                    else:
+                        st.warning("⚠️ Los cambios se guardaron localmente pero no se pudieron sincronizar con el servidor remoto")
         
         if st.radio("¿Desea añadir un nuevo registro?", ["No", "Sí"], index=0) == "No":
             return
     except Exception as e:
-        st.error(f"❌ Error al leer {CONFIG.CSV_PRODUCTOS_FILE}: {str(e)}")
+        st.error(f"❌ Error al leer {csv_filename}: {str(e)}")
         logging.error(f"CSV Read Error: {str(e)}")
 
     st.subheader("📤 Subir artículo científico")
@@ -700,6 +766,7 @@ def main():
             st.error("Debe seleccionar exactamente 3 palabras clave")
             return
 
+        data['selected_keywords'] = selected_categories[:3]
         data['selected_keywords'] = selected_categories[:3]
 
         cols = st.columns(2)
