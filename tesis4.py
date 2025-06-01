@@ -95,6 +95,14 @@ KEYWORD_CATEGORIES = {
 }
 
 # ====================
+# IDIOMAS DISPONIBLES PARA LA TESIS
+# ====================
+IDIOMAS_TESIS = [
+    "Español", "Inglés", "Francés", "Alemán", "Portugués", 
+    "Italiano", "Chino", "Japonés", "Ruso", "Otro"
+]
+
+# ====================
 # CONFIGURACIÓN INICIAL
 # ====================
 class Config:
@@ -104,8 +112,7 @@ class Config:
         self.EMAIL_USER = st.secrets.get("email_user")
         self.EMAIL_PASSWORD = st.secrets.get("email_password")
         self.NOTIFICATION_EMAIL = st.secrets.get("notification_email")
-        self.CSV_FILENAME = "tesis.csv"
-        self.REMOTE_PRODUCTOS_FILE = st.secrets.get("remote_tesis")
+        self.CSV_PREFIX = "tesis_"  # Prefijo para archivos CSV
         self.TIMEOUT_SECONDS = 30
         self.MAX_KEYWORDS = 3
         self.HIGHLIGHT_COLOR = "#90EE90"
@@ -182,7 +189,8 @@ class SSHManager:
                         columns = [
                             'economic_number', 'titulo_tesis', 'tipo_tesis', 'year',
                             'pub_date', 'departamento', 'directores', 'paginas',
-                            'idioma', 'estudiante', 'coautores', 'selected_keywords'
+                            'idioma', 'estudiante', 'coautores', 'selected_keywords',
+                            'estado'
                         ]
                         pd.DataFrame(columns=columns).to_csv(local_path, index=False)
                         logging.info(f"Archivo remoto no encontrado, creado local con estructura: {local_path}")
@@ -249,45 +257,49 @@ class SSHManager:
 # FUNCIONES PRINCIPALES
 # ====================
 def highlight_author(author: str, investigator_name: str) -> str:
+    """Resalta el nombre del investigador principal"""
     if investigator_name and investigator_name.lower() == author.lower():
         return f"<span style='background-color: {CONFIG.HIGHLIGHT_COLOR};'>{author}</span>"
     return author
 
-def sync_with_remote():
-    """Sincroniza el archivo local con el remoto"""
+def sync_with_remote(economic_number):
+    """Sincroniza el archivo local con el remoto para un número económico específico"""
     try:
         st.info("🔄 Sincronizando con el servidor remoto...")
-        remote_path = os.path.join(CONFIG.REMOTE['DIR'], CONFIG.REMOTE_PRODUCTOS_FILE)
+        csv_filename = f"{CONFIG.CSV_PREFIX}{economic_number}.csv"
+        remote_filename = f"{CONFIG.CSV_PREFIX}{economic_number}.csv"
+        remote_path = os.path.join(CONFIG.REMOTE['DIR'], remote_filename)
 
         # Intenta descargar el archivo remoto
-        download_success = SSHManager.download_remote_file(remote_path, CONFIG.CSV_FILENAME)
+        download_success = SSHManager.download_remote_file(remote_path, csv_filename)
 
         if not download_success:
             # Si no existe el archivo remoto, crea uno local con estructura correcta
             columns = [
                 'economic_number', 'titulo_tesis', 'tipo_tesis', 'year',
                 'pub_date', 'departamento', 'directores', 'paginas',
-                'idioma', 'estudiante', 'coautores', 'selected_keywords'
+                'idioma', 'estudiante', 'coautores', 'selected_keywords',
+                'estado'
             ]
 
             # Verifica si el archivo local ya existe
-            if not Path(CONFIG.CSV_FILENAME).exists():
-                pd.DataFrame(columns=columns).to_csv(CONFIG.CSV_FILENAME, index=False)
+            if not Path(csv_filename).exists():
+                pd.DataFrame(columns=columns).to_csv(csv_filename, index=False)
                 st.info("ℹ️ No se encontró archivo remoto. Se creó uno nuevo localmente con la estructura correcta.")
             else:
                 # Si el archivo local existe pero está vacío o corrupto
                 try:
-                    df = pd.read_csv(CONFIG.CSV_FILENAME)
+                    df = pd.read_csv(csv_filename)
                     if df.empty:
-                        pd.DataFrame(columns=columns).to_csv(CONFIG.CSV_FILENAME, index=False)
+                        pd.DataFrame(columns=columns).to_csv(csv_filename, index=False)
                 except:
-                    pd.DataFrame(columns=columns).to_csv(CONFIG.CSV_FILENAME, index=False)
+                    pd.DataFrame(columns=columns).to_csv(csv_filename, index=False)
 
             return False
 
         # Verifica que el archivo descargado no esté vacío
         try:
-            df = pd.read_csv(CONFIG.CSV_FILENAME)
+            df = pd.read_csv(csv_filename)
             if df.empty:
                 st.warning("El archivo remoto está vacío")
         except pd.errors.EmptyDataError:
@@ -295,9 +307,10 @@ def sync_with_remote():
             columns = [
                 'economic_number', 'titulo_tesis', 'tipo_tesis', 'year',
                 'pub_date', 'departamento', 'directores', 'paginas',
-                'idioma', 'estudiante', 'coautores', 'selected_keywords'
+                'idioma', 'estudiante', 'coautores', 'selected_keywords',
+                'estado'
             ]
-            pd.DataFrame(columns=columns).to_csv(CONFIG.CSV_FILENAME, index=False)
+            pd.DataFrame(columns=columns).to_csv(csv_filename, index=False)
             return False
 
         st.success("✅ Sincronización con servidor remoto completada")
@@ -309,28 +322,35 @@ def sync_with_remote():
         return False
 
 def save_to_csv(data: dict):
-    """Guarda los datos en el CSV local y remoto"""
+    """Guarda los datos en el CSV local y remoto, eliminando registros con estado 'X'"""
     try:
+        economic_number = data['economic_number']
+        csv_filename = f"{CONFIG.CSV_PREFIX}{economic_number}.csv"
+        
         with st.spinner("Sincronizando datos con el servidor..."):
-            if not sync_with_remote():
+            if not sync_with_remote(economic_number):
                 st.warning("⚠️ Trabajando con copia local debido a problemas de conexión")
 
         columns = [
             'economic_number', 'titulo_tesis', 'tipo_tesis', 'year',
             'pub_date', 'departamento', 'directores', 'paginas',
-            'idioma', 'estudiante', 'coautores', 'selected_keywords'
+            'idioma', 'estudiante', 'coautores', 'selected_keywords',
+            'estado'
         ]
 
         # Verificar si el archivo existe y tiene contenido válido
-        if not Path(CONFIG.CSV_FILENAME).exists():
+        if not Path(csv_filename).exists():
             df_existing = pd.DataFrame(columns=columns)
         else:
             try:
                 df_existing = pd.read_csv(
-                    CONFIG.CSV_FILENAME,
+                    csv_filename,
                     encoding='utf-8-sig',
                     dtype={'economic_number': str}
                 )
+                # Eliminar registros con estado 'X'
+                df_existing = df_existing[df_existing['estado'] != 'X'].copy()
+                
                 # Verificar si el DataFrame está vacío
                 if df_existing.empty:
                     df_existing = pd.DataFrame(columns=columns)
@@ -350,7 +370,7 @@ def save_to_csv(data: dict):
             if df_new[col].dtype == object:
                 df_new[col] = df_new[col].astype(str).str.replace(r'\r\n|\n|\r', ' ', regex=True).str.strip()
 
-        # Combinar los datos existentes con los nuevos
+        # Combinar los datos existentes (sin los 'X') con los nuevos
         df_combined = pd.concat([df_existing, df_new], ignore_index=True)
 
         # Asegurar que todas las columnas estén presentes
@@ -362,12 +382,13 @@ def save_to_csv(data: dict):
         df_combined = df_combined[columns]
 
         # Guardar localmente
-        df_combined.to_csv(CONFIG.CSV_FILENAME, index=False, encoding='utf-8-sig')
+        df_combined.to_csv(csv_filename, index=False, encoding='utf-8-sig')
 
         # Intentar subir al servidor remoto
         with st.spinner("Subiendo datos al servidor remoto..."):
-            remote_path = os.path.join(CONFIG.REMOTE['DIR'], CONFIG.REMOTE_PRODUCTOS_FILE)
-            if SSHManager.upload_remote_file(CONFIG.CSV_FILENAME, remote_path):
+            remote_filename = f"{CONFIG.CSV_PREFIX}{economic_number}.csv"
+            remote_path = os.path.join(CONFIG.REMOTE['DIR'], remote_filename)
+            if SSHManager.upload_remote_file(csv_filename, remote_path):
                 st.success("✅ Registro guardado exitosamente en el servidor remoto!")
                 return True
             else:
@@ -379,6 +400,23 @@ def save_to_csv(data: dict):
         st.error(f"❌ Error al guardar en CSV: {str(e)}")
         logging.error(f"Save CSV Error: {str(e)}")
         return False
+
+def display_author_info(data, investigator_name):
+    """Muestra información de autores con formato"""
+    st.markdown("**Autores**")
+    st.markdown(f"📌 Estudiante: {highlight_author(data['estudiante'], investigator_name)}", unsafe_allow_html=True)
+    if data['coautores']:
+        st.markdown("👥 Coautores:")
+        for author in data['coautores'].split("; "):
+            st.markdown(f"- {highlight_author(author, investigator_name)}", unsafe_allow_html=True)
+
+def display_publication_info(data):
+    """Muestra detalles de la tesis"""
+    st.markdown("**Detalles de la tesis**")
+    st.write(f"📅 Año: {data['year']}")
+    st.write(f"**📅 Fecha de publicación:**  \n`{data['pub_date']}`")
+    st.write(f"📚 Páginas: {data['paginas']}")
+    st.write(f"🏛️ Departamento: {data['departamento']}")
 
 def main():
     st.set_page_config(
@@ -394,14 +432,6 @@ def main():
 
     st.title("📚 Captura Tesis")
     
-    # Sincronización inicial
-    with st.spinner("Conectando con el servidor remoto..."):
-        if not sync_with_remote():
-            st.warning("""
-            ⚠️ No se pudo conectar con el servidor remoto. 
-            Trabajando en modo local. Los datos se sincronizarán cuando se restablezca la conexión.
-            """)
-    
     # Validación del número económico
     economic_number = st.text_input("🔢 Número económico del investigador (solo dígitos):").strip()
     
@@ -413,24 +443,81 @@ def main():
         st.error("El número económico debe contener solo dígitos (0-9)")
         return
 
+    # Sincronización inicial para el número económico específico
+    with st.spinner("Conectando con el servidor remoto..."):
+        if not sync_with_remote(economic_number):
+            st.warning("""
+            ⚠️ No se pudo conectar con el servidor remoto. 
+            Trabajando en modo local. Los datos se sincronizarán cuando se restablezca la conexión.
+            """)
+
     try:
-        if not Path(CONFIG.CSV_FILENAME).exists():
-            pd.DataFrame().to_csv(CONFIG.CSV_FILENAME, index=False)
+        csv_filename = f"{CONFIG.CSV_PREFIX}{economic_number}.csv"
+        
+        if not Path(csv_filename).exists():
+            pd.DataFrame().to_csv(csv_filename, index=False)
             tesis_df = pd.DataFrame()
         else:
-            tesis_df = pd.read_csv(CONFIG.CSV_FILENAME, encoding='utf-8-sig', dtype={'economic_number': str})
+            tesis_df = pd.read_csv(csv_filename, encoding='utf-8-sig', dtype={'economic_number': str})
             tesis_df['economic_number'] = tesis_df['economic_number'].astype(str).str.strip()
+            
+            # Asegurar que el campo 'estado' exista y tenga valores válidos
+            if 'estado' not in tesis_df.columns:
+                tesis_df['estado'] = 'A'
+            else:
+                tesis_df['estado'] = tesis_df['estado'].fillna('A').apply(lambda x: 'A' if x.strip() not in ['A', 'X'] else x.strip())
 
         filtered_records = tesis_df[tesis_df['economic_number'] == economic_number]
 
         if not filtered_records.empty:
             st.subheader(f"📋 Tesis registradas para {economic_number}")
-            st.dataframe(filtered_records[['titulo_tesis', 'tipo_tesis', 'year']], hide_index=True)
+            
+            # Nota sobre el campo Estado
+            st.info("""
+            **Nota sobre el campo Estado:**  
+            - 'A' = Tesis activa (valor por defecto)  
+            - 'X' = Tesis marcada para borrar  
+            Los registros marcados con 'X' se eliminarán al guardar nuevos cambios.
+            """)
+            
+            # Mostrar tabla editable con el campo Estado
+            edited_df = st.data_editor(
+                filtered_records[['titulo_tesis', 'tipo_tesis', 'year', 'estado']],
+                column_config={
+                    "estado": st.column_config.SelectboxColumn(
+                        "Estado",
+                        help="Seleccione 'A' para activo o 'X' para marcar para borrar",
+                        options=["A", "X"],
+                        required=True,
+                        width="small"
+                    )
+                },
+                hide_index=True,
+                use_container_width=True
+            )
+            
+            # Guardar cambios si se modificó el estado
+            if not edited_df.equals(filtered_records[['titulo_tesis', 'tipo_tesis', 'year', 'estado']]):
+                # Actualizar el DataFrame original con los cambios
+                tesis_df.update(edited_df)
+                
+                # Guardar cambios localmente
+                tesis_df.to_csv(csv_filename, index=False, encoding='utf-8-sig')
+                st.success("✅ Cambios en el estado guardados correctamente")
+                
+                # Sincronizar con el servidor remoto
+                with st.spinner("Sincronizando cambios con el servidor remoto..."):
+                    remote_filename = f"{CONFIG.CSV_PREFIX}{economic_number}.csv"
+                    remote_path = os.path.join(CONFIG.REMOTE['DIR'], remote_filename)
+                    if SSHManager.upload_remote_file(csv_filename, remote_path):
+                        st.success("✅ Cambios sincronizados con el servidor remoto")
+                    else:
+                        st.warning("⚠️ Los cambios se guardaron localmente pero no se pudieron sincronizar con el servidor remoto")
         
         if st.radio("¿Desea añadir un nuevo registro?", ["No", "Sí"], index=0) == "No":
             return
     except Exception as e:
-        st.error(f"❌ Error al leer {CONFIG.CSV_FILENAME}: {str(e)}")
+        st.error(f"❌ Error al leer {csv_filename}: {str(e)}")
         logging.error(f"CSV Read Error: {str(e)}")
 
     st.subheader("📝 Información de la tesis")
@@ -448,7 +535,15 @@ def main():
     departamento = st.text_input("🏛️ Departamento (INCICh):", key="departamento")
     directores = st.text_input("👨‍🏫 Director(es) de tesis (separados por ';'):", key="directores")
     paginas = st.text_input("🔖 Número de páginas:", key="paginas")
-    idioma = st.text_input("🌐 Idioma principal:", key="idioma")
+    
+    # Selector de idioma para la tesis
+    idioma = st.selectbox(
+        "🌐 Idioma principal de la tesis:",
+        options=IDIOMAS_TESIS,
+        index=0,
+        key="idioma"
+    )
+    
     estudiante = st.text_input("👤 Nombre completo del estudiante:", key="estudiante")
     coautores = st.text_area("👥 Coautores (si aplica, separados por ';'):", key="coautores")
     
@@ -497,7 +592,8 @@ def main():
         'idioma': idioma,
         'estudiante': estudiante,
         'coautores': coautores,
-        'selected_keywords': str(selected_categories[:CONFIG.MAX_KEYWORDS])
+        'selected_keywords': str(selected_categories[:CONFIG.MAX_KEYWORDS]),
+        'estado': 'A'  # Nuevo campo con valor por defecto 'A'
     }
     
     if st.button("💾 Guardar registro de tesis", type="primary"):
