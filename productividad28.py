@@ -121,6 +121,26 @@ KEYWORD_CATEGORIES = {
     ],
 }
 
+# ====================
+# OPCIONES DISPONIBLES
+# ====================
+DEPARTAMENTOS_INCICH = [
+    "Bioquímica",
+    "Biología Molecular",
+    "Biomedicina Cardiovascular",
+    "Consulta Externa (Dermatología, Endocrinología, etc.)",
+    "Departamento de Enseñanza de Enfermería (DEE)",
+    "Endocrinología",
+    "Farmacología",
+    "Fisiología",
+    "Fisiopatología Cardio-Renal",
+    "Fisiotepatología Cardiorenal",
+    "Inmunología",
+    "Instrumentación Electromecánica",
+    "Oficina de Apoyo Sistemático para la Investigación Superior (OASIS)",
+    "Unidad de Investigación UNAM-INC"
+]
+
 # ==================
 # CLASE SSH MEJORADA
 # ==================
@@ -180,7 +200,7 @@ class SSHManager:
                     except FileNotFoundError:
                         # Crear archivo local con estructura correcta
                         columns = [
-                            'economic_number', 'participation_key', 'investigator_name',
+                            'economic_number', 'departamento', 'participation_key', 'investigator_name',
                             'corresponding_author', 'coauthors', 'article_title', 'year',
                             'pub_date', 'volume', 'number', 'pages', 'journal_full',
                             'journal_abbrev', 'doi', 'jcr_group', 'pmid', 'selected_keywords',
@@ -383,6 +403,7 @@ def parse_nbib_file(content: str) -> dict:
         'pmid': '',
         'investigator_name': '',
         'economic_number': '',
+        'departamento': '',  # Nuevo campo añadido
         'participation_key': '',
         'selected_keywords': [],
         'estado': 'A'  # 'A' para activo, 'X' para marcado para borrar
@@ -476,7 +497,7 @@ def sync_with_remote(economic_number):
         if not download_success:
             # Si no existe el archivo remoto, crea uno local con estructura correcta
             columns = [
-                'economic_number', 'participation_key', 'investigator_name',
+                'economic_number', 'departamento', 'participation_key', 'investigator_name',
                 'corresponding_author', 'coauthors', 'article_title', 'year',
                 'pub_date', 'volume', 'number', 'pages', 'journal_full',
                 'journal_abbrev', 'doi', 'jcr_group', 'pmid', 'selected_keywords',
@@ -506,7 +527,7 @@ def sync_with_remote(economic_number):
         except pd.errors.EmptyDataError:
             st.warning("El archivo remoto está vacío o corrupto")
             columns = [
-                'economic_number', 'participation_key', 'investigator_name',
+                'economic_number', 'departamento', 'participation_key', 'investigator_name',
                 'corresponding_author', 'coauthors', 'article_title', 'year',
                 'pub_date', 'volume', 'number', 'pages', 'journal_full',
                 'journal_abbrev', 'doi', 'jcr_group', 'pmid', 'selected_keywords',
@@ -534,7 +555,7 @@ def save_to_csv(data: dict):
                 st.warning("⚠️ Trabajando con copia local debido a problemas de conexión")
 
         columns = [
-            'economic_number', 'participation_key', 'investigator_name',
+            'economic_number', 'departamento', 'participation_key', 'investigator_name',
             'corresponding_author', 'coauthors', 'article_title', 'year',
             'pub_date', 'volume', 'number', 'pages', 'journal_full',
             'journal_abbrev', 'doi', 'jcr_group', 'pmid', 'selected_keywords',
@@ -755,6 +776,15 @@ def main():
         st.subheader("📝 Información extraída")
         st.info(data['article_title'])
 
+        # Añadir campo departamento (nuevo)
+        departamento = st.selectbox(
+            "🏢 Departamento de adscripción:",
+            options=DEPARTAMENTOS_INCICH,
+            index=0,
+            key="departamento"
+        )
+        data['departamento'] = departamento
+
         selected_categories = st.multiselect(
             "Seleccione 3 palabras clave:",
             options=list(KEYWORD_CATEGORIES.keys()),
@@ -796,5 +826,7 @@ def main():
         st.error(f"❌ Error: {str(e)}")
         logging.error(f"Main App Error: {str(e)}")
 
+
 if __name__ == "__main__":
-    main()
+    main()        
+
