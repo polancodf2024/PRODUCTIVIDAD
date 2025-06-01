@@ -109,6 +109,23 @@ IDIOMAS_PRINCIPALES = [
     "Italiano", "Chino", "Japonés", "Ruso", "Otro"
 ]
 
+DEPARTAMENTOS_INCICH = [
+    "Bioquímica",
+    "Biología Molecular",
+    "Biomedicina Cardiovascular",
+    "Consulta Externa (Dermatología, Endocrinología, etc.)",
+    "Departamento de Enseñanza de Enfermería (DEE)",
+    "Endocrinología",
+    "Farmacología",
+    "Fisiología",
+    "Fisiopatología Cardio-Renal",
+    "Fisiotepatología Cardiorenal",
+    "Inmunología",
+    "Instrumentación Electromecánica",
+    "Oficina de Apoyo Sistemático para la Investigación Superior (OASIS)",
+    "Unidad de Investigación UNAM-INC"
+]
+
 # ====================
 # CONFIGURACIÓN INICIAL
 # ====================
@@ -194,7 +211,7 @@ class SSHManager:
                     except FileNotFoundError:
                         # Crear archivo local con estructura correcta
                         columns = [
-                            'economic_number', 'autor_principal', 'tipo_participacion', 'titulo_libro',
+                            'economic_number', 'departamento', 'autor_principal', 'tipo_participacion', 'titulo_libro',
                             'editorial', 'coautores_secundarios', 'year', 'pub_date', 'isbn_issn',
                             'numero_edicion', 'paginas', 'paises_distribucion', 'idiomas_disponibles',
                             'formatos_disponibles', 'selected_keywords', 'estado'
@@ -283,7 +300,7 @@ def sync_with_remote(economic_number):
         if not download_success:
             # Si no existe el archivo remoto, crea uno local con estructura correcta
             columns = [
-                'economic_number', 'autor_principal', 'tipo_participacion', 'titulo_libro',
+                'economic_number', 'departamento', 'autor_principal', 'tipo_participacion', 'titulo_libro',
                 'editorial', 'coautores_secundarios', 'year', 'pub_date', 'isbn_issn',
                 'numero_edicion', 'paginas', 'paises_distribucion', 'idiomas_disponibles',
                 'formatos_disponibles', 'selected_keywords', 'estado'
@@ -312,7 +329,7 @@ def sync_with_remote(economic_number):
         except pd.errors.EmptyDataError:
             st.warning("El archivo remoto está vacío o corrupto")
             columns = [
-                'economic_number', 'autor_principal', 'tipo_participacion', 'titulo_libro',
+                'economic_number', 'departamento', 'autor_principal', 'tipo_participacion', 'titulo_libro',
                 'editorial', 'coautores_secundarios', 'year', 'pub_date', 'isbn_issn',
                 'numero_edicion', 'paginas', 'paises_distribucion', 'idiomas_disponibles',
                 'formatos_disponibles', 'selected_keywords', 'estado'
@@ -339,7 +356,7 @@ def save_to_csv(data: dict):
                 st.warning("⚠️ Trabajando con copia local debido a problemas de conexión")
 
         columns = [
-            'economic_number', 'autor_principal', 'tipo_participacion', 'titulo_libro',
+            'economic_number', 'departamento', 'autor_principal', 'tipo_participacion', 'titulo_libro',
             'editorial', 'coautores_secundarios', 'year', 'pub_date', 'isbn_issn',
             'numero_edicion', 'paginas', 'paises_distribucion', 'idiomas_disponibles',
             'formatos_disponibles', 'selected_keywords', 'estado'
@@ -537,6 +554,12 @@ def main():
     st.subheader("📝 Información del libro")
     
     # Campos de entrada manual para libro
+    departamento = st.selectbox(
+        "🏢 Departamento de adscripción:",
+        options=DEPARTAMENTOS_INCICH,
+        index=0,
+        key="departamento"
+    )
     autor_principal = st.text_input("👤 Nombre completo del autor principal:", key="autor_principal")
     tipo_participacion = st.selectbox(
         "🎭 Tipo de participación:",
@@ -598,6 +621,7 @@ def main():
     st.write(f"🏢 Editorial: {editorial}")
     st.write(f"🎭 Tipo participación: {tipo_participacion}")
     st.write(f"📅 Año: {year}")
+    st.write(f"🏢 Departamento: {departamento}")
     
     st.markdown("**Autores**")
     st.markdown(f"👤 Autor principal: {highlight_author(autor_principal, autor_principal)}", unsafe_allow_html=True)
@@ -617,6 +641,7 @@ def main():
     # Preparar datos para guardar
     data = {
         'economic_number': economic_number,
+        'departamento': departamento,
         'autor_principal': autor_principal,
         'tipo_participacion': tipo_participacion,
         'titulo_libro': titulo_libro,
