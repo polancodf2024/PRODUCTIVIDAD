@@ -89,7 +89,7 @@ KEYWORD_CATEGORIES = {
     ],
     "Valvulopatías": [
         "valvulopatía", "estenosis aórtica", "insuficiencia aórtica",
-        "estenosis mitral", "insuficiencia mitral", "prolapso mitral",
+        "stenosis mitral", "insuficiencia mitral", "prolapso mitral",
         "tavi", "taavi", "anillo mitral", "reemplazo valvular"
     ],
 }
@@ -100,6 +100,26 @@ KEYWORD_CATEGORIES = {
 IDIOMAS_TESIS = [
     "Español", "Inglés", "Francés", "Alemán", "Portugués", 
     "Italiano", "Chino", "Japonés", "Ruso", "Otro"
+]
+
+# ====================
+# DEPARTAMENTOS INCICH
+# ====================
+DEPARTAMENTOS_INCICH = [
+    "Bioquímica",
+    "Biología Molecular",
+    "Biomedicina Cardiovascular",
+    "Consulta Externa (Dermatología, Endocrinología, etc.)",
+    "Departamento de Enseñanza de Enfermería (DEE)",
+    "Endocrinología",
+    "Farmacología",
+    "Fisiología",
+    "Fisiopatología Cardio-Renal",
+    "Fisiotepatología Cardiorenal",
+    "Inmunología",
+    "Instrumentación Electromecánica",
+    "Oficina de Apoyo Sistemático para la Investigación Superior (OASIS)",
+    "Unidad de Investigación UNAM-INC"
 ]
 
 # ====================
@@ -532,7 +552,12 @@ def main():
     )
     year = st.text_input("📅 Año de publicación:", key="year")
     pub_date = st.text_input("🗓️ Fecha completa de publicación (YYYY-MM-DD):", help="Formato: AAAA-MM-DD", key="pub_date")
-    departamento = st.text_input("🏛️ Departamento (INCICh):", key="departamento")
+    departamento = st.selectbox(
+        "🏛️ Departamento (INCICh):",
+        options=DEPARTAMENTOS_INCICH,
+        index=0,
+        key="departamento"
+    )
     directores = st.text_input("👨‍🏫 Director(es) de tesis (separados por ';'):", key="directores")
     paginas = st.text_input("🔖 Número de páginas:", key="paginas")
     
