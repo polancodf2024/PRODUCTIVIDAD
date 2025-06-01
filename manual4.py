@@ -17,6 +17,28 @@ logging.basicConfig(
     datefmt='%Y-%m-%d %H:%M:%S'
 )
 
+
+# ====================
+# DEPARTAMENTOS INCICH
+# ====================
+DEPARTAMENTOS_INCICH = [
+    "Bioquímica",
+    "Biología Molecular",
+    "Biomedicina Cardiovascular",
+    "Consulta Externa (Dermatología, Endocrinología, etc.)",
+    "Departamento de Enseñanza de Enfermería (DEE)",
+    "Endocrinología",
+    "Farmacología",
+    "Fisiología",
+    "Fisiopatología Cardio-Renal",
+    "Fisiotepatología Cardiorenal",
+    "Inmunología",
+    "Instrumentación Electromecánica",
+    "Oficina de Apoyo Sistemático para la Investigación Superior (OASIS)",
+    "Unidad de Investigación UNAM-INC"
+]
+
+
 # ====================
 # CONFIGURACIÓN INICIAL
 # ====================
@@ -183,7 +205,7 @@ class SSHManager:
                             'corresponding_author', 'coauthors', 'article_title', 'year',
                             'pub_date', 'volume', 'number', 'pages', 'journal_full',
                             'journal_abbrev', 'doi', 'jcr_group', 'pmid', 'selected_keywords',
-                            'estado'
+                            'estado', 'departamento'
                         ]
                         pd.DataFrame(columns=columns).to_csv(local_path, index=False)
                         logging.info(f"Archivo remoto no encontrado, creado local con estructura: {local_path}")
@@ -294,7 +316,7 @@ def sync_with_remote(economic_number):
                 'corresponding_author', 'coauthors', 'article_title', 'year',
                 'pub_date', 'volume', 'number', 'pages', 'journal_full',
                 'journal_abbrev', 'doi', 'jcr_group', 'pmid', 'selected_keywords',
-                'estado'
+                'estado', 'departamento'
             ]
 
             # Verifica si el archivo local ya existe
@@ -324,7 +346,7 @@ def sync_with_remote(economic_number):
                 'corresponding_author', 'coauthors', 'article_title', 'year',
                 'pub_date', 'volume', 'number', 'pages', 'journal_full',
                 'journal_abbrev', 'doi', 'jcr_group', 'pmid', 'selected_keywords',
-                'estado'
+                'estado', 'departamento'
             ]
             pd.DataFrame(columns=columns).to_csv(csv_filename, index=False)
             return False
@@ -352,7 +374,7 @@ def save_to_csv(data: dict):
             'corresponding_author', 'coauthors', 'article_title', 'year',
             'pub_date', 'volume', 'number', 'pages', 'journal_full',
             'journal_abbrev', 'doi', 'jcr_group', 'pmid', 'selected_keywords',
-            'estado'
+            'estado', 'departamento'
         ]
 
         # Verificar si el archivo existe y tiene contenido válido
@@ -544,8 +566,8 @@ def main():
     article_title = st.text_area("📄 Título del artículo:", height=100)
     year = st.text_input("📅 Año de publicación:")
     pub_date = st.text_input("🗓️ Fecha completa de publicación (YYYY-MM-DD):", help="Formato: AAAA-MM-DD")
-    volume = st.text_input("📚 Volumen (ej 79(3), volumen = 79")
-    number = st.text_input("# Número (ej 79(3), número = 3)")
+    volume = st.text_input("📚 Volumen (ej 79(3), el volumen es 79")
+    number = st.text_input("# Número (ej 79(3), el número es 3)")
     pages = st.text_input("🔖 Páginas (ej. 123-130):")
     journal_full = st.text_input("🏛️ Nombre completo de la revista:")
     journal_abbrev = st.text_input("🏷️ Abreviatura de la revista:")
@@ -567,6 +589,13 @@ def main():
     pmid = st.text_input("🔍 PMID (opcional):")
     corresponding_author = st.text_input("📌 Autor de correspondencia:")
     coauthors = st.text_area("👥 Coautores (separados por punto y coma ';'):", help="Ejemplo: Autor1; Autor2; Autor3")
+#    departamento = st.text_input("🏢 Departamento (opcional):")
+    departamento = st.selectbox(
+        "🏛️  Departamento (INCICh):",
+        options=DEPARTAMENTOS_INCICH,
+        index=0,
+        key="departamento"
+    )
     
     # Palabras clave
     st.subheader("🔑 Palabras clave")
@@ -614,6 +643,7 @@ def main():
     st.write(f"🔢 Número económico: {economic_number}")
     st.write(f"👤 Investigador: {investigator_name}")
     st.write(f"🔑 Clave participación: {participation_key}")
+    st.write(f"🏢 Departamento: {departamento or 'No especificado'}")
     
     # Preparar datos para guardar
     data = {
@@ -634,7 +664,8 @@ def main():
         'jcr_group': jcr_group,
         'pmid': pmid,
         'selected_keywords': str(selected_categories[:CONFIG.MAX_KEYWORDS]),
-        'estado': 'A'  # Nuevo campo con valor por defecto 'A'
+        'estado': 'A',  # Nuevo campo con valor por defecto 'A'
+        'departamento': departamento
     }
     
     if st.button("💾 Guardar registro", type="primary"):
