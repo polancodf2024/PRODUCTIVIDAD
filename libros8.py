@@ -462,210 +462,208 @@ def main():
         st.image(logo, width=200)
 
     st.title("📚 Captura de Libros")
-    
+
     # Validación del número económico
     economic_number = st.text_input("🔢 Número económico del investigador (solo dígitos):").strip()
-    
+
     if not economic_number:
         st.warning("Por favor ingrese un número económico")
         return
-        
+
     if not economic_number.isdigit():
         st.error("El número económico debe contener solo dígitos (0-9)")
         return
 
     # Sincronización inicial para el número económico específico
     with st.spinner("Conectando con el servidor remoto..."):
-        if not sync_with_remote(economic_number):
-            st.warning("""
-            ⚠️ No se pudo conectar con el servidor remoto. 
-            Trabajando en modo local. Los datos se sincronizarán cuando se restablezca la conexión.
-            """)
+        sync_with_remote(economic_number)
 
-    try:
-        csv_filename = f"{CONFIG.CSV_PREFIX}{economic_number}.csv"
-        
-        if not Path(csv_filename).exists():
-            pd.DataFrame().to_csv(csv_filename, index=False)
-            libros_df = pd.DataFrame()
-        else:
+    csv_filename = f"{CONFIG.CSV_PREFIX}{economic_number}.csv"
+
+    # Cargar o inicializar el DataFrame
+    if Path(csv_filename).exists():
+        try:
             libros_df = pd.read_csv(csv_filename, encoding='utf-8-sig', dtype={'economic_number': str})
             libros_df['economic_number'] = libros_df['economic_number'].astype(str).str.strip()
-            
-            # Asegurar que el campo 'estado' exista y tenga valores válidos
+
+            # Asegurar que el campo 'estado' exista
             if 'estado' not in libros_df.columns:
                 libros_df['estado'] = 'A'
             else:
-                libros_df['estado'] = libros_df['estado'].fillna('A').apply(lambda x: 'A' if x.strip() not in ['A', 'X'] else x.strip())
+                # Limpiar valores vacíos/nulos en el campo estado
+                libros_df['estado'] = libros_df['estado'].fillna('A').str.strip().replace('', 'A')
+        except Exception as e:
+            st.error(f"Error al leer el archivo: {str(e)}")
+            libros_df = pd.DataFrame(columns=[
+                'economic_number', 'departamento', 'autor_principal', 'tipo_participacion', 'titulo_libro',
+                'editorial', 'coautores_secundarios', 'year', 'pub_date', 'isbn_issn',
+                'numero_edicion', 'paginas', 'paises_distribucion', 'idiomas_disponibles',
+                'formatos_disponibles', 'selected_keywords', 'estado'
+            ])
+    else:
+        libros_df = pd.DataFrame(columns=[
+            'economic_number', 'departamento', 'autor_principal', 'tipo_participacion', 'titulo_libro',
+            'editorial', 'coautores_secundarios', 'year', 'pub_date', 'isbn_issn',
+            'numero_edicion', 'paginas', 'paises_distribucion', 'idiomas_disponibles',
+            'formatos_disponibles', 'selected_keywords', 'estado'
+        ])
 
-        filtered_records = libros_df[libros_df['economic_number'] == economic_number]
+    # Mostrar registros existentes si los hay
+    if not libros_df.empty:
+        st.subheader(f"📋 Libros registrados para {economic_number}")
+        st.info("""
+        **Instrucciones:**
+        - Marque con 'X' los registros que desee dar de baja
+        - Todos los demás deben mantenerse con 'A' (Activo)
+        """)
 
-        if not filtered_records.empty:
-            st.subheader(f"📋 Libros registrados para {economic_number}")
-            
-            # Nota sobre el campo Estado
-            st.info("""
-            **Nota sobre el campo Estado:**  
-            - 'A' = Libro activo (valor por defecto)  
-            - 'X' = Libro marcado para borrar  
-            Los registros marcados con 'X' se eliminarán al guardar nuevos cambios.
-            """)
-            
-            # Mostrar tabla editable con el campo Estado
-            edited_df = st.data_editor(
-                filtered_records[['titulo_libro', 'tipo_participacion', 'year', 'estado']],
-                column_config={
-                    "estado": st.column_config.SelectboxColumn(
-                        "Estado",
-                        help="Seleccione 'A' para activo o 'X' para marcar para borrar",
-                        options=["A", "X"],
-                        required=True,
-                        width="small"
-                    )
-                },
-                hide_index=True,
-                use_container_width=True
+        # Crear copia editable solo con las columnas necesarias
+        columnas_mostrar = ['titulo_libro', 'tipo_participacion', 'year', 'estado']
+        edited_df = libros_df[columnas_mostrar].copy()
+
+        # Mostrar editor de tabla
+        edited_df = st.data_editor(
+            edited_df,
+            column_config={
+                "estado": st.column_config.SelectboxColumn(
+                    "Estado",
+                    options=["A", "X"],
+                    required=True,
+                    width="small"
+                )
+            },
+            hide_index=True,
+            use_container_width=True,
+            key="editor_tabla"
+        )
+
+        # Verificar cambios en los estados
+        if not edited_df.equals(libros_df[columnas_mostrar]):
+            # Actualizar el estado en el DataFrame original
+            libros_df['estado'] = edited_df['estado']
+
+            # Identificar registros marcados para borrar
+            registros_a_borrar = libros_df[libros_df['estado'] == 'X']
+
+            if not registros_a_borrar.empty:
+                st.warning(f"⚠️ Tiene {len(registros_a_borrar)} registro(s) marcado(s) para dar de baja")
+
+                col1, col2 = st.columns(2)
+                with col1:
+                    if st.button("🗑️ Confirmar baja de registros", type="primary"):
+                        # Filtrar solo los registros activos (estado 'A')
+                        libros_df = libros_df[libros_df['estado'] == 'A'].copy()
+
+                        # Guardar cambios en el archivo
+                        libros_df.to_csv(csv_filename, index=False, encoding='utf-8-sig')
+
+                        # Sincronizar con servidor remoto
+                        with st.spinner("Guardando cambios..."):
+                            remote_filename = f"{CONFIG.CSV_PREFIX}{economic_number}.csv"
+                            remote_path = os.path.join(CONFIG.REMOTE['DIR'], remote_filename)
+                            upload_success = SSHManager.upload_remote_file(csv_filename, remote_path)
+
+                        if upload_success:
+                            st.success("✅ Registros eliminados exitosamente del archivo!")
+                            st.balloons()
+                            time.sleep(2)
+                            st.rerun()
+                        else:
+                            st.error("❌ Error al sincronizar con el servidor remoto")
+
+                with col2:
+                    if st.button("↩️ Cancelar operación"):
+                        st.info("Operación cancelada - No se realizaron cambios")
+                        st.rerun()
+
+    # Preguntar si desea añadir nuevo registro
+    st.divider()
+    if st.radio("¿Desea registrar un nuevo libro?", ["No", "Sí"], index=0) == "Sí":
+        # Formulario para nuevo registro
+        st.subheader("📝 Nuevo registro de libro")
+
+        with st.form("nuevo_libro", clear_on_submit=True):
+            departamento = st.selectbox(
+                "🏢 Departamento de adscripción:",
+                options=DEPARTAMENTOS_INCICH,
+                index=0
             )
-            
-            # Guardar cambios si se modificó el estado
-            if not edited_df.equals(filtered_records[['titulo_libro', 'tipo_participacion', 'year', 'estado']]):
-                # Actualizar el DataFrame original con los cambios
-                libros_df.update(edited_df)
-                
-                # Guardar cambios localmente
-                libros_df.to_csv(csv_filename, index=False, encoding='utf-8-sig')
-                st.success("✅ Cambios en el estado guardados correctamente")
-                
-                # Sincronizar con el servidor remoto
-                with st.spinner("Sincronizando cambios con el servidor remoto..."):
-                    remote_filename = f"{CONFIG.CSV_PREFIX}{economic_number}.csv"
-                    remote_path = os.path.join(CONFIG.REMOTE['DIR'], remote_filename)
-                    if SSHManager.upload_remote_file(csv_filename, remote_path):
-                        st.success("✅ Cambios sincronizados con el servidor remoto")
-                    else:
-                        st.warning("⚠️ Los cambios se guardaron localmente pero no se pudieron sincronizar con el servidor remoto")
-        
-        if st.radio("¿Desea añadir un nuevo registro?", ["No", "Sí"], index=0) == "No":
-            return
-    except Exception as e:
-        st.error(f"❌ Error al leer {csv_filename}: {str(e)}")
-        logging.error(f"CSV Read Error: {str(e)}")
+            autor_principal = st.text_input("👤 Nombre completo del autor principal:")
+            tipo_participacion = st.selectbox(
+                "🎭 Tipo de participación:",
+                options=TIPOS_PARTICIPACION,
+                index=0
+            )
+            titulo_libro = st.text_area("📖 Título del libro:")
+            editorial = st.text_input("🏢 Editorial:")
+            coautores_secundarios = st.text_area("👥 Coautores secundarios (si aplica, separados por ';'):")
 
-    st.subheader("📝 Información del libro")
-    
-    # Campos de entrada manual para libro
-    departamento = st.selectbox(
-        "🏢 Departamento de adscripción:",
-        options=DEPARTAMENTOS_INCICH,
-        index=0,
-        key="departamento"
-    )
-    autor_principal = st.text_input("👤 Nombre completo del autor principal:", key="autor_principal")
-    tipo_participacion = st.selectbox(
-        "🎭 Tipo de participación:",
-        options=TIPOS_PARTICIPACION,
-        index=0,
-        key="tipo_participacion"
-    )
-    titulo_libro = st.text_area("📖 Título del libro:", height=100, key="titulo_libro")
-    editorial = st.text_input("🏢 Editorial:", key="editorial")
-    coautores_secundarios = st.text_area("👥 Coautores secundarios (si aplica, separados por ';'):", key="coautores_secundarios")
-    
-    # Detalles de publicación
-    st.subheader("📅 Detalles de publicación")
-    year = st.text_input("Año de publicación:", key="year")
-    pub_date = st.text_input("Fecha exacta de publicación [YYYY-MM-DD]:", help="Formato: AAAA-MM-DD", key="pub_date")
-    isbn_issn = st.text_input("🔖 ISBN/ISSN:", key="isbn_issn")
-    numero_edicion = st.text_input("#️⃣ Número de edición:", key="numero_edicion")
-    paginas = st.text_input("📚 Número de páginas:", key="paginas")
-    
-    # Distribución
-    st.subheader("🌍 Distribución")
-    paises_distribucion = st.multiselect(
-        "Países de distribución principales:",
-        options=PAISES_PRINCIPALES,
-        default=[],
-        key="paises_distribucion"
-    )
-    idiomas_disponibles = st.multiselect(
-        "Idiomas disponibles:",
-        options=IDIOMAS_PRINCIPALES,
-        default=[],
-        key="idiomas_disponibles"
-    )
-    formatos_disponibles = st.multiselect(
-        "Formatos disponibles:",
-        options=FORMATOS_LIBRO,
-        default=[],
-        key="formatos_disponibles"
-    )
-    
-    # Sección de palabras clave
-    st.subheader("🔍 Palabras clave")
-    st.markdown(f"Seleccione {CONFIG.MAX_KEYWORDS} palabras clave relevantes:")
-    all_categories = list(KEYWORD_CATEGORIES.keys())
-    selected_categories = st.multiselect(
-        "Palabras clave:",
-        options=all_categories,
-        default=[],
-        max_selections=CONFIG.MAX_KEYWORDS,
-        key="keywords"
-    )
-    if len(selected_categories) < CONFIG.MAX_KEYWORDS:
-        st.warning(f"Se recomiendan {CONFIG.MAX_KEYWORDS} palabras clave (seleccionadas: {len(selected_categories)})")
+            # Detalles de publicación
+            st.subheader("📅 Detalles de publicación")
+            col1, col2 = st.columns(2)
+            with col1:
+                year = st.text_input("Año de publicación:")
+            with col2:
+                pub_date = st.text_input("Fecha exacta de publicación [YYYY-MM-DD]:", placeholder="AAAA-MM-DD")
 
-    # Resumen del registro
-    st.subheader("📋 Resumen del registro")
-    st.markdown("**Información del libro**")
-    st.write(f"📖 Título: {titulo_libro}")
-    st.write(f"🏢 Editorial: {editorial}")
-    st.write(f"🎭 Tipo participación: {tipo_participacion}")
-    st.write(f"📅 Año: {year}")
-    st.write(f"🏢 Departamento: {departamento}")
-    
-    st.markdown("**Autores**")
-    st.markdown(f"👤 Autor principal: {highlight_author(autor_principal, autor_principal)}", unsafe_allow_html=True)
-    if coautores_secundarios:
-        st.markdown("👥 Coautores secundarios:")
-        for author in [a.strip() for a in coautores_secundarios.split(";") if a.strip()]:
-            st.markdown(f"- {highlight_author(author, autor_principal)}", unsafe_allow_html=True)
-    
-    st.markdown("**Distribución**")
-    st.write(f"🌍 Países: {', '.join(paises_distribucion)}")
-    st.write(f"🌐 Idiomas: {', '.join(idiomas_disponibles)}")
-    st.write(f"📖 Formatos: {', '.join(formatos_disponibles)}")
-    
-    st.markdown("**Identificación**")
-    st.write(f"🔢 Número económico: {economic_number}")
-    
-    # Preparar datos para guardar
-    data = {
-        'economic_number': economic_number,
-        'departamento': departamento,
-        'autor_principal': autor_principal,
-        'tipo_participacion': tipo_participacion,
-        'titulo_libro': titulo_libro,
-        'editorial': editorial,
-        'coautores_secundarios': coautores_secundarios,
-        'year': year,
-        'pub_date': pub_date if pub_date else year,
-        'isbn_issn': isbn_issn,
-        'numero_edicion': numero_edicion,
-        'paginas': paginas,
-        'paises_distribucion': ', '.join(paises_distribucion),
-        'idiomas_disponibles': ', '.join(idiomas_disponibles),
-        'formatos_disponibles': ', '.join(formatos_disponibles),
-        'selected_keywords': str(selected_categories[:CONFIG.MAX_KEYWORDS]),
-        'estado': 'A'  # Nuevo campo con valor por defecto 'A'
-    }
-    
-    if st.button("💾 Guardar registro de libro", type="primary"):
-        with st.spinner("Guardando datos..."):
-            if save_to_csv(data):
-                st.balloons()
-                st.success("✅ Registro guardado exitosamente!")
-                st.subheader("📄 Registro completo capturado")
-                st.json(data)
+            col3, col4 = st.columns(2)
+            with col3:
+                isbn_issn = st.text_input("🔖 ISBN/ISSN:")
+            with col4:
+                numero_edicion = st.text_input("#️⃣ Número de edición:")
+
+            paginas = st.text_input("📚 Número de páginas:")
+
+            # Distribución
+            st.subheader("🌍 Distribución")
+            paises_distribucion = st.multiselect(
+                "Países de distribución principales:",
+                options=PAISES_PRINCIPALES
+            )
+            idiomas_disponibles = st.multiselect(
+                "Idiomas disponibles:",
+                options=IDIOMAS_PRINCIPALES
+            )
+            formatos_disponibles = st.multiselect(
+                "Formatos disponibles:",
+                options=FORMATOS_LIBRO
+            )
+
+            # Sección de palabras clave
+            st.subheader("🔍 Palabras clave")
+            selected_categories = st.multiselect(
+                f"Seleccione hasta {CONFIG.MAX_KEYWORDS} palabras clave:",
+                options=list(KEYWORD_CATEGORIES.keys()),
+                max_selections=CONFIG.MAX_KEYWORDS
+            )
+
+            if st.form_submit_button("💾 Guardar nuevo registro"):
+                nuevo_registro = {
+                    'economic_number': economic_number,
+                    'departamento': departamento,
+                    'autor_principal': autor_principal,
+                    'tipo_participacion': tipo_participacion,
+                    'titulo_libro': titulo_libro,
+                    'editorial': editorial,
+                    'coautores_secundarios': coautores_secundarios,
+                    'year': year,
+                    'pub_date': pub_date if pub_date else year,
+                    'isbn_issn': isbn_issn,
+                    'numero_edicion': numero_edicion,
+                    'paginas': paginas,
+                    'paises_distribucion': ', '.join(paises_distribucion),
+                    'idiomas_disponibles': ', '.join(idiomas_disponibles),
+                    'formatos_disponibles': ', '.join(formatos_disponibles),
+                    'selected_keywords': str(selected_categories),
+                    'estado': 'A'
+                }
+
+                if save_to_csv(nuevo_registro):
+                    st.success("✅ Registro guardado exitosamente!")
+                    st.balloons()
+                    time.sleep(2)
+                    st.rerun()
 
 if __name__ == "__main__":
     main()
+
