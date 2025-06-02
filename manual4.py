@@ -205,7 +205,7 @@ class SSHManager:
                             'corresponding_author', 'coauthors', 'article_title', 'year',
                             'pub_date', 'volume', 'number', 'pages', 'journal_full',
                             'journal_abbrev', 'doi', 'jcr_group', 'pmid', 'selected_keywords',
-                            'estado', 'departamento'
+                            'departamento', 'estado'
                         ]
                         pd.DataFrame(columns=columns).to_csv(local_path, index=False)
                         logging.info(f"Archivo remoto no encontrado, creado local con estructura: {local_path}")
@@ -316,7 +316,7 @@ def sync_with_remote(economic_number):
                 'corresponding_author', 'coauthors', 'article_title', 'year',
                 'pub_date', 'volume', 'number', 'pages', 'journal_full',
                 'journal_abbrev', 'doi', 'jcr_group', 'pmid', 'selected_keywords',
-                'estado', 'departamento'
+                'departamento', 'estado'
             ]
 
             # Verifica si el archivo local ya existe
@@ -346,7 +346,7 @@ def sync_with_remote(economic_number):
                 'corresponding_author', 'coauthors', 'article_title', 'year',
                 'pub_date', 'volume', 'number', 'pages', 'journal_full',
                 'journal_abbrev', 'doi', 'jcr_group', 'pmid', 'selected_keywords',
-                'estado', 'departamento'
+                'departamento', 'estado'
             ]
             pd.DataFrame(columns=columns).to_csv(csv_filename, index=False)
             return False
@@ -374,7 +374,7 @@ def save_to_csv(data: dict):
             'corresponding_author', 'coauthors', 'article_title', 'year',
             'pub_date', 'volume', 'number', 'pages', 'journal_full',
             'journal_abbrev', 'doi', 'jcr_group', 'pmid', 'selected_keywords',
-            'estado', 'departamento'
+            'departamento', 'estado'
         ]
 
         # Verificar si el archivo existe y tiene contenido válido
@@ -471,14 +471,14 @@ def main():
         st.image(logo, width=200)
 
     st.title("📝 Artículos no en PubMed")
-    
+
     # Validación del número económico
     economic_number = st.text_input("🔢 Número económico del investigador (solo dígitos):").strip()
-    
+
     if not economic_number:
         st.warning("Por favor ingrese un número económico")
         return
-        
+
     if not economic_number.isdigit():
         st.error("El número económico debe contener solo dígitos (0-9)")
         return
@@ -487,194 +487,230 @@ def main():
     with st.spinner("Conectando con el servidor remoto..."):
         if not sync_with_remote(economic_number):
             st.warning("""
-            ⚠️ No se pudo conectar con el servidor remoto. 
+            ⚠️ No se pudo conectar con el servidor remoto.
             Trabajando en modo local. Los datos se sincronizarán cuando se restablezca la conexión.
             """)
 
-    try:
-        csv_filename = f"{CONFIG.CSV_PREFIX}{economic_number}.csv"
-        
-        if not Path(csv_filename).exists():
-            pd.DataFrame().to_csv(csv_filename, index=False)
-            manual_df = pd.DataFrame()
-        else:
+    csv_filename = f"{CONFIG.CSV_PREFIX}{economic_number}.csv"
+
+    # Cargar o inicializar el DataFrame
+    if Path(csv_filename).exists():
+        try:
             manual_df = pd.read_csv(csv_filename, encoding='utf-8-sig', dtype={'economic_number': str})
             manual_df['economic_number'] = manual_df['economic_number'].astype(str).str.strip()
-            
-            # Asegurar que el campo 'estado' exista y tenga valores válidos
+
+            # Asegurar que el campo 'estado' exista
             if 'estado' not in manual_df.columns:
                 manual_df['estado'] = 'A'
             else:
-                manual_df['estado'] = manual_df['estado'].fillna('A').apply(lambda x: 'A' if x.strip() not in ['A', 'X'] else x.strip())
+                # Limpiar valores vacíos/nulos en el campo estado
+                manual_df['estado'] = manual_df['estado'].fillna('A').str.strip().replace('', 'A')
+        except Exception as e:
+            st.error(f"Error al leer el archivo: {str(e)}")
+            manual_df = pd.DataFrame(columns=[
+                'economic_number', 'participation_key', 'investigator_name',
+                'corresponding_author', 'coauthors', 'article_title', 'year',
+                'pub_date', 'volume', 'number', 'pages', 'journal_full',
+                'journal_abbrev', 'doi', 'jcr_group', 'pmid', 'selected_keywords',
+                'departamento', 'estado'
+            ])
+    else:
+        manual_df = pd.DataFrame(columns=[
+            'economic_number', 'participation_key', 'investigator_name',
+            'corresponding_author', 'coauthors', 'article_title', 'year',
+            'pub_date', 'volume', 'number', 'pages', 'journal_full',
+            'journal_abbrev', 'doi', 'jcr_group', 'pmid', 'selected_keywords',
+            'departamento', 'estado' 
+        ])
 
-        filtered_records = manual_df[manual_df['economic_number'] == economic_number]
+    # Mostrar registros existentes si los hay
+    if not manual_df.empty:
+        st.subheader(f"📋 Registros existentes para {economic_number}")
+        st.info("""
+        **Instrucciones:**
+        - Marque con 'X' los registros que desee dar de baja
+        - Todos los demás deben mantenerse con 'A' (Activo)
+        """)
 
-        if not filtered_records.empty:
-            st.subheader(f"📋 Registros existentes para {economic_number}")
-            
-            # Nota sobre el campo Estado
-            st.info("""
-            **Nota sobre el campo Estado:**  
-            - 'A' = Artículo activo (valor por defecto)  
-            - 'X' = Artículo marcado para borrar  
-            Si desea eliminar un registro, cambie su Estado a 'X' y guarde los cambios.
-            """)
-            
-            # Mostrar tabla editable con el campo Estado
-            edited_df = st.data_editor(
-                filtered_records[['article_title', 'journal_full', 'estado']],
-                column_config={
-                    "estado": st.column_config.SelectboxColumn(
-                        "Estado",
-                        help="Seleccione 'A' para activo o 'X' para marcar para borrar",
-                        options=["A", "X"],
-                        required=True,
-                        width="small"
-                    )
-                },
-                hide_index=True,
-                use_container_width=True
-            )
-            
-            # Guardar cambios si se modificó el estado
-            if not edited_df.equals(filtered_records[['article_title', 'journal_full', 'estado']]):
-                # Actualizar el DataFrame original con los cambios
-                manual_df.update(edited_df)
-                
-                # Guardar cambios localmente
-                manual_df.to_csv(csv_filename, index=False, encoding='utf-8-sig')
-                st.success("✅ Cambios en el estado guardados correctamente")
-                
-                # Sincronizar con el servidor remoto
-                with st.spinner("Sincronizando cambios con el servidor remoto..."):
-                    remote_filename = f"{CONFIG.CSV_PREFIX}{economic_number}.csv"
-                    remote_path = os.path.join(CONFIG.REMOTE['DIR'], remote_filename)
-                    if SSHManager.upload_remote_file(csv_filename, remote_path):
-                        st.success("✅ Cambios sincronizados con el servidor remoto")
-                    else:
-                        st.warning("⚠️ Los cambios se guardaron localmente pero no se pudieron sincronizar con el servidor remoto")
-        
-        if st.radio("¿Desea añadir un nuevo registro?", ["No", "Sí"], index=0) == "No":
+        # Crear copia editable solo con las columnas necesarias
+        columnas_mostrar = ['article_title', 'journal_full', 'estado']
+        edited_df = manual_df[columnas_mostrar].copy()
+
+        # Mostrar editor de tabla
+        edited_df = st.data_editor(
+            edited_df,
+            column_config={
+                "estado": st.column_config.SelectboxColumn(
+                    "Estado",
+                    options=["A", "X"],
+                    required=True,
+                    width="small"
+                )
+            },
+            hide_index=True,
+            use_container_width=True,
+            key="editor_tabla"
+        )
+
+        # Verificar cambios en los estados
+        if not edited_df.equals(manual_df[columnas_mostrar]):
+            # Actualizar el estado en el DataFrame original
+            manual_df['estado'] = edited_df['estado']
+
+            # Identificar registros marcados para borrar
+            registros_a_borrar = manual_df[manual_df['estado'] == 'X']
+
+            if not registros_a_borrar.empty:
+                st.warning(f"⚠️ Tiene {len(registros_a_borrar)} registro(s) marcado(s) para dar de baja")
+
+                col1, col2 = st.columns(2)
+                with col1:
+                    if st.button("🗑️ Confirmar baja de registros", type="primary"):
+                        # Filtrar solo los registros activos (estado 'A')
+                        manual_df = manual_df[manual_df['estado'] == 'A'].copy()
+
+                        # Guardar cambios en el archivo
+                        manual_df.to_csv(csv_filename, index=False, encoding='utf-8-sig')
+
+                        # Sincronizar con servidor remoto
+                        with st.spinner("Guardando cambios..."):
+                            remote_filename = f"{CONFIG.CSV_PREFIX}{economic_number}.csv"
+                            remote_path = os.path.join(CONFIG.REMOTE['DIR'], remote_filename)
+                            upload_success = SSHManager.upload_remote_file(csv_filename, remote_path)
+
+                        if upload_success:
+                            st.success("✅ Registros eliminados exitosamente del archivo!")
+                            st.balloons()
+                            time.sleep(2)
+                            st.rerun()
+                        else:
+                            st.error("❌ Error al sincronizar con el servidor remoto")
+
+                with col2:
+                    if st.button("↩️ Cancelar operación"):
+                        st.info("Operación cancelada - No se realizaron cambios")
+                        st.rerun()
+
+    # Preguntar si desea añadir nuevo registro
+    st.divider()
+    if st.radio("¿Desea añadir un nuevo registro?", ["No", "Sí"], index=0) == "Sí":
+        st.subheader("📝 Información del artículo")
+
+        # Campos de entrada manual
+        article_title = st.text_area("📄 Título del artículo:", height=100)
+        year = st.text_input("📅 Año de publicación:")
+        pub_date = st.text_input("🗓️ Fecha completa de publicación (YYYY-MM-DD):", help="Formato: AAAA-MM-DD")
+        volume = st.text_input("📚 Volumen (ej 79(3), el volumen es 79")
+        number = st.text_input("# Número (ej 79(3), el número es 3)")
+        pages = st.text_input("🔖 Páginas (ej. 123-130):")
+        journal_full = st.text_input("🏛️ Nombre completo de la revista:")
+        journal_abbrev = st.text_input("🏷️ Abreviatura de la revista:")
+        jcr_group = st.selectbox(
+            "🏆 Grupo JCR:",
+            options=[
+                "Grupo 1 (sin factor de impacto)",
+                "Grupo 2 (FI ≤ 0.9)",
+                "Grupo 3 (FI 1-2.99)",
+                "Grupo 4 (FI 3-5.99)",
+                "Grupo 5 (FI 6-8.99)",
+                "Grupo 6 (FI 9-11.99)",
+                "Grupo 7 (FI ≥ 12)",
+                "Grupo no determinado"
+            ],
+            index=0
+        )
+        doi = st.text_input("🌐 DOI:")
+        pmid = st.text_input("🔍 PMID (opcional):")
+        corresponding_author = st.text_input("📌 Autor de correspondencia:")
+        coauthors = st.text_area("👥 Coautores (separados por punto y coma ';'):", help="Ejemplo: Autor1; Autor2; Autor3")
+        departamento = st.selectbox(
+            "🏛️ Departamento (INCICh):",
+            options=DEPARTAMENTOS_INCICH,
+            index=0,
+            key="departamento"
+        )
+
+        # Palabras clave
+        st.subheader("🔑 Palabras clave")
+        selected_categories = st.multiselect(
+            f"Seleccione {CONFIG.MAX_KEYWORDS} palabras clave:",
+            options=list(KEYWORD_CATEGORIES.keys()),
+            default=[],
+            max_selections=CONFIG.MAX_KEYWORDS
+        )
+
+        if len(selected_categories) < CONFIG.MAX_KEYWORDS:
+            st.error(f"Debe seleccionar exactamente {CONFIG.MAX_KEYWORDS} palabras clave")
             return
-    except Exception as e:
-        st.error(f"❌ Error al leer {csv_filename}: {str(e)}")
-        logging.error(f"CSV Read Error: {str(e)}")
 
-    st.subheader("📝 Información del artículo")
-    
-    # Campos de entrada manual
-    article_title = st.text_area("📄 Título del artículo:", height=100)
-    year = st.text_input("📅 Año de publicación:")
-    pub_date = st.text_input("🗓️ Fecha completa de publicación (YYYY-MM-DD):", help="Formato: AAAA-MM-DD")
-    volume = st.text_input("📚 Volumen (ej 79(3), el volumen es 79")
-    number = st.text_input("# Número (ej 79(3), el número es 3)")
-    pages = st.text_input("🔖 Páginas (ej. 123-130):")
-    journal_full = st.text_input("🏛️ Nombre completo de la revista:")
-    journal_abbrev = st.text_input("🏷️ Abreviatura de la revista:")
-    jcr_group = st.selectbox(
-        "🏆 Grupo JCR:",
-        options=[
-            "Grupo 1 (sin factor de impacto)",
-            "Grupo 2 (FI ≤ 0.9)",
-            "Grupo 3 (FI 1-2.99)",
-            "Grupo 4 (FI 3-5.99)",
-            "Grupo 5 (FI 6-8.99)",
-            "Grupo 6 (FI 9-11.99)",
-            "Grupo 7 (FI ≥ 12)",
-            "Grupo no determinado"
-        ],
-        index=0
-    )
-    doi = st.text_input("🌐 DOI:")
-    pmid = st.text_input("🔍 PMID (opcional):")
-    corresponding_author = st.text_input("📌 Autor de correspondencia:")
-    coauthors = st.text_area("👥 Coautores (separados por punto y coma ';'):", help="Ejemplo: Autor1; Autor2; Autor3")
-#    departamento = st.text_input("🏢 Departamento (opcional):")
-    departamento = st.selectbox(
-        "🏛️  Departamento (INCICh):",
-        options=DEPARTAMENTOS_INCICH,
-        index=0,
-        key="departamento"
-    )
-    
-    # Palabras clave
-    st.subheader("🔑 Palabras clave")
-    selected_categories = st.multiselect(
-        f"Seleccione {CONFIG.MAX_KEYWORDS} palabras clave:",
-        options=list(KEYWORD_CATEGORIES.keys()),
-        default=[],
-        max_selections=CONFIG.MAX_KEYWORDS
-    )
-    
-    if len(selected_categories) < CONFIG.MAX_KEYWORDS:
-        st.error(f"Debe seleccionar exactamente {CONFIG.MAX_KEYWORDS} palabras clave")
-        return
+        # Verificación de autoría
+        st.subheader("👤 Verificación de autoría")
+        authors_list = []
+        if corresponding_author:
+            authors_list.append(corresponding_author)
+        if coauthors:
+            authors_list.extend([author.strip() for author in coauthors.split(";") if author.strip()])
 
-    # Verificación de autoría
-    st.subheader("👤 Verificación de autoría")
-    authors_list = []
-    if corresponding_author:
-        authors_list.append(corresponding_author)
-    if coauthors:
-        authors_list.extend([author.strip() for author in coauthors.split(";") if author.strip()])
+        if not authors_list:
+            st.error("Debe ingresar al menos un autor")
+            return
 
-    if not authors_list:
-        st.error("Debe ingresar al menos un autor")
-        return
-    
-    investigator_name = st.selectbox("Seleccione su nombre como aparece en la publicación:", authors_list)
-    participation_key = "CA" if investigator_name == corresponding_author else f"{authors_list.index(investigator_name)}C"
+        investigator_name = st.selectbox("Seleccione su nombre como aparece en la publicación:", authors_list)
+        participation_key = "CA" if investigator_name == corresponding_author else f"{authors_list.index(investigator_name)}C"
 
-    # Resumen del registro
-    st.subheader("📋 Resumen del registro")
-    st.markdown("**Información del artículo**")
-    st.write(f"📄 Título: {article_title}")
-    st.write(f"📅 Año: {year}")
-    st.write(f"🏛️ Revista: {journal_full}")
-    
-    st.markdown("**Autores**")
-    st.markdown(f"📌 Correspondencia: {highlight_author(corresponding_author, investigator_name)}", unsafe_allow_html=True)
-    if coauthors:
-        st.markdown("👥 Coautores:")
-        for author in [a.strip() for a in coauthors.split(";") if a.strip()]:
-            st.markdown(f"- {highlight_author(author, investigator_name)}", unsafe_allow_html=True)
-    
-    st.markdown("**Identificación**")
-    st.write(f"🔢 Número económico: {economic_number}")
-    st.write(f"👤 Investigador: {investigator_name}")
-    st.write(f"🔑 Clave participación: {participation_key}")
-    st.write(f"🏢 Departamento: {departamento or 'No especificado'}")
-    
-    # Preparar datos para guardar
-    data = {
-        'economic_number': economic_number,
-        'participation_key': participation_key,
-        'investigator_name': investigator_name,
-        'corresponding_author': corresponding_author,
-        'coauthors': coauthors,
-        'article_title': article_title,
-        'year': year,
-        'pub_date': pub_date if pub_date else year,
-        'volume': volume,
-        'number': number,
-        'pages': pages,
-        'journal_full': journal_full,
-        'journal_abbrev': journal_abbrev,
-        'doi': doi,
-        'jcr_group': jcr_group,
-        'pmid': pmid,
-        'selected_keywords': str(selected_categories[:CONFIG.MAX_KEYWORDS]),
-        'estado': 'A',  # Nuevo campo con valor por defecto 'A'
-        'departamento': departamento
-    }
-    
-    if st.button("💾 Guardar registro", type="primary"):
-        with st.spinner("Guardando datos..."):
-            if save_to_csv(data):
-                st.balloons()
-                st.success("✅ Registro guardado exitosamente!")
-                st.subheader("📄 Registro completo capturado")
-                st.json(data)
+        # Resumen del registro
+        st.subheader("📋 Resumen del registro")
+        st.markdown("**Información del artículo**")
+        st.write(f"📄 Título: {article_title}")
+        st.write(f"📅 Año: {year}")
+        st.write(f"🏛️ Revista: {journal_full}")
+
+        st.markdown("**Autores**")
+        st.markdown(f"📌 Correspondencia: {highlight_author(corresponding_author, investigator_name)}", unsafe_allow_html=True)
+        if coauthors:
+            st.markdown("👥 Coautores:")
+            for author in [a.strip() for a in coauthors.split(";") if a.strip()]:
+                st.markdown(f"- {highlight_author(author, investigator_name)}", unsafe_allow_html=True)
+
+        st.markdown("**Identificación**")
+        st.write(f"🔢 Número económico: {economic_number}")
+        st.write(f"👤 Investigador: {investigator_name}")
+        st.write(f"🔑 Clave participación: {participation_key}")
+        st.write(f"🏢 Departamento: {departamento or 'No especificado'}")
+
+        if st.button("💾 Guardar registro", type="primary"):
+            # Preparar datos para guardar
+            data = {
+                'economic_number': economic_number,
+                'participation_key': participation_key,
+                'investigator_name': investigator_name,
+                'corresponding_author': corresponding_author,
+                'coauthors': coauthors,
+                'article_title': article_title,
+                'year': year,
+                'pub_date': pub_date if pub_date else year,
+                'volume': volume,
+                'number': number,
+                'pages': pages,
+                'journal_full': journal_full,
+                'journal_abbrev': journal_abbrev,
+                'doi': doi,
+                'jcr_group': jcr_group,
+                'pmid': pmid,
+                'selected_keywords': str(selected_categories[:CONFIG.MAX_KEYWORDS]),
+                'departamento': departamento,
+                'estado': 'A'
+            }
+
+            with st.spinner("Guardando datos..."):
+                if save_to_csv(data):
+                    st.balloons()
+                    st.success("✅ Registro guardado exitosamente!")
+                    st.subheader("📄 Registro completo capturado")
+                    st.json(data)
+                    time.sleep(2)
+                    st.rerun()
 
 if __name__ == "__main__":
     main()
+
