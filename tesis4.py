@@ -451,183 +451,199 @@ def main():
         st.image(logo, width=200)
 
     st.title("📚 Captura Tesis")
-    
+
     # Validación del número económico
     economic_number = st.text_input("🔢 Número económico del investigador (solo dígitos):").strip()
-    
+
     if not economic_number:
         st.warning("Por favor ingrese un número económico")
         return
-        
+
     if not economic_number.isdigit():
         st.error("El número económico debe contener solo dígitos (0-9)")
         return
 
     # Sincronización inicial para el número económico específico
     with st.spinner("Conectando con el servidor remoto..."):
-        if not sync_with_remote(economic_number):
-            st.warning("""
-            ⚠️ No se pudo conectar con el servidor remoto. 
-            Trabajando en modo local. Los datos se sincronizarán cuando se restablezca la conexión.
-            """)
+        sync_with_remote(economic_number)
 
-    try:
-        csv_filename = f"{CONFIG.CSV_PREFIX}{economic_number}.csv"
-        
-        if not Path(csv_filename).exists():
-            pd.DataFrame().to_csv(csv_filename, index=False)
-            tesis_df = pd.DataFrame()
-        else:
+    csv_filename = f"{CONFIG.CSV_PREFIX}{economic_number}.csv"
+
+    # Cargar o inicializar el DataFrame
+    if Path(csv_filename).exists():
+        try:
             tesis_df = pd.read_csv(csv_filename, encoding='utf-8-sig', dtype={'economic_number': str})
             tesis_df['economic_number'] = tesis_df['economic_number'].astype(str).str.strip()
-            
-            # Asegurar que el campo 'estado' exista y tenga valores válidos
+
+            # Asegurar que el campo 'estado' exista
             if 'estado' not in tesis_df.columns:
                 tesis_df['estado'] = 'A'
             else:
-                tesis_df['estado'] = tesis_df['estado'].fillna('A').apply(lambda x: 'A' if x.strip() not in ['A', 'X'] else x.strip())
+                # Limpiar valores vacíos/nulos en el campo estado
+                tesis_df['estado'] = tesis_df['estado'].fillna('A').str.strip().replace('', 'A')
+        except Exception as e:
+            st.error(f"Error al leer el archivo: {str(e)}")
+            tesis_df = pd.DataFrame(columns=[
+                'economic_number', 'titulo_tesis', 'tipo_tesis', 'year',
+                'pub_date', 'departamento', 'directores', 'paginas',
+                'idioma', 'estudiante', 'coautores', 'selected_keywords',
+                'estado'
+            ])
+    else:
+        tesis_df = pd.DataFrame(columns=[
+            'economic_number', 'titulo_tesis', 'tipo_tesis', 'year',
+            'pub_date', 'departamento', 'directores', 'paginas',
+            'idioma', 'estudiante', 'coautores', 'selected_keywords',
+            'estado'
+        ])
 
-        filtered_records = tesis_df[tesis_df['economic_number'] == economic_number]
+    # Mostrar registros existentes si los hay
+    if not tesis_df.empty:
+        st.subheader(f"📋 Tesis registradas para {economic_number}")
+        st.info("""
+        **Instrucciones:**
+        - Marque con 'X' los registros que desee dar de baja
+        - Todos los demás deben mantenerse con 'A' (Activo)
+        """)
 
-        if not filtered_records.empty:
-            st.subheader(f"📋 Tesis registradas para {economic_number}")
-            
-            # Nota sobre el campo Estado
-            st.info("""
-            **Nota sobre el campo Estado:**  
-            - 'A' = Tesis activa (valor por defecto)  
-            - 'X' = Tesis marcada para borrar  
-            Los registros marcados con 'X' se eliminarán al guardar nuevos cambios.
-            """)
-            
-            # Mostrar tabla editable con el campo Estado
-            edited_df = st.data_editor(
-                filtered_records[['titulo_tesis', 'tipo_tesis', 'year', 'estado']],
-                column_config={
-                    "estado": st.column_config.SelectboxColumn(
-                        "Estado",
-                        help="Seleccione 'A' para activo o 'X' para marcar para borrar",
-                        options=["A", "X"],
-                        required=True,
-                        width="small"
-                    )
-                },
-                hide_index=True,
-                use_container_width=True
+        # Crear copia editable solo con las columnas necesarias
+        columnas_mostrar = ['titulo_tesis', 'tipo_tesis', 'year', 'estado']
+        edited_df = tesis_df[columnas_mostrar].copy()
+
+        # Mostrar editor de tabla
+        edited_df = st.data_editor(
+            edited_df,
+            column_config={
+                "estado": st.column_config.SelectboxColumn(
+                    "Estado",
+                    options=["A", "X"],
+                    required=True,
+                    width="small"
+                )
+            },
+            hide_index=True,
+            use_container_width=True,
+            key="editor_tabla"
+        )
+
+        # Verificar cambios en los estados
+        if not edited_df.equals(tesis_df[columnas_mostrar]):
+            # Actualizar el estado en el DataFrame original
+            tesis_df['estado'] = edited_df['estado']
+
+            # Identificar registros marcados para borrar
+            registros_a_borrar = tesis_df[tesis_df['estado'] == 'X']
+
+            if not registros_a_borrar.empty:
+                st.warning(f"⚠️ Tiene {len(registros_a_borrar)} registro(s) marcado(s) para dar de baja")
+
+                col1, col2 = st.columns(2)
+                with col1:
+                    if st.button("🗑️ Confirmar baja de registros", type="primary"):
+                        # Filtrar solo los registros activos (estado 'A')
+                        tesis_df = tesis_df[tesis_df['estado'] == 'A'].copy()
+
+                        # Guardar cambios en el archivo
+                        tesis_df.to_csv(csv_filename, index=False, encoding='utf-8-sig')
+
+                        # Sincronizar con servidor remoto
+                        with st.spinner("Guardando cambios..."):
+                            remote_filename = f"{CONFIG.CSV_PREFIX}{economic_number}.csv"
+                            remote_path = os.path.join(CONFIG.REMOTE['DIR'], remote_filename)
+                            upload_success = SSHManager.upload_remote_file(csv_filename, remote_path)
+
+                        if upload_success:
+                            st.success("✅ Registros eliminados exitosamente del archivo!")
+                            st.balloons()
+                            time.sleep(2)
+                            st.rerun()
+                        else:
+                            st.error("❌ Error al sincronizar con el servidor remoto")
+
+                with col2:
+                    if st.button("↩️ Cancelar operación"):
+                        st.info("Operación cancelada - No se realizaron cambios")
+                        st.rerun()
+
+    # Preguntar si desea añadir nuevo registro
+    st.divider()
+    if st.radio("¿Desea registrar una nueva tesis?", ["No", "Sí"], index=0) == "Sí":
+        # Formulario para nuevo registro
+        st.subheader("📝 Nuevo registro de tesis")
+
+        with st.form("nueva_tesis", clear_on_submit=True):
+            titulo_tesis = st.text_area("📄 Título de la tesis:", height=100)
+            tipo_tesis = st.selectbox(
+                "🎓 Tipo de tesis:",
+                options=["Licenciatura", "Maestría", "Doctorado"],
+                index=0
             )
-            
-            # Guardar cambios si se modificó el estado
-            if not edited_df.equals(filtered_records[['titulo_tesis', 'tipo_tesis', 'year', 'estado']]):
-                # Actualizar el DataFrame original con los cambios
-                tesis_df.update(edited_df)
-                
-                # Guardar cambios localmente
-                tesis_df.to_csv(csv_filename, index=False, encoding='utf-8-sig')
-                st.success("✅ Cambios en el estado guardados correctamente")
-                
-                # Sincronizar con el servidor remoto
-                with st.spinner("Sincronizando cambios con el servidor remoto..."):
-                    remote_filename = f"{CONFIG.CSV_PREFIX}{economic_number}.csv"
-                    remote_path = os.path.join(CONFIG.REMOTE['DIR'], remote_filename)
-                    if SSHManager.upload_remote_file(csv_filename, remote_path):
-                        st.success("✅ Cambios sincronizados con el servidor remoto")
-                    else:
-                        st.warning("⚠️ Los cambios se guardaron localmente pero no se pudieron sincronizar con el servidor remoto")
-        
-        if st.radio("¿Desea añadir un nuevo registro?", ["No", "Sí"], index=0) == "No":
-            return
-    except Exception as e:
-        st.error(f"❌ Error al leer {csv_filename}: {str(e)}")
-        logging.error(f"CSV Read Error: {str(e)}")
+            year = st.text_input("📅 Año de publicación:")
+            pub_date = st.text_input("🗓️ Fecha completa de publicación (YYYY-MM-DD):", placeholder="AAAA-MM-DD")
+            departamento = st.selectbox(
+                "🏛️ Departamento (INCICh):",
+                options=DEPARTAMENTOS_INCICH,
+                index=0
+            )
+            directores = st.text_input("👨‍🏫 Director(es) de tesis (separados por ';'):")
+            paginas = st.text_input("🔖 Número de páginas:")
+            idioma = st.selectbox(
+                "🌐 Idioma principal de la tesis:",
+                options=IDIOMAS_TESIS,
+                index=0
+            )
+            estudiante = st.text_input("👤 Nombre completo del estudiante:")
+            coautores = st.text_area("👥 Coautores (si aplica, separados por ';'):")
 
-    st.subheader("📝 Información de la tesis")
-    
-    # Campos de entrada manual para tesis
-    titulo_tesis = st.text_area("📄 Título de la tesis:", height=100, key="titulo_tesis")
-    tipo_tesis = st.selectbox(
-        "🎓 Tipo de tesis:",
-        options=["Licenciatura", "Maestría", "Doctorado"],
-        index=0,
-        key="tipo_tesis"
-    )
-    year = st.text_input("📅 Año de publicación:", key="year")
-    pub_date = st.text_input("🗓️ Fecha completa de publicación (YYYY-MM-DD):", help="Formato: AAAA-MM-DD", key="pub_date")
-    departamento = st.selectbox(
-        "🏛️ Departamento (INCICh):",
-        options=DEPARTAMENTOS_INCICH,
-        index=0,
-        key="departamento"
-    )
-    directores = st.text_input("👨‍🏫 Director(es) de tesis (separados por ';'):", key="directores")
-    paginas = st.text_input("🔖 Número de páginas:", key="paginas")
-    
-    # Selector de idioma para la tesis
-    idioma = st.selectbox(
-        "🌐 Idioma principal de la tesis:",
-        options=IDIOMAS_TESIS,
-        index=0,
-        key="idioma"
-    )
-    
-    estudiante = st.text_input("👤 Nombre completo del estudiante:", key="estudiante")
-    coautores = st.text_area("👥 Coautores (si aplica, separados por ';'):", key="coautores")
-    
-    # Sección de palabras clave
-    st.header("🔍 Palabras clave")
-    st.markdown(f"Seleccione {CONFIG.MAX_KEYWORDS} palabras clave relevantes:")
-    all_categories = list(KEYWORD_CATEGORIES.keys())
-    selected_categories = st.multiselect(
-        "Palabras clave:",
-        options=all_categories,
-        default=[],
-        max_selections=CONFIG.MAX_KEYWORDS,
-        key="keywords"
-    )
-    if len(selected_categories) < CONFIG.MAX_KEYWORDS:
-        st.warning(f"Se recomiendan {CONFIG.MAX_KEYWORDS} palabras clave (seleccionadas: {len(selected_categories)})")
+            # Sección de palabras clave
+            st.markdown(f"**🔍 Seleccione hasta {CONFIG.MAX_KEYWORDS} palabras clave relevantes:**")
+            selected_categories = st.multiselect(
+                "Palabras clave:",
+                options=list(KEYWORD_CATEGORIES.keys()),
+                max_selections=CONFIG.MAX_KEYWORDS
+            )
 
-    # Resumen del registro
-    st.subheader("📋 Resumen del registro")
-    st.markdown("**Información de la tesis**")
-    st.write(f"📄 Título: {titulo_tesis}")
-    st.write(f"🎓 Tipo: {tipo_tesis}")
-    st.write(f"📅 Año: {year}")
-    st.write(f"🏛️ Departamento: {departamento}")
-    
-    st.markdown("**Autores**")
-    st.markdown(f"👤 Estudiante: {highlight_author(estudiante, estudiante)}", unsafe_allow_html=True)
-    if coautores:
-        st.markdown("👥 Coautores:")
-        for author in [a.strip() for a in coautores.split(";") if a.strip()]:
-            st.markdown(f"- {highlight_author(author, estudiante)}", unsafe_allow_html=True)
-    
-    st.markdown("**Identificación**")
-    st.write(f"🔢 Número económico: {economic_number}")
-    
-    # Preparar datos para guardar
-    data = {
-        'economic_number': economic_number,
-        'titulo_tesis': titulo_tesis,
-        'tipo_tesis': tipo_tesis,
-        'year': year,
-        'pub_date': pub_date if pub_date else year,
-        'departamento': departamento,
-        'directores': directores,
-        'paginas': paginas,
-        'idioma': idioma,
-        'estudiante': estudiante,
-        'coautores': coautores,
-        'selected_keywords': str(selected_categories[:CONFIG.MAX_KEYWORDS]),
-        'estado': 'A'  # Nuevo campo con valor por defecto 'A'
-    }
-    
-    if st.button("💾 Guardar registro de tesis", type="primary"):
-        with st.spinner("Guardando datos..."):
-            if save_to_csv(data):
-                st.balloons()
-                st.success("✅ Registro guardado exitosamente!")
-                st.subheader("📄 Registro completo capturado")
-                st.json(data)
+            # Sección de resumen antes del botón de guardar
+            st.subheader("📋 Resumen del registro")
+            st.markdown("**Información de la tesis**")
+            st.write(f"📄 Título: {titulo_tesis}")
+            st.write(f"🎓 Tipo: {tipo_tesis}")
+            st.write(f"📅 Año: {year}")
+            st.write(f"🏛️ Departamento: {departamento}")
+
+            st.markdown("**Autores**")
+            st.markdown(f"👤 Estudiante: {highlight_author(estudiante, estudiante)}", unsafe_allow_html=True)
+            if coautores:
+                st.markdown("👥 Coautores:")
+                for author in [a.strip() for a in coautores.split(";") if a.strip()]:
+                    st.markdown(f"- {highlight_author(author, estudiante)}", unsafe_allow_html=True)
+
+            st.markdown("**Identificación**")
+            st.write(f"🔢 Número económico: {economic_number}")
+
+            if st.form_submit_button("💾 Guardar nueva tesis"):
+                nuevo_registro = {
+                    'economic_number': economic_number,
+                    'titulo_tesis': titulo_tesis,
+                    'tipo_tesis': tipo_tesis,
+                    'year': year,
+                    'pub_date': pub_date if pub_date else year,
+                    'departamento': departamento,
+                    'directores': directores,
+                    'paginas': paginas,
+                    'idioma': idioma,
+                    'estudiante': estudiante,
+                    'coautores': coautores,
+                    'selected_keywords': str(selected_categories),
+                    'estado': 'A'
+                }
+
+                if save_to_csv(nuevo_registro):
+                    st.success("✅ Registro guardado exitosamente!")
+                    st.balloons()
+                    time.sleep(2)
+                    st.rerun()
 
 if __name__ == "__main__":
     main()
+
