@@ -131,24 +131,30 @@ DEPARTAMENTOS_INCICH = [
 # ====================
 class Config:
     def __init__(self):
-        self.SMTP_SERVER = st.secrets.get("smtp_server")
-        self.SMTP_PORT = st.secrets.get("smtp_port")
-        self.EMAIL_USER = st.secrets.get("email_user")
-        self.EMAIL_PASSWORD = st.secrets.get("email_password")
-        self.NOTIFICATION_EMAIL = st.secrets.get("notification_email")
-        self.CSV_PREFIX = "capitulos_"  # Cambiado a "capitulos_" en lugar de "capitulos_"
+        # Configuración SMTP
+        self.SMTP_SERVER = st.secrets["smtp"]["server"]
+        self.SMTP_PORT = st.secrets["smtp"]["port"]
+        self.EMAIL_USER = st.secrets["smtp"]["user"]
+        self.EMAIL_PASSWORD = st.secrets["smtp"]["password"]
+        self.NOTIFICATION_EMAIL = st.secrets["smtp"]["notification_email"]
+        
+        # Configuración SFTP
+        self.REMOTE = {
+            'HOST': st.secrets["sftp"]["host"],
+            'USER': st.secrets["sftp"]["user"],
+            'PASSWORD': st.secrets["sftp"]["password"],
+            'PORT': st.secrets["sftp"]["port"],
+            'DIR': st.secrets["sftp"]["dir"]
+        }
+        
+        # Prefijos
+        self.CSV_PREFIX = st.secrets["prefixes"]["capitulos"]
+        
+        # Otros parámetros
         self.TIMEOUT_SECONDS = 30
         self.MAX_KEYWORDS = 3
         self.HIGHLIGHT_COLOR = "#90EE90"
         self.LOGO_PATH = "escudo_COLOR.jpg"
-        
-        self.REMOTE = {
-            'HOST': st.secrets.get("remote_host"),
-            'USER': st.secrets.get("remote_user"),
-            'PASSWORD': st.secrets.get("remote_password"),
-            'PORT': st.secrets.get("remote_port"),
-            'DIR': st.secrets.get("remote_dir")
-        }
 
 CONFIG = Config()
 
