@@ -123,14 +123,37 @@ def sync_productos_file():
         remote_filename = f"{CONFIG.REMOTE_PRODUCTOS_PREFIX}productos.csv"
         remote_path = os.path.join(CONFIG.REMOTE['DIR'], remote_filename)
         local_path = "productos.csv"
-        
+
         with st.spinner("🔄 Sincronizando archivo productos.csv desde el servidor..."):
             if SSHManager.download_remote_file(remote_path, local_path):
                 st.success("✅ Archivo productos.csv sincronizado correctamente")
                 return True
             else:
-                st.error("❌ No se pudo descargar el archivo productos.csv del servidor")
+                # Si no existe el archivo remoto, crear uno local con estructura correcta
+                columns = [
+                    'economic_number', 'departamento', 'participation_key', 'investigator_name',
+                    'corresponding_author', 'coauthors', 'article_title', 'year',
+                    'pub_date', 'volume', 'number', 'pages', 'journal_full',
+                    'journal_abbrev', 'doi', 'jcr_group', 'pmid', 'selected_keywords',
+                    'estado'
+                ]
+
+                # Verificar si el archivo local ya existe
+                if not Path(local_path).exists():
+                    pd.DataFrame(columns=columns).to_csv(local_path, index=False)
+                    st.info("ℹ️ No se encontró archivo remoto. Se creó uno nuevo localmente con la estructura correcta.")
+                else:
+                    # Si el archivo local existe pero está vacío o corrupto
+                    try:
+                        df = pd.read_csv(local_path)
+                        if df.empty:
+                            pd.DataFrame(columns=columns).to_csv(local_path, index=False)
+                    except:
+                        pd.DataFrame(columns=columns).to_csv(local_path, index=False)
+
+                st.warning("⚠️ Trabajando con copia local de productos.csv debido a problemas de conexión")
                 return False
+
     except Exception as e:
         st.error(f"❌ Error en sincronización: {str(e)}")
         logging.error(f"Sync Error: {str(e)}")
