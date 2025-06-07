@@ -339,25 +339,25 @@ def main():
     ).reset_index()
 
     investigator_stats = investigator_stats.sort_values('Articulos_Unicos', ascending=False)
-    investigator_stats.columns = ['Investigador', 'Artículos únicos', 'Posición de autoría']
+    investigator_stats.columns = ['Investigador', 'Artículos únicos', 'Posiciones de autoría']
 
     # Añadir fila de totales
     total_row = pd.DataFrame({
         'Investigador': ['TOTAL'],
         'Artículos únicos': [investigator_stats['Artículos únicos'].sum()],
-        'Posición de autoría': ['']
+        'Posiciones de autoría': ['']
     })
     investigator_stats = pd.concat([investigator_stats.head(10), total_row], ignore_index=True)
 
     # Mostrar tabla con enlaces clickeables
     for index, row in investigator_stats.iterrows():
         if row['Investigador'] != 'TOTAL':
-            with st.expander(f"{row['Investigador']} - {row['Artículos únicos']} artículos"):
+            with st.expander(f"{row['Investigador']} - {row['Artículos únicos']} artículos - Posiciones: {row['Posiciones de autoría']}"):
                 investigator_articles = filtered_df[filtered_df['investigator_name'] == row['Investigador']]
                 unique_articles_investigator = investigator_articles.drop_duplicates(subset=['article_title'])
 
                 st.write(f"Artículos de {row['Investigador']}:")
-                st.dataframe(unique_articles_investigator[['article_title', 'journal_full', 'pub_date', 'jcr_group']])
+                st.dataframe(unique_articles_investigator[['article_title', 'journal_full', 'pub_date', 'jcr_group', 'participation_key']])
 
                 csv = unique_articles_investigator.to_csv(index=False).encode('utf-8')
                 st.download_button(
