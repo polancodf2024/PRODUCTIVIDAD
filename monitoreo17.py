@@ -319,7 +319,7 @@ def main():
                help="Cantidad de artículos científicos distintos, eliminando duplicados.")
 
     if len(filtered_df) != len(unique_articles):
-        st.warning(f"⚠️ **Nota:** Se detectaron {len(filtered_df) - len(unique_articles)} manuscritos duplicados del mismo artículo. ")
+        st.warning(f"⚠️ **Nota:** Se detectaron {len(filtered_df) - len(unique_articles)} manuscritos duplicados. ")
 
     if filtered_df.empty:
         st.warning("No hay publicaciones en el periodo seleccionado")
