@@ -126,7 +126,7 @@ DEPARTAMENTOS_INCICH = [
 # OPCIONES SNI Y SII
 # ====================
 SNI_OPCIONES = ["", "C", "I", "II", "III", "Emérito"]
-SII_OPCIONES = ["", "A", "B", "C", "D", "E", "F"]
+SII_OPCIONES = ["", "A", "B", "C", "D", "E", "F", "Emérito"]
 
 # ====================
 # CONFIGURACIÓN INICIAL

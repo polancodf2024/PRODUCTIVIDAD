@@ -127,6 +127,12 @@ DEPARTAMENTOS_INCICH = [
 ]
 
 # ====================
+# OPCIONES SNI Y SII
+# ====================
+SNI_OPCIONES = ["", "C", "I", "II", "III", "Emérito"]
+SII_OPCIONES = ["", "A", "B", "C", "D", "E", "F", "Emérito"]
+
+# ====================
 # CONFIGURACIÓN INICIAL
 # ====================
 class Config:
@@ -217,7 +223,7 @@ class SSHManager:
                     except FileNotFoundError:
                         # Crear archivo local con estructura correcta
                         columns = [
-                            'economic_number', 'departamento', 'autor_principal', 'tipo_participacion', 'titulo_libro',
+                            'economic_number', 'sni', 'sii', 'departamento', 'autor_principal', 'tipo_participacion', 'titulo_libro',
                             'editorial', 'coautores_secundarios', 'year', 'pub_date', 'isbn_issn',
                             'numero_edicion', 'paginas', 'paises_distribucion', 'idiomas_disponibles',
                             'formatos_disponibles', 'selected_keywords', 'estado'
@@ -306,7 +312,7 @@ def sync_with_remote(economic_number):
         if not download_success:
             # Si no existe el archivo remoto, crea uno local con estructura correcta
             columns = [
-                'economic_number', 'departamento', 'autor_principal', 'tipo_participacion', 'titulo_libro',
+                'economic_number', 'sni', 'sii', 'departamento', 'autor_principal', 'tipo_participacion', 'titulo_libro',
                 'editorial', 'coautores_secundarios', 'year', 'pub_date', 'isbn_issn',
                 'numero_edicion', 'paginas', 'paises_distribucion', 'idiomas_disponibles',
                 'formatos_disponibles', 'selected_keywords', 'estado'
@@ -335,7 +341,7 @@ def sync_with_remote(economic_number):
         except pd.errors.EmptyDataError:
             st.warning("El archivo remoto está vacío o corrupto")
             columns = [
-                'economic_number', 'departamento', 'autor_principal', 'tipo_participacion', 'titulo_libro',
+                'economic_number', 'sni', 'sii', 'departamento', 'autor_principal', 'tipo_participacion', 'titulo_libro',
                 'editorial', 'coautores_secundarios', 'year', 'pub_date', 'isbn_issn',
                 'numero_edicion', 'paginas', 'paises_distribucion', 'idiomas_disponibles',
                 'formatos_disponibles', 'selected_keywords', 'estado'
@@ -362,7 +368,7 @@ def save_to_csv(data: dict):
                 st.warning("⚠️ Trabajando con copia local debido a problemas de conexión")
 
         columns = [
-            'economic_number', 'departamento', 'autor_principal', 'tipo_participacion', 'titulo_libro',
+            'economic_number', 'sni', 'sii', 'departamento', 'autor_principal', 'tipo_participacion', 'titulo_libro',
             'editorial', 'coautores_secundarios', 'year', 'pub_date', 'isbn_issn',
             'numero_edicion', 'paginas', 'paises_distribucion', 'idiomas_disponibles',
             'formatos_disponibles', 'selected_keywords', 'estado'
@@ -480,6 +486,18 @@ def main():
         st.error("El número económico debe contener solo dígitos (0-9)")
         return
 
+    # Capturar SNI y SII
+    col1, col2 = st.columns(2)
+    with col1:
+        sni = st.selectbox("SNI", options=SNI_OPCIONES)
+    with col2:
+        sii = st.selectbox("SII", options=SII_OPCIONES)
+
+    # Validar que se hayan seleccionado ambos campos
+    if not sni or not sii:
+        st.warning("Por favor seleccione tanto SNI como SII")
+        return
+
     # Sincronización inicial para el número económico específico
     with st.spinner("Conectando con el servidor remoto..."):
         sync_with_remote(economic_number)
@@ -492,6 +510,17 @@ def main():
             libros_df = pd.read_csv(csv_filename, encoding='utf-8-sig', dtype={'economic_number': str})
             libros_df['economic_number'] = libros_df['economic_number'].astype(str).str.strip()
 
+            # Asegurar que los campos SNI y SII existan y tengan valores
+            if 'sni' not in libros_df.columns:
+                libros_df['sni'] = sni
+            else:
+                libros_df['sni'] = libros_df['sni'].fillna(sni)
+
+            if 'sii' not in libros_df.columns:
+                libros_df['sii'] = sii
+            else:
+                libros_df['sii'] = libros_df['sii'].fillna(sii)
+
             # Asegurar que el campo 'estado' exista
             if 'estado' not in libros_df.columns:
                 libros_df['estado'] = 'A'
@@ -501,14 +530,14 @@ def main():
         except Exception as e:
             st.error(f"Error al leer el archivo: {str(e)}")
             libros_df = pd.DataFrame(columns=[
-                'economic_number', 'departamento', 'autor_principal', 'tipo_participacion', 'titulo_libro',
+                'economic_number', 'sni', 'sii', 'departamento', 'autor_principal', 'tipo_participacion', 'titulo_libro',
                 'editorial', 'coautores_secundarios', 'year', 'pub_date', 'isbn_issn',
                 'numero_edicion', 'paginas', 'paises_distribucion', 'idiomas_disponibles',
                 'formatos_disponibles', 'selected_keywords', 'estado'
             ])
     else:
         libros_df = pd.DataFrame(columns=[
-            'economic_number', 'departamento', 'autor_principal', 'tipo_participacion', 'titulo_libro',
+            'economic_number', 'sni', 'sii', 'departamento', 'autor_principal', 'tipo_participacion', 'titulo_libro',
             'editorial', 'coautores_secundarios', 'year', 'pub_date', 'isbn_issn',
             'numero_edicion', 'paginas', 'paises_distribucion', 'idiomas_disponibles',
             'formatos_disponibles', 'selected_keywords', 'estado'
@@ -646,6 +675,8 @@ def main():
             if st.form_submit_button("💾 Guardar nuevo registro"):
                 nuevo_registro = {
                     'economic_number': economic_number,
+                    'sni': sni,
+                    'sii': sii,
                     'departamento': departamento,
                     'autor_principal': autor_principal,
                     'tipo_participacion': tipo_participacion,
