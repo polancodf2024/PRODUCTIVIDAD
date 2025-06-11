@@ -9,7 +9,7 @@ import os
 import logging
 from pathlib import Path
 
-# Configuración de logging mejorada
+# Configuración de logging
 logging.basicConfig(
     filename='monitoreo.log',
     level=logging.INFO,
@@ -22,19 +22,10 @@ logging.basicConfig(
 # ====================
 class Config:
     def __init__(self):
-        # Configuración SMTP
-        self.SMTP_SERVER = st.secrets["smtp"]["server"]
-        self.SMTP_PORT = st.secrets["smtp"]["port"]
-        self.EMAIL_USER = st.secrets["smtp"]["user"]
-        self.EMAIL_PASSWORD = st.secrets["smtp"]["password"]
-        self.NOTIFICATION_EMAIL = st.secrets["smtp"]["notification_email"]
-
         # Configuración SFTP
-        self.CSV_PRODUCTOS_PREFIX = "productos_"  # Prefijo para archivos CSV locales
-        self.REMOTE_PRODUCTOS_PREFIX = st.secrets["prefixes"]["productos"].rstrip('_')  # Elimina _ final si existe
+        self.REMOTE_PRODUCTOS_FILE = "pro_productos_total.csv"  # Nombre completo del archivo remoto
         self.TIMEOUT_SECONDS = 30
-        self.LOGO_PATH = "escudo_COLOR.jpg"
-
+        
         self.REMOTE = {
             'HOST': st.secrets["sftp"]["host"],
             'USER': st.secrets["sftp"]["user"],
@@ -92,8 +83,6 @@ class SSHManager:
     @staticmethod
     def download_remote_file(remote_path, local_path):
         """Descarga un archivo con verificación de integridad"""
-        st.info(f"🔍 Buscando archivo remoto")
-        
         for attempt in range(SSHManager.MAX_RETRIES):
             ssh = SSHManager.get_connection()
             if not ssh:
@@ -102,31 +91,18 @@ class SSHManager:
             try:
                 with ssh.open_sftp() as sftp:
                     try:
-                        file_info = sftp.stat(remote_path)
-                        st.info(f"📄 Archivo encontrado.")
+                        sftp.stat(remote_path)
                     except FileNotFoundError:
-                        st.error(f"❌ Archivo no encontrado")
-                        # Crear archivo local con estructura correcta
-                        columns = [
-                            'economic_number', 'departamento', 'participation_key', 'investigator_name',
-                            'corresponding_author', 'coauthors', 'article_title', 'year',
-                            'pub_date', 'volume', 'number', 'pages', 'journal_full',
-                            'journal_abbrev', 'doi', 'jcr_group', 'pmid', 'selected_keywords',
-                            'estado'
-                        ]
-                        pd.DataFrame(columns=columns).to_csv(local_path, index=False)
-                        logging.info(f"Archivo remoto no encontrado")
-                        return True
+                        logging.error(f"Archivo remoto no encontrado: {remote_path}")
+                        return False
                         
                     sftp.get(remote_path, local_path)
                     
                     if SSHManager.verify_file_integrity(local_path, remote_path, sftp):
-                        logging.info(f"Archivo descargado correctamente")
-                        st.success(f"✅ Archivo descargado correctamente.")
+                        logging.info(f"Archivo descargado correctamente: {remote_path} a {local_path}")
                         return True
                     else:
                         logging.warning(f"Error de integridad en descarga, reintentando... (intento {attempt + 1})")
-                        st.warning(f"⚠️ Error de integridad en descarga, reintentando... (intento {attempt + 1})")
                         if attempt < SSHManager.MAX_RETRIES - 1:
                             time.sleep(SSHManager.RETRY_DELAY)
                         else:
@@ -134,7 +110,6 @@ class SSHManager:
                             
             except Exception as e:
                 logging.error(f"Error en descarga (intento {attempt + 1}): {str(e)}")
-                st.error(f"❌ Error en descarga (intento {attempt + 1}): {str(e)}")
                 if attempt == SSHManager.MAX_RETRIES - 1:
                     st.error(f"Error descargando archivo remoto después de {SSHManager.MAX_RETRIES} intentos: {str(e)}")
                     return False
@@ -142,300 +117,276 @@ class SSHManager:
             finally:
                 ssh.close()
 
-# ====================
-# FUNCIONES DE SINCRONIZACIÓN
-# ====================
-def sync_with_remote():
-    """Sincroniza el archivo productos local con el remoto"""
+def sync_productos_file():
+    """Sincroniza el archivo productos_total.csv desde el servidor remoto"""
     try:
-        st.info("🔄 Sincronizando con el servidor remoto...")
-        csv_filename = "productos.csv"
-        remote_filename = f"{CONFIG.REMOTE_PRODUCTOS_PREFIX}.csv"
-        remote_path = os.path.join(CONFIG.REMOTE['DIR'], remote_filename)
+        remote_path = os.path.join(CONFIG.REMOTE['DIR'], CONFIG.REMOTE_PRODUCTOS_FILE)
+        local_path = "productos_total.csv"
         
-        st.info(f"📂 Ruta completa del archivo remoto encontrada")
-
-        # Intenta descargar el archivo remoto
-        download_success = SSHManager.download_remote_file(remote_path, csv_filename)
-
-        if not download_success:
-            # Si no existe el archivo remoto, crea uno local con estructura correcta
-            columns = [
-                'economic_number', 'departamento', 'participation_key', 'investigator_name',
-                'corresponding_author', 'coauthors', 'article_title', 'year',
-                'pub_date', 'volume', 'number', 'pages', 'journal_full',
-                'journal_abbrev', 'doi', 'jcr_group', 'pmid', 'selected_keywords',
-                'estado'
-            ]
-
-            # Verifica si el archivo local ya existe
-            if not Path(csv_filename).exists():
-                pd.DataFrame(columns=columns).to_csv(csv_filename, index=False)
-                st.info("ℹ️ No se encontró archivo remoto. Se creó uno nuevo localmente con la estructura correcta.")
+        with st.spinner("🔄 Sincronizando archivo productos_total.csv desde el servidor..."):
+            if SSHManager.download_remote_file(remote_path, local_path):
+                st.success("✅ Archivo productos_total.csv sincronizado correctamente")
+                return True
             else:
-                # Si el archivo local existe pero está vacío o corrupto
-                try:
-                    df = pd.read_csv(csv_filename)
-                    if df.empty:
-                        pd.DataFrame(columns=columns).to_csv(csv_filename, index=False)
-                except:
-                    pd.DataFrame(columns=columns).to_csv(csv_filename, index=False)
-
-            return False
-
-        # Verifica que el archivo descargado no esté vacío
-        try:
-            df = pd.read_csv(csv_filename)
-            if df.empty:
-                st.warning("El archivo remoto está vacío")
-        except pd.errors.EmptyDataError:
-            st.warning("El archivo remoto está vacío o corrupto")
-            columns = [
-                'economic_number', 'departamento', 'participation_key', 'investigator_name',
-                'corresponding_author', 'coauthors', 'article_title', 'year',
-                'pub_date', 'volume', 'number', 'pages', 'journal_full',
-                'journal_abbrev', 'doi', 'jcr_group', 'pmid', 'selected_keywords',
-                'estado'
-            ]
-            pd.DataFrame(columns=columns).to_csv(csv_filename, index=False)
-            return False
-
-        st.success("✅ Sincronización con servidor remoto completada")
-        st.info(f"📊 Datos descargados: {len(df)} registros")
-        return True
-
+                st.error("❌ No se pudo descargar el archivo productos_total.csv del servidor")
+                return False
     except Exception as e:
         st.error(f"❌ Error en sincronización: {str(e)}")
         logging.error(f"Sync Error: {str(e)}")
         return False
 
-def load_data():
-    """Carga los datos desde el archivo local o remoto"""
-    csv_filename = "productos.csv"
-    
-    # Primero intenta sincronizar con el remoto
-    sync_with_remote()
-    
-    # Luego carga el archivo local
-    if Path(csv_filename).exists():
-        try:
-            df = pd.read_csv(csv_filename, encoding='utf-8-sig', dtype={'economic_number': str})
-            df['economic_number'] = df['economic_number'].astype(str).str.strip()
-            
-            # Asegurar que el campo 'estado' exista
-            if 'estado' not in df.columns:
-                df['estado'] = 'A'
-            else:
-                # Limpiar valores vacíos/nulos en el campo estado
-                df['estado'] = df['estado'].fillna('A').str.strip().replace('', 'A')
-                
-            return df
-        except Exception as e:
-            st.error(f"Error al leer el archivo: {str(e)}")
-            logging.error(f"Error loading data: {str(e)}")
-            return pd.DataFrame()
-    else:
-        return pd.DataFrame()
-
-# ====================
-# FUNCIÓN PRINCIPAL
-# ====================
 def main():
     # Añadir logo en la parte superior
-    if Path(CONFIG.LOGO_PATH).exists():
-        st.image(CONFIG.LOGO_PATH, width=200)
-    else:
-        st.warning(f"Logo no encontrado")
-
+    st.image("escudo_COLOR.jpg", width=200)
+    
     st.title("Análisis de Manuscritos")
-
-    # Sincronizar y cargar datos
-    df = load_data()
-
-    # Verificar si el DataFrame está vacío
-    if df.empty:
-        st.warning("No hay datos disponibles para analizar")
+    
+    # Sincronizar archivo productos_total.csv al inicio
+    if not sync_productos_file():
+        st.warning("⚠️ Trabajando con copia local de productos_total.csv debido a problemas de conexión")
+    
+    # Verificar si el archivo local existe
+    if not Path("productos_total.csv").exists():
+        st.error("No se encontró el archivo productos_total.csv")
         return
-
-    # Convertir y validar fechas
-    df['pub_date'] = pd.to_datetime(df['pub_date'], errors='coerce')
-    df = df[(df['estado'] == 'A') & (df['pub_date'].notna())]
-
-    if df.empty:
-        st.warning("No hay publicaciones válidas para analizar")
-        return
-
-    st.success(f"Datos cargados correctamente. Registros activos: {len(df)}")
-
-    # Obtener rangos de fechas disponibles
-    min_date = df['pub_date'].min()
-    max_date = df['pub_date'].max()
-
-    # Selector de rango mes-año con ayuda
-    st.header("📅 Selección de Periodo")
-    col1, col2 = st.columns(2)
-
-    with col1:
-        start_year = st.selectbox("Año inicio",
-                               range(min_date.year, max_date.year+1),
-                               index=0,
-                               help="Selecciona el año inicial para el análisis.")
-        start_month = st.selectbox("Mes inicio",
-                                range(1, 13),
-                                index=min_date.month-1,
-                                format_func=lambda x: datetime(1900, x, 1).strftime('%B'),
-                                help="Selecciona el mes inicial para el análisis.")
-
-    with col2:
-        end_year = st.selectbox("Año término",
-                              range(min_date.year, max_date.year+1),
-                              index=len(range(min_date.year, max_date.year+1))-1,
-                              help="Selecciona el año final para el análisis.")
-        end_month = st.selectbox("Mes término",
-                               range(1, 13),
-                               index=max_date.month-1,
-                               format_func=lambda x: datetime(1900, x, 1).strftime('%B'),
-                               help="Selecciona el mes final para el análisis.")
-
-    # Calcular fechas de inicio y fin
-    start_day = 1
-    end_day = calendar.monthrange(end_year, end_month)[1]
-
-    date_start = datetime(start_year, start_month, start_day)
-    date_end = datetime(end_year, end_month, end_day)
-
-    # Filtrar dataframe
-    filtered_df = df[(df['pub_date'] >= pd.to_datetime(date_start)) &
-                   (df['pub_date'] <= pd.to_datetime(date_end))]
-
-    # Obtener artículos únicos para estadísticas precisas
-    unique_articles = filtered_df.drop_duplicates(subset=['article_title'])
-
-    st.markdown(f"**Periodo seleccionado:** {date_start.strftime('%d/%m/%Y')} - {date_end.strftime('%d/%m/%Y')}",
-               help="Rango de fechas seleccionado para el análisis.")
-    st.markdown(f"**Registros encontrados:** {len(filtered_df)}",
-               help="Total de registros en el periodo, incluyendo posibles duplicados del mismo artículo.")
-    st.markdown(f"**Artículos únicos:** {len(unique_articles)}",
-               help="Cantidad de artículos científicos distintos, eliminando duplicados.")
-
-    if len(filtered_df) != len(unique_articles):
-        st.warning(f"⚠️ **Nota:** Se detectaron {len(filtered_df) - len(unique_articles)} manuscritos duplicados. ")
-
-    if filtered_df.empty:
-        st.warning("No hay publicaciones en el periodo seleccionado")
-        return
-
-    # Análisis consolidado en tablas
-    st.header("📊 Estadísticas Consolidadas",
-            help="Métricas generales basadas en los filtros aplicados.")
-
-    # Tabla 1: Productividad por investigador
-    st.subheader("🔍 Productividad por Investigador",
-               help="Muestra cuántos artículos únicos tiene cada investigador y su posición de autoría.")
-
-    investigator_stats = filtered_df.groupby('investigator_name').agg(
-        Articulos_Unicos=('article_title', lambda x: len(set(x))),
-        Participaciones=('participation_key', lambda x: ', '.join(sorted(set(x))))
-    ).reset_index()
-
-    investigator_stats = investigator_stats.sort_values('Articulos_Unicos', ascending=False)
-    investigator_stats.columns = ['Investigador', 'Artículos únicos', 'Posiciones de autoría']
-
-    # Añadir fila de totales
-    total_row = pd.DataFrame({
-        'Investigador': ['TOTAL'],
-        'Artículos únicos': [investigator_stats['Artículos únicos'].sum()],
-        'Posiciones de autoría': ['']
-    })
-    investigator_stats = pd.concat([investigator_stats.head(10), total_row], ignore_index=True)
-
-    # Mostrar tabla con enlaces clickeables
-    for index, row in investigator_stats.iterrows():
-        if row['Investigador'] != 'TOTAL':
-            with st.expander(f"{row['Investigador']} - {row['Artículos únicos']} artículos - Posiciones: {row['Posiciones de autoría']}"):
-                investigator_articles = filtered_df[filtered_df['investigator_name'] == row['Investigador']]
-                unique_articles_investigator = investigator_articles.drop_duplicates(subset=['article_title'])
-
-                st.write(f"Artículos de {row['Investigador']}:")
-                st.dataframe(unique_articles_investigator[['article_title', 'journal_full', 'pub_date', 'jcr_group', 'participation_key']])
-
-                csv = unique_articles_investigator.to_csv(index=False).encode('utf-8')
-                st.download_button(
-                    label="Descargar producción científica en CSV",
-                    data=csv,
-                    file_name=f"produccion_{row['Investigador'].replace(' ', '_')}.csv",
-                    mime='text/csv',
-                    key=f"download_{index}"
-                )
-
-    # Tabla 2: Revistas más publicadas
-    st.subheader("📚 Revistas más Utilizadas",
-               help="Listado de revistas científicas ordenadas por cantidad de artículos publicados.")
-    journal_stats = unique_articles.groupby('journal_full').agg(
-        Total_Articulos=('journal_full', 'size'),
-        Grupo_JCR=('jcr_group', lambda x: x.mode()[0] if not x.mode().empty else 'No disponible')
-    ).reset_index()
-    journal_stats = journal_stats.sort_values('Total_Articulos', ascending=False)
-    journal_stats.columns = ['Revista', 'Artículos únicos', 'Grupo JCR más frecuente']
-
-    # Añadir fila de totales
-    total_row = pd.DataFrame({
-        'Revista': ['TOTAL'],
-        'Artículos únicos': [journal_stats['Artículos únicos'].sum()],
-        'Grupo JCR más frecuente': ['']
-    })
-    journal_stats = pd.concat([journal_stats.head(10), total_row], ignore_index=True)
-    st.dataframe(journal_stats, hide_index=True)
-
-    # Tabla 3: Disciplinas más comunes
-    st.subheader("🧪 Enfoques más Frecuentes",
-               help="Palabras clave más utilizadas en los artículos.")
+    
     try:
-        all_keywords = []
-        for keywords in unique_articles['selected_keywords']:
-            cleaned = str(keywords).strip("[]'").replace("'", "").split(", ")
-            all_keywords.extend([k.strip() for k in cleaned if k.strip()])
+        # Leer y procesar el archivo con los nuevos campos sni y sii
+        df = pd.read_csv("productos_total.csv")
+        
+        # Verificar que los nuevos campos existen
+        if 'sni' not in df.columns or 'sii' not in df.columns:
+            st.warning("El archivo productos_total.csv no contiene los campos 'sni' y 'sii'. Se continuará con los campos disponibles.")
+        
+        # Convertir y validar fechas
+        df['pub_date'] = pd.to_datetime(df['pub_date'], errors='coerce')
+        df = df[(df['estado'] == 'A') & (df['pub_date'].notna())]
+        
+        if df.empty:
+            st.warning("No hay publicaciones válidas para analizar")
+            return
+        
+        st.success(f"Datos cargados correctamente. Registros activos: {len(df)}")
+        
+        # Obtener rangos de fechas disponibles
+        min_date = df['pub_date'].min()
+        max_date = df['pub_date'].max()
+        
+        # Selector de rango mes-año con ayuda
+        st.header("📅 Selección de Periodo")
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            start_year = st.selectbox("Año inicio", 
+                                   range(min_date.year, max_date.year+1),
+                                   index=0,
+                                   help="Selecciona el año inicial para el análisis.")
+            start_month = st.selectbox("Mes inicio", 
+                                    range(1, 13), 
+                                    index=min_date.month-1,
+                                    format_func=lambda x: datetime(1900, x, 1).strftime('%B'),
+                                    help="Selecciona el mes inicial para el análisis.")
+        
+        with col2:
+            end_year = st.selectbox("Año término", 
+                                  range(min_date.year, max_date.year+1),
+                                  index=len(range(min_date.year, max_date.year+1))-1,
+                                  help="Selecciona el año final para el análisis.")
+            end_month = st.selectbox("Mes término", 
+                                   range(1, 13), 
+                                   index=max_date.month-1,
+                                   format_func=lambda x: datetime(1900, x, 1).strftime('%B'),
+                                   help="Selecciona el mes final para el análisis.")
+        
+        # Calcular fechas de inicio y fin
+        start_day = 1
+        end_day = calendar.monthrange(end_year, end_month)[1]
+        
+        date_start = datetime(start_year, start_month, start_day)
+        date_end = datetime(end_year, end_month, end_day)
+        
+        # Filtrar dataframe
+        filtered_df = df[(df['pub_date'] >= pd.to_datetime(date_start)) & 
+                       (df['pub_date'] <= pd.to_datetime(date_end))]
+        
+        # Obtener artículos únicos para estadísticas precisas
+        unique_articles = filtered_df.drop_duplicates(subset=['article_title'])
+        
+        st.markdown(f"**Periodo seleccionado:** {date_start.strftime('%d/%m/%Y')} - {date_end.strftime('%d/%m/%Y')}",
+                   help="Rango de fechas seleccionado para el análisis.")
+        st.markdown(f"**Registros encontrados:** {len(filtered_df)}",
+                   help="Total de registros en el periodo, incluyendo posibles duplicados del mismo artículo.")
+        st.markdown(f"**Artículos únicos:** {len(unique_articles)}",
+                   help="Cantidad de artículos científicos distintos, eliminando duplicados.")
+        
+        if len(filtered_df) != len(unique_articles):
+            st.warning(f"⚠️ **Nota:** Se detectaron {len(filtered_df) - len(unique_articles)} manuscritos duplicados del mismo artículo. ")
 
-        keyword_stats = pd.Series(all_keywords).value_counts().reset_index()
-        keyword_stats.columns = ['Disciplina', 'Frecuencia']
+        
+        if filtered_df.empty:
+            st.warning("No hay publicaciones en el periodo seleccionado")
+            return
+        
+        # Análisis consolidado en tablas
+        st.header("📊 Estadísticas Consolidadas",
+                help="Métricas generales basadas en los filtros aplicados.")
+        
+        # Tabla 1: Productividad por investigador (ARTÍCULOS ÚNICOS) con participación
+        st.subheader("🔍 Productividad por Investigador",
+                   help="Muestra cuántos artículos únicos tiene cada investigador y su posición de autoría.")
+        
+        # Crear dataframe con información de participación
+        investigator_stats = filtered_df.groupby('investigator_name').agg(
+            Articulos_Unicos=('article_title', lambda x: len(set(x))),
+            Participaciones=('participation_key', lambda x: ', '.join(sorted(set(x))))
+        ).reset_index()
+        
+        investigator_stats = investigator_stats.sort_values('Articulos_Unicos', ascending=False)
+        investigator_stats.columns = ['Investigador', 'Artículos únicos', 'Posición de autoría']
+        
+        # Añadir fila de totales
+        total_row = pd.DataFrame({
+            'Investigador': ['TOTAL'],
+            'Artículos únicos': [investigator_stats['Artículos únicos'].sum()],
+            'Posición de autoría': ['']
+        })
+        investigator_stats = pd.concat([investigator_stats.head(10), total_row], ignore_index=True)
+        
+        # Mostrar tabla con enlaces clickeables
+        for index, row in investigator_stats.iterrows():
+            if row['Investigador'] != 'TOTAL':
+                # Crear un expander para cada investigador
+                with st.expander(f"{row['Investigador']} - {row['Artículos únicos']} artículos"):
+                    # Filtrar los artículos del investigador
+                    investigator_articles = filtered_df[filtered_df['investigator_name'] == row['Investigador']]
+                    unique_articles_investigator = investigator_articles.drop_duplicates(subset=['article_title'])
+                    
+                    # Mostrar los artículos (incluyendo los nuevos campos si existen)
+                    display_columns = ['article_title', 'journal_full', 'pub_date', 'jcr_group']
+                    if 'sni' in unique_articles_investigator.columns and 'sii' in unique_articles_investigator.columns:
+                        display_columns.extend(['sni', 'sii'])
+                    
+                    st.write(f"Artículos de {row['Investigador']}:")
+                    st.dataframe(unique_articles_investigator[display_columns])
+                    
+                    # Opción para descargar en CSV
+                    csv = unique_articles_investigator.to_csv(index=False).encode('utf-8')
+                    st.download_button(
+                        label="Descargar producción científica en CSV",
+                        data=csv,
+                        file_name=f"produccion_{row['Investigador'].replace(' ', '_')}.csv",
+                        mime='text/csv',
+                        key=f"download_{index}"
+                    )
+        
+        # Tabla 2: Revistas más publicadas (ARTÍCULOS ÚNICOS)
+        st.subheader("📚 Revistas más Utilizadas",
+                   help="Listado de revistas científicas ordenadas por cantidad de artículos publicados, con su grupo JCR más frecuente.")
+        journal_stats = unique_articles.groupby('journal_full').agg(
+            Total_Articulos=('journal_full', 'size'),
+            Grupo_JCR=('jcr_group', lambda x: x.mode()[0] if not x.mode().empty else 'No disponible')
+        ).reset_index()
+        journal_stats = journal_stats.sort_values('Total_Articulos', ascending=False)
+        journal_stats.columns = ['Revista', 'Artículos únicos', 'Grupo JCR más frecuente']
+        
+        # Añadir fila de totales
+        total_row = pd.DataFrame({
+            'Revista': ['TOTAL'],
+            'Artículos únicos': [journal_stats['Artículos únicos'].sum()],
+            'Grupo JCR más frecuente': ['']
+        })
+        journal_stats = pd.concat([journal_stats.head(10), total_row], ignore_index=True)
+        st.dataframe(journal_stats, hide_index=True)
+        
+        # Tabla 3: Disciplinas más comunes (ARTÍCULOS ÚNICOS)
+        st.subheader("🧪 Enfoques más Frecuentes",
+                   help="Palabras clave más utilizadas en los artículos, indicando las áreas de investigación predominantes.")
+        try:
+            all_keywords = []
+            for keywords in unique_articles['selected_keywords']:
+                cleaned = str(keywords).strip("[]'").replace("'", "").split(", ")
+                all_keywords.extend([k.strip() for k in cleaned if k.strip()])
+            
+            keyword_stats = pd.Series(all_keywords).value_counts().reset_index()
+            keyword_stats.columns = ['Disciplina', 'Frecuencia']
+            
+            # Añadir fila de totales
+            total_row = pd.DataFrame({
+                'Disciplina': ['TOTAL'],
+                'Frecuencia': [keyword_stats['Frecuencia'].sum()]
+            })
+            keyword_stats = pd.concat([keyword_stats.head(10), total_row], ignore_index=True)
+            st.dataframe(keyword_stats, hide_index=True)
+        except:
+            st.warning("No se pudieron procesar las disciplinas")
+        
+        # Tabla 4: Distribución por grupos JCR (ARTÍCULOS ÚNICOS)
+        st.subheader("🏆 Distribución por Índice de Impacto",
+                   help="Clasificación de artículos según el factor de impacto de las revistas (Journal Citation Reports).")
+        jcr_stats = unique_articles['jcr_group'].value_counts().reset_index()
+        jcr_stats.columns = ['Grupo JCR', 'Artículos únicos']
+        
+        # Añadir fila de totales
+        total_row = pd.DataFrame({
+            'Grupo JCR': ['TOTAL'],
+            'Artículos únicos': [jcr_stats['Artículos únicos'].sum()]
+        })
+        jcr_stats = pd.concat([jcr_stats, total_row], ignore_index=True)
+        st.dataframe(jcr_stats, hide_index=True)
+        
+        # Tabla 5: Distribución temporal (ARTÍCULOS ÚNICOS) - VERSIÓN CORREGIDA
+        st.subheader("🕰️ Distribución Mensual",
+                    help="Evolución mensual de la producción científica en el periodo seleccionado.")
+
+        # Convertir a formato "YYYY-MM" en lugar de Period
+        time_stats = unique_articles['pub_date'].dt.strftime('%Y-%m').value_counts().sort_index().reset_index()
+        time_stats.columns = ['Mes-Año', 'Artículos únicos']
 
         # Añadir fila de totales
         total_row = pd.DataFrame({
-            'Disciplina': ['TOTAL'],
-            'Frecuencia': [keyword_stats['Frecuencia'].sum()]
+            'Mes-Año': ['TOTAL'],
+            'Artículos únicos': [time_stats['Artículos únicos'].sum()]
         })
-        keyword_stats = pd.concat([keyword_stats.head(10), total_row], ignore_index=True)
-        st.dataframe(keyword_stats, hide_index=True)
-    except:
-        st.warning("No se pudieron procesar las disciplinas")
-
-    # Tabla 4: Distribución por grupos JCR
-    st.subheader("🏆 Distribución por Índice de Impacto",
-               help="Clasificación de artículos según el factor de impacto de las revistas.")
-    jcr_stats = unique_articles['jcr_group'].value_counts().reset_index()
-    jcr_stats.columns = ['Grupo JCR', 'Artículos únicos']
-
-    # Añadir fila de totales
-    total_row = pd.DataFrame({
-        'Grupo JCR': ['TOTAL'],
-        'Artículos únicos': [jcr_stats['Artículos únicos'].sum()]
-    })
-    jcr_stats = pd.concat([jcr_stats, total_row], ignore_index=True)
-    st.dataframe(jcr_stats, hide_index=True)
-
-    # Tabla 5: Distribución temporal
-    st.subheader("🕰️ Distribución Mensual",
-                help="Evolución mensual de la producción científica.")
-    time_stats = unique_articles['pub_date'].dt.strftime('%Y-%m').value_counts().sort_index().reset_index()
-    time_stats.columns = ['Mes-Año', 'Artículos únicos']
-
-    # Añadir fila de totales
-    total_row = pd.DataFrame({
-        'Mes-Año': ['TOTAL'],
-        'Artículos únicos': [time_stats['Artículos únicos'].sum()]
-    })
-    time_stats = pd.concat([time_stats, total_row], ignore_index=True)
-    st.dataframe(time_stats, hide_index=True)
+        time_stats = pd.concat([time_stats, total_row], ignore_index=True)
+        st.dataframe(time_stats, hide_index=True)
+        
+        # Nueva Tabla 6: Distribución por nivel SNI (ARTÍCULOS ÚNICOS)
+        if 'sni' in unique_articles.columns:
+            st.subheader("📊 Distribución por Nivel SNI",
+                        help="Clasificación de artículos según el nivel del Sistema Nacional de Investigadores (SNI) de los autores.")
+            sni_stats = unique_articles['sni'].value_counts().reset_index()
+            sni_stats.columns = ['Nivel SNI', 'Artículos únicos']
+            
+            # Añadir fila de totales
+            total_row = pd.DataFrame({
+                'Nivel SNI': ['TOTAL'],
+                'Artículos únicos': [sni_stats['Artículos únicos'].sum()]
+            })
+            sni_stats = pd.concat([sni_stats, total_row], ignore_index=True)
+            st.dataframe(sni_stats, hide_index=True)
+        else:
+            st.warning("El campo 'sni' no está disponible en los datos")
+        
+        # Nueva Tabla 7: Distribución por nivel SII (ARTÍCULOS ÚNICOS)
+        if 'sii' in unique_articles.columns:
+            st.subheader("📈 Distribución por Nivel SII",
+                        help="Clasificación de artículos según el nivel del Sistema Institucional de Investigación (SII) de los autores.")
+            sii_stats = unique_articles['sii'].value_counts().reset_index()
+            sii_stats.columns = ['Nivel SII', 'Artículos únicos']
+            
+            # Añadir fila de totales
+            total_row = pd.DataFrame({
+                'Nivel SII': ['TOTAL'],
+                'Artículos únicos': [sii_stats['Artículos únicos'].sum()]
+            })
+            sii_stats = pd.concat([sii_stats, total_row], ignore_index=True)
+            st.dataframe(sii_stats, hide_index=True)
+        else:
+            st.warning("El campo 'sii' no está disponible en los datos")
+        
+    except Exception as e:
+        st.error(f"Error al procesar el archivo: {str(e)}")
+        logging.error(f"Error en main: {str(e)}")
 
 if __name__ == "__main__":
     main()

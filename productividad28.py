@@ -144,6 +144,9 @@ DEPARTAMENTOS_INCICH = [
     "Unidad de Investigación UNAM-INC"
 ]
 
+SNI_OPCIONES = ["", "C", "I", "II", "III", "Emérito"]
+SII_OPCIONES = ["", "A", "B", "C", "D", "E", "F"]
+
 # ==================
 # CLASE SSH MEJORADA
 # ==================
@@ -207,7 +210,7 @@ class SSHManager:
                             'corresponding_author', 'coauthors', 'article_title', 'year',
                             'pub_date', 'volume', 'number', 'pages', 'journal_full',
                             'journal_abbrev', 'doi', 'jcr_group', 'pmid', 'selected_keywords',
-                            'estado'
+                            'estado', 'sni', 'sii'  # Nuevos campos añadidos
                         ]
                         pd.DataFrame(columns=columns).to_csv(local_path, index=False)
                         logging.info(f"Archivo remoto no encontrado, creado local con estructura: {local_path}")
@@ -409,8 +412,11 @@ def parse_nbib_file(content: str) -> dict:
         'departamento': '',  # Nuevo campo añadido
         'participation_key': '',
         'selected_keywords': [],
-        'estado': 'A'  # 'A' para activo, 'X' para marcado para borrar
+        'estado': 'A',  # 'A' para activo, 'X' para marcado para borrar
+        'sni': '',  # Nuevo campo SNI
+        'sii': ''   # Nuevo campo SII
     }
+
 
     def extract_field(pattern, multi_line=False):
         nonlocal content
@@ -504,7 +510,7 @@ def sync_with_remote(economic_number):
                 'corresponding_author', 'coauthors', 'article_title', 'year',
                 'pub_date', 'volume', 'number', 'pages', 'journal_full',
                 'journal_abbrev', 'doi', 'jcr_group', 'pmid', 'selected_keywords',
-                'estado'  # Nuevo campo añadido
+                'estado', 'sni', 'sii'  # Nuevos campos añadidos
             ]
 
             # Verifica si el archivo local ya existe
@@ -534,7 +540,7 @@ def sync_with_remote(economic_number):
                 'corresponding_author', 'coauthors', 'article_title', 'year',
                 'pub_date', 'volume', 'number', 'pages', 'journal_full',
                 'journal_abbrev', 'doi', 'jcr_group', 'pmid', 'selected_keywords',
-                'estado'  # Nuevo campo añadido
+                'estado', 'sni', 'sii'  # Nuevos campos añadidos
             ]
             pd.DataFrame(columns=columns).to_csv(csv_filename, index=False)
             return False
@@ -547,7 +553,7 @@ def sync_with_remote(economic_number):
         logging.error(f"Sync Error: {str(e)}")
         return False
 
-def save_to_csv(data: dict):
+def save_to_csv(data: dict, sni: str, sii: str):
     """Guarda los datos en el CSV local y remoto, eliminando registros marcados con 'X'"""
     try:
         economic_number = data['economic_number']
@@ -558,7 +564,7 @@ def save_to_csv(data: dict):
                 st.warning("⚠️ Trabajando con copia local debido a problemas de conexión")
 
         columns = [
-            'economic_number', 'departamento', 'participation_key', 'investigator_name',
+            'economic_number', 'sni', 'sii', 'departamento', 'participation_key', 'investigator_name',
             'corresponding_author', 'coauthors', 'article_title', 'year',
             'pub_date', 'volume', 'number', 'pages', 'journal_full',
             'journal_abbrev', 'doi', 'jcr_group', 'pmid', 'selected_keywords',
@@ -589,6 +595,10 @@ def save_to_csv(data: dict):
         # FILTRAR: Eliminar registros con estado 'X' antes de agregar el nuevo
         df_existing = df_existing[df_existing['estado'] != 'X']
 
+        # Añadir los valores de SNI y SII al diccionario de datos
+        data['sni'] = sni
+        data['sii'] = sii
+
         # Preparar el nuevo registro
         df_new = pd.DataFrame([data])
 
@@ -605,7 +615,7 @@ def save_to_csv(data: dict):
             if col not in df_combined.columns:
                 df_combined[col] = ""
 
-        # Reordenar columnas
+        # Reordenar columnas según el orden especificado
         df_combined = df_combined[columns]
 
         # Guardar localmente
@@ -694,6 +704,18 @@ def main():
         st.error("El número económico debe contener solo dígitos (0-9)")
         return
 
+    # Capturar SNI y SII
+    col1, col2 = st.columns(2)
+    with col1:
+        sni = st.selectbox("SNI", options=SNI_OPCIONES)
+    with col2:
+        sii = st.selectbox("SII", options=SII_OPCIONES)
+
+    # Validar que se hayan seleccionado ambos campos
+    if not sni or not sii:
+        st.warning("Por favor seleccione tanto SNI como SII")
+        return
+
     # Sincronización inicial para el número económico específico
     with st.spinner("Conectando con el servidor remoto..."):
         if not sync_with_remote(economic_number):
@@ -702,24 +724,40 @@ def main():
             Trabajando en modo local. Los datos se sincronizarán cuando se restablezca la conexión.
             """)
 
-    csv_filename = f"{CONFIG.CSV_PRODUCTOS_PREFIX}{economic_number}.csv"
+    # Sincronizar archivo remoto de productos
+    remote_productos_filename = f"{CONFIG.REMOTE_PRODUCTOS_PREFIX}{economic_number}.csv"
+    local_productos_filename = f"{CONFIG.CSV_PRODUCTOS_PREFIX}{economic_number}.csv"
+
+    with st.spinner("Sincronizando archivo de productos..."):
+        if not SSHManager.download_remote_file(remote_productos_filename, local_productos_filename):
+            st.warning("No se pudo descargar el archivo remoto de productos. Trabajando con versión local.")
 
     # Cargar o inicializar el DataFrame
-    if Path(csv_filename).exists():
+    if Path(local_productos_filename).exists():
         try:
-            productos_df = pd.read_csv(csv_filename, encoding='utf-8-sig', dtype={'economic_number': str})
+            productos_df = pd.read_csv(local_productos_filename, encoding='utf-8-sig', dtype={'economic_number': str})
             productos_df['economic_number'] = productos_df['economic_number'].astype(str).str.strip()
+
+            # Asegurar que los campos SNI y SII existan y tengan valores
+            if 'sni' not in productos_df.columns:
+                productos_df['sni'] = sni
+            else:
+                productos_df['sni'] = productos_df['sni'].fillna(sni)
+
+            if 'sii' not in productos_df.columns:
+                productos_df['sii'] = sii
+            else:
+                productos_df['sii'] = productos_df['sii'].fillna(sii)
 
             # Asegurar que el campo 'estado' exista
             if 'estado' not in productos_df.columns:
                 productos_df['estado'] = 'A'
             else:
-                # Limpiar valores vacíos/nulos en el campo estado
                 productos_df['estado'] = productos_df['estado'].fillna('A').str.strip().replace('', 'A')
         except Exception as e:
             st.error(f"Error al leer el archivo: {str(e)}")
             productos_df = pd.DataFrame(columns=[
-                'economic_number', 'departamento', 'participation_key', 'investigator_name',
+                'economic_number', 'sni', 'sii', 'departamento', 'participation_key', 'investigator_name',
                 'corresponding_author', 'coauthors', 'article_title', 'year',
                 'pub_date', 'volume', 'number', 'pages', 'journal_full',
                 'journal_abbrev', 'doi', 'jcr_group', 'pmid', 'selected_keywords',
@@ -727,7 +765,7 @@ def main():
             ])
     else:
         productos_df = pd.DataFrame(columns=[
-            'economic_number', 'departamento', 'participation_key', 'investigator_name',
+            'economic_number', 'sni', 'sii', 'departamento', 'participation_key', 'investigator_name',
             'corresponding_author', 'coauthors', 'article_title', 'year',
             'pub_date', 'volume', 'number', 'pages', 'journal_full',
             'journal_abbrev', 'doi', 'jcr_group', 'pmid', 'selected_keywords',
@@ -781,13 +819,14 @@ def main():
                         productos_df = productos_df[productos_df['estado'] == 'A'].copy()
 
                         # Guardar cambios en el archivo
-                        productos_df.to_csv(csv_filename, index=False, encoding='utf-8-sig')
+                        productos_df.to_csv(local_productos_filename, index=False, encoding='utf-8-sig')
 
                         # Sincronizar con servidor remoto
                         with st.spinner("Guardando cambios..."):
-                            remote_filename = f"{CONFIG.REMOTE_PRODUCTOS_PREFIX}{economic_number}.csv"
-                            remote_path = os.path.join(CONFIG.REMOTE['DIR'], remote_filename)
-                            upload_success = SSHManager.upload_remote_file(csv_filename, remote_path)
+                            upload_success = SSHManager.upload_remote_file(
+                                local_productos_filename,
+                                os.path.join(CONFIG.REMOTE['DIR'], remote_productos_filename)
+                            )
 
                         if upload_success:
                             st.success("✅ Registros eliminados exitosamente del archivo!")
@@ -820,6 +859,10 @@ def main():
                 if data:
                     st.subheader("📝 Información extraída")
                     st.info(data['article_title'])
+
+                    # Añadir campos SNI y SII al diccionario de datos
+                    data['sni'] = sni
+                    data['sii'] = sii
 
                     # Añadir campo departamento
                     departamento = st.selectbox(
@@ -862,11 +905,24 @@ def main():
 
                         if st.button("💾 Guardar registro", type="primary"):
                             with st.spinner("Guardando datos..."):
-                                if save_to_csv(data):
-                                    st.balloons()
+                                # Asegurar que los campos SNI y SII estén incluidos
+                                data['sni'] = sni
+                                data['sii'] = sii
+
+                                if save_to_csv(data, sni, sii):  # Pasa sni y sii aquí
+                                    st.balloons()  # ¡Los globos se mantienen!
                                     st.success("✅ Registro guardado exitosamente!")
                                     saved_data = data
                                     show_summary = True
+
+                                    # Intentar subir el archivo actualizado al servidor remoto
+                                    with st.spinner("Sincronizando con servidor remoto..."):
+                                        upload_success = SSHManager.upload_remote_file(
+                                            local_productos_filename,
+                                            os.path.join(CONFIG.REMOTE['DIR'], remote_productos_filename)
+                                        )
+                                        if not upload_success:
+                                            st.warning("No se pudo sincronizar con el servidor remoto. Los datos se guardaron localmente.")
 
             except Exception as e:
                 st.error(f"❌ Error: {str(e)}")
@@ -893,6 +949,8 @@ def main():
             st.write(f"👤 Investigador: {saved_data['investigator_name']}")
             st.write(f"🔑 Clave participación: {saved_data['participation_key']}")
             st.write(f"🏢 Departamento: {saved_data['departamento'] or 'No especificado'}")
+            st.write(f"🏆 SNI: {saved_data['sni']}")
+            st.write(f"⭐ SII: {saved_data['sii']}")
 
             if st.button("🔄 Añadir otro registro"):
                 st.rerun()
