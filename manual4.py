@@ -38,6 +38,12 @@ DEPARTAMENTOS_INCICH = [
 ]
 
 # ====================
+# OPCIONES SNI Y SII
+# ====================
+SNI_OPCIONES = ["", "C", "I", "II", "III", "Emérito"]
+SII_OPCIONES = ["", "A", "B", "C", "D", "E", "F", "Emérito"]
+
+# ====================
 # CONFIGURACIÓN INICIAL
 # ====================
 class Config:
@@ -141,13 +147,13 @@ KEYWORD_CATEGORIES = {
     ],
     "Valvulopatías": [
         "valvulopatía", "estenosis aórtica", "insuficiencia aórtica",
-        "estenosis mitral", "insuficiencia mitral", "prolapso mitral",
+        "stenosis mitral", "insuficiencia mitral", "prolapso mitral",
         "tavi", "taavi", "anillo mitral", "reemplazo valvular"
     ],
 }
 
 # ==================
-# CLASE SSH MEJORADA
+# CLASE SSH MANAGER
 # ==================
 class SSHManager:
     MAX_RETRIES = 3
@@ -205,7 +211,7 @@ class SSHManager:
                     except FileNotFoundError:
                         # Crear archivo local con estructura correcta
                         columns = [
-                            'economic_number', 'participation_key', 'investigator_name',
+                            'economic_number', 'sni', 'sii', 'participation_key', 'investigator_name',
                             'corresponding_author', 'coauthors', 'article_title', 'year',
                             'pub_date', 'volume', 'number', 'pages', 'journal_full',
                             'journal_abbrev', 'doi', 'jcr_group', 'pmid', 'selected_keywords',
@@ -316,7 +322,7 @@ def sync_with_remote(economic_number):
         if not download_success:
             # Si no existe el archivo remoto, crea uno local con estructura correcta
             columns = [
-                'economic_number', 'participation_key', 'investigator_name',
+                'economic_number', 'sni', 'sii', 'participation_key', 'investigator_name',
                 'corresponding_author', 'coauthors', 'article_title', 'year',
                 'pub_date', 'volume', 'number', 'pages', 'journal_full',
                 'journal_abbrev', 'doi', 'jcr_group', 'pmid', 'selected_keywords',
@@ -346,7 +352,7 @@ def sync_with_remote(economic_number):
         except pd.errors.EmptyDataError:
             st.warning("El archivo remoto está vacío o corrupto")
             columns = [
-                'economic_number', 'participation_key', 'investigator_name',
+                'economic_number', 'sni', 'sii', 'participation_key', 'investigator_name',
                 'corresponding_author', 'coauthors', 'article_title', 'year',
                 'pub_date', 'volume', 'number', 'pages', 'journal_full',
                 'journal_abbrev', 'doi', 'jcr_group', 'pmid', 'selected_keywords',
@@ -364,17 +370,17 @@ def sync_with_remote(economic_number):
         return False
 
 def save_to_csv(data: dict):
-    """Guarda los datos en el CSV local y remoto, eliminando registros marcados con 'X'"""
+    """Guarda los datos en el CSV local y remoto, eliminando registros con estado 'X'"""
     try:
         economic_number = data['economic_number']
         csv_filename = f"{CONFIG.CSV_PREFIX}{economic_number}.csv"
-
+        
         with st.spinner("Sincronizando datos con el servidor..."):
             if not sync_with_remote(economic_number):
                 st.warning("⚠️ Trabajando con copia local debido a problemas de conexión")
 
         columns = [
-            'economic_number', 'participation_key', 'investigator_name',
+            'economic_number', 'sni', 'sii', 'participation_key', 'investigator_name',
             'corresponding_author', 'coauthors', 'article_title', 'year',
             'pub_date', 'volume', 'number', 'pages', 'journal_full',
             'journal_abbrev', 'doi', 'jcr_group', 'pmid', 'selected_keywords',
@@ -391,9 +397,9 @@ def save_to_csv(data: dict):
                     encoding='utf-8-sig',
                     dtype={'economic_number': str}
                 )
-                # Filtrar y eliminar registros con estado = 'X'
+                # Eliminar registros con estado 'X'
                 df_existing = df_existing[df_existing['estado'] != 'X'].copy()
-
+                
                 # Verificar si el DataFrame está vacío
                 if df_existing.empty:
                     df_existing = pd.DataFrame(columns=columns)
@@ -487,13 +493,21 @@ def main():
         st.error("El número económico debe contener solo dígitos (0-9)")
         return
 
-    # Sincronización inicial para el número económico específico
+    # Capturar SNI y SII
+    col1, col2 = st.columns(2)
+    with col1:
+        sni = st.selectbox("SNI", options=SNI_OPCIONES)
+    with col2:
+        sii = st.selectbox("SII", options=SII_OPCIONES)
+
+    # Validar que se hayan seleccionado ambos campos
+    if not sni or not sii:
+        st.warning("Por favor seleccione tanto SNI como SII")
+        return
+
+    # Sincronización inicial con el servidor remoto
     with st.spinner("Conectando con el servidor remoto..."):
-        if not sync_with_remote(economic_number):
-            st.warning("""
-            ⚠️ No se pudo conectar con el servidor remoto.
-            Trabajando en modo local. Los datos se sincronizarán cuando se restablezca la conexión.
-            """)
+        sync_with_remote(economic_number)
 
     csv_filename = f"{CONFIG.CSV_PREFIX}{economic_number}.csv"
 
@@ -502,6 +516,17 @@ def main():
         try:
             manual_df = pd.read_csv(csv_filename, encoding='utf-8-sig', dtype={'economic_number': str})
             manual_df['economic_number'] = manual_df['economic_number'].astype(str).str.strip()
+
+            # Asegurar que los campos SNI y SII existan y tengan valores
+            if 'sni' not in manual_df.columns:
+                manual_df['sni'] = sni
+            else:
+                manual_df['sni'] = manual_df['sni'].fillna(sni)
+
+            if 'sii' not in manual_df.columns:
+                manual_df['sii'] = sii
+            else:
+                manual_df['sii'] = manual_df['sii'].fillna(sii)
 
             # Asegurar que el campo 'estado' exista
             if 'estado' not in manual_df.columns:
@@ -512,7 +537,7 @@ def main():
         except Exception as e:
             st.error(f"Error al leer el archivo: {str(e)}")
             manual_df = pd.DataFrame(columns=[
-                'economic_number', 'participation_key', 'investigator_name',
+                'economic_number', 'sni', 'sii', 'participation_key', 'investigator_name',
                 'corresponding_author', 'coauthors', 'article_title', 'year',
                 'pub_date', 'volume', 'number', 'pages', 'journal_full',
                 'journal_abbrev', 'doi', 'jcr_group', 'pmid', 'selected_keywords',
@@ -520,11 +545,11 @@ def main():
             ])
     else:
         manual_df = pd.DataFrame(columns=[
-            'economic_number', 'participation_key', 'investigator_name',
+            'economic_number', 'sni', 'sii', 'participation_key', 'investigator_name',
             'corresponding_author', 'coauthors', 'article_title', 'year',
             'pub_date', 'volume', 'number', 'pages', 'journal_full',
             'journal_abbrev', 'doi', 'jcr_group', 'pmid', 'selected_keywords',
-            'departamento', 'estado' 
+            'departamento', 'estado'
         ])
 
     # Mostrar registros existentes si los hay
@@ -598,120 +623,105 @@ def main():
     # Preguntar si desea añadir nuevo registro
     st.divider()
     if st.radio("¿Desea añadir un nuevo registro?", ["No", "Sí"], index=0) == "Sí":
-        st.subheader("📝 Información del artículo")
+        # Formulario para nuevo registro
+        st.subheader("📝 Nuevo registro de artículo")
 
-        # Campos de entrada manual
-        article_title = st.text_area("📄 Título del artículo:", height=100)
-        year = st.text_input("📅 Año de publicación:")
-        pub_date = st.text_input("🗓️ Fecha completa de publicación (YYYY-MM-DD):", help="Formato: AAAA-MM-DD")
-        volume = st.text_input("📚 Volumen (ej 79(3), el volumen es 79")
-        number = st.text_input("# Número (ej 79(3), el número es 3)")
-        pages = st.text_input("🔖 Páginas (ej. 123-130):")
-        journal_full = st.text_input("🏛️ Nombre completo de la revista:")
-        journal_abbrev = st.text_input("🏷️ Abreviatura de la revista:")
-        jcr_group = st.selectbox(
-            "🏆 Grupo JCR:",
-            options=[
-                "Grupo 1 (sin factor de impacto)",
-                "Grupo 2 (FI ≤ 0.9)",
-                "Grupo 3 (FI 1-2.99)",
-                "Grupo 4 (FI 3-5.99)",
-                "Grupo 5 (FI 6-8.99)",
-                "Grupo 6 (FI 9-11.99)",
-                "Grupo 7 (FI ≥ 12)",
-                "Grupo no determinado"
-            ],
-            index=0
-        )
-        doi = st.text_input("🌐 DOI:")
-        pmid = st.text_input("🔍 PMID (opcional):")
-        corresponding_author = st.text_input("📌 Autor de correspondencia:")
-        coauthors = st.text_area("👥 Coautores (separados por punto y coma ';'):", help="Ejemplo: Autor1; Autor2; Autor3")
-        departamento = st.selectbox(
-            "🏛️ Departamento (INCICh):",
-            options=DEPARTAMENTOS_INCICH,
-            index=0,
-            key="departamento"
-        )
+        with st.form("nuevo_articulo", clear_on_submit=True):
+            article_title = st.text_area("📄 Título del artículo:", height=100)
+            corresponding_author = st.text_input("📌 Autor para correspondencia:")
+            coauthors = st.text_area("👥 Coautores (separados por punto y coma ';'):", help="Ejemplo: Autor1; Autor2; Autor3")
+            departamento = st.selectbox(
+                "🏢 Departamento de adscripción:",
+                options=DEPARTAMENTOS_INCICH,
+                index=0
+            )
 
-        # Palabras clave
-        st.subheader("🔑 Palabras clave")
-        selected_categories = st.multiselect(
-            f"Seleccione {CONFIG.MAX_KEYWORDS} palabras clave:",
-            options=list(KEYWORD_CATEGORIES.keys()),
-            default=[],
-            max_selections=CONFIG.MAX_KEYWORDS
-        )
+            # Detalles de publicación
+            st.subheader("📅 Detalles de publicación")
+            col1, col2 = st.columns(2)
+            with col1:
+                year = st.text_input("Año de publicación:")
+            with col2:
+                pub_date = st.text_input("Fecha exacta [YYYY-MM-DD]:", placeholder="AAAA-MM-DD")
 
-        if len(selected_categories) < CONFIG.MAX_KEYWORDS:
-            st.error(f"Debe seleccionar exactamente {CONFIG.MAX_KEYWORDS} palabras clave")
-            return
+            col3, col4 = st.columns(2)
+            with col3:
+                volume = st.text_input("📚 Volumen (ej 79(3), el volumen es 79")
+            with col4:
+                number = st.text_input("# Número (ej 79(3), el número es 3)")
 
-        # Verificación de autoría
-        st.subheader("👤 Verificación de autoría")
-        authors_list = []
-        if corresponding_author:
-            authors_list.append(corresponding_author)
-        if coauthors:
-            authors_list.extend([author.strip() for author in coauthors.split(";") if author.strip()])
+            pages = st.text_input("🔖 Páginas (ej. 123-130):")
+            journal_full = st.text_input("🏛️ Nombre completo de la revista:")
+            journal_abbrev = st.text_input("🏷️ Abreviatura de la revista:")
+            doi = st.text_input("🌐 DOI:")
+            pmid = st.text_input("🔍 PMID (opcional):")
 
-        if not authors_list:
-            st.error("Debe ingresar al menos un autor")
-            return
+            # Grupo JCR
+            jcr_group = st.selectbox(
+                "🏆 Grupo JCR:",
+                options=[
+                    "Grupo 1 (sin factor de impacto)",
+                    "Grupo 2 (FI ≤ 0.9)",
+                    "Grupo 3 (FI 1-2.99)",
+                    "Grupo 4 (FI 3-5.99)",
+                    "Grupo 5 (FI 6-8.99)",
+                    "Grupo 6 (FI 9-11.99)",
+                    "Grupo 7 (FI ≥ 12)",
+                    "Grupo no determinado"
+                ],
+                index=0
+            )
 
-        investigator_name = st.selectbox("Seleccione su nombre como aparece en la publicación:", authors_list)
-        participation_key = "CA" if investigator_name == corresponding_author else f"{authors_list.index(investigator_name)}C"
+            # Palabras clave
+            st.subheader("🔑 Palabras clave")
+            selected_categories = st.multiselect(
+                f"Seleccione hasta {CONFIG.MAX_KEYWORDS} palabras clave:",
+                options=list(KEYWORD_CATEGORIES.keys()),
+                max_selections=CONFIG.MAX_KEYWORDS
+            )
 
-        # Resumen del registro
-        st.subheader("📋 Resumen del registro")
-        st.markdown("**Información del artículo**")
-        st.write(f"📄 Título: {article_title}")
-        st.write(f"📅 Año: {year}")
-        st.write(f"🏛️ Revista: {journal_full}")
+            if st.form_submit_button("💾 Guardar nuevo registro"):
+                # Verificación de autoría
+                authors_list = []
+                if corresponding_author:
+                    authors_list.append(corresponding_author)
+                if coauthors:
+                    authors_list.extend([author.strip() for author in coauthors.split(";") if author.strip()])
 
-        st.markdown("**Autores**")
-        st.markdown(f"📌 Correspondencia: {highlight_author(corresponding_author, investigator_name)}", unsafe_allow_html=True)
-        if coauthors:
-            st.markdown("👥 Coautores:")
-            for author in [a.strip() for a in coauthors.split(";") if a.strip()]:
-                st.markdown(f"- {highlight_author(author, investigator_name)}", unsafe_allow_html=True)
+                if not authors_list:
+                    st.error("Debe ingresar al menos un autor")
+                    return
 
-        st.markdown("**Identificación**")
-        st.write(f"🔢 Número económico: {economic_number}")
-        st.write(f"👤 Investigador: {investigator_name}")
-        st.write(f"🔑 Clave participación: {participation_key}")
-        st.write(f"🏢 Departamento: {departamento or 'No especificado'}")
+                investigator_name = st.selectbox("Seleccione su nombre como aparece en la publicación:", authors_list)
+                participation_key = "CA" if investigator_name == corresponding_author else f"{authors_list.index(investigator_name)}C"
 
-        if st.button("💾 Guardar registro", type="primary"):
-            # Preparar datos para guardar
-            data = {
-                'economic_number': economic_number,
-                'participation_key': participation_key,
-                'investigator_name': investigator_name,
-                'corresponding_author': corresponding_author,
-                'coauthors': coauthors,
-                'article_title': article_title,
-                'year': year,
-                'pub_date': pub_date if pub_date else year,
-                'volume': volume,
-                'number': number,
-                'pages': pages,
-                'journal_full': journal_full,
-                'journal_abbrev': journal_abbrev,
-                'doi': doi,
-                'jcr_group': jcr_group,
-                'pmid': pmid,
-                'selected_keywords': str(selected_categories[:CONFIG.MAX_KEYWORDS]),
-                'departamento': departamento,
-                'estado': 'A'
-            }
+                nuevo_registro = {
+                    'economic_number': economic_number,
+                    'sni': sni,
+                    'sii': sii,
+                    'participation_key': participation_key,
+                    'investigator_name': investigator_name,
+                    'corresponding_author': corresponding_author,
+                    'coauthors': coauthors,
+                    'article_title': article_title,
+                    'year': year,
+                    'pub_date': pub_date if pub_date else year,
+                    'volume': volume,
+                    'number': number,
+                    'pages': pages,
+                    'journal_full': journal_full,
+                    'journal_abbrev': journal_abbrev,
+                    'doi': doi,
+                    'jcr_group': jcr_group,
+                    'pmid': pmid,
+                    'selected_keywords': str(selected_categories),
+                    'departamento': departamento,
+                    'estado': 'A'
+                }
 
-            with st.spinner("Guardando datos..."):
-                if save_to_csv(data):
-                    st.balloons()
+                if save_to_csv(nuevo_registro):
                     st.success("✅ Registro guardado exitosamente!")
-                    st.subheader("📄 Registro completo capturado")
-                    st.json(data)
+                    st.balloons()
                     time.sleep(2)
                     st.rerun()
 
