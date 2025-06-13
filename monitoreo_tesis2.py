@@ -381,6 +381,8 @@ def main():
                     display_columns = ['titulo_tesis', 'tipo_tesis', 'pub_date', 'estudiante']
                     if 'sni' in unique_tesis_director.columns and 'sii' in unique_tesis_director.columns:
                         display_columns.extend(['sni', 'sii'])
+                    if 'nombramiento' in unique_tesis_director.columns:
+                        display_columns.append('nombramiento')
                     
                     st.write(f"Tesis dirigidas por {row['Director']}:")
                     st.dataframe(unique_tesis_director[display_columns])
@@ -454,7 +456,7 @@ def main():
         st.subheader("🕰️ Distribución Mensual",
                     help="Evolución mensual de la producción de tesis en el periodo seleccionado.")
 
-        # Convertir a formato "YYYY-MM" - CORRECCIÓN: usar astype(str) en lugar de astipestr
+        # Convertir a formato "YYYY-MM"
         time_stats = unique_tesis['pub_date'].dt.to_period('M').astype(str).value_counts().sort_index().reset_index()
         time_stats.columns = ['Mes-Año', 'Tesis únicas']
 
@@ -499,8 +501,25 @@ def main():
             st.dataframe(sii_stats, hide_index=True)
         else:
             st.warning("El campo 'sii' no está disponible en los datos")
+            
+        # Tabla 8: Distribución por tipo de nombramiento (TESIS ÚNICAS)
+        if 'nombramiento' in unique_tesis.columns:
+            st.subheader("👨‍🏫 Distribución por Tipo de Nombramiento",
+                        help="Clasificación de tesis según el tipo de nombramiento de los directores.")
+            nombramiento_stats = unique_tesis['nombramiento'].value_counts().reset_index()
+            nombramiento_stats.columns = ['Tipo de Nombramiento', 'Tesis únicas']
+            
+            # Añadir fila de totales
+            total_row = pd.DataFrame({
+                'Tipo de Nombramiento': ['TOTAL'],
+                'Tesis únicas': [nombramiento_stats['Tesis únicas'].sum()]
+            })
+            nombramiento_stats = pd.concat([nombramiento_stats, total_row], ignore_index=True)
+            st.dataframe(nombramiento_stats, hide_index=True)
+        else:
+            st.warning("El campo 'nombramiento' no está disponible en los datos")
         
-        # Tabla 8: Distribución por idioma (TESIS ÚNICAS)
+        # Tabla 9: Distribución por idioma (TESIS ÚNICAS)
         if 'idioma' in unique_tesis.columns:
             st.subheader("🌐 Distribución por Idioma",
                         help="Idiomas en los que están escritas las tesis.")
@@ -517,7 +536,7 @@ def main():
         else:
             st.warning("El campo 'idioma' no está disponible en los datos")
             
-        # Tabla 9: Estudiantes con más tesis (TESIS ÚNICAS)
+        # Tabla 10: Estudiantes con más tesis (TESIS ÚNICAS)
         st.subheader("👨‍🎓 Estudiantes con más tesis",
                     help="Listado de estudiantes ordenados por cantidad de tesis realizadas.")
         estudiante_stats = unique_tesis['estudiante'].value_counts().reset_index()
