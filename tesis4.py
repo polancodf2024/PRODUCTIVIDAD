@@ -125,8 +125,21 @@ DEPARTAMENTOS_INCICH = [
 # ====================
 # OPCIONES SNI Y SII
 # ====================
-SNI_OPCIONES = ["", "C", "I", "II", "III", "Emérito"]
-SII_OPCIONES = ["", "A", "B", "C", "D", "E", "F", "Emérito"]
+SNI_OPCIONES = ["C", "I", "II", "III", "Emérito"]
+SII_OPCIONES = ["A", "B", "C", "D", "E", "F", "Emérito"]
+
+# ====================
+# OPCIONES DE NOMBRAMIENTO
+# ====================
+NOMBRAMIENTO_OPCIONES = [
+    "Médico", 
+    "Médico especialista", 
+    "Investigador", 
+    "Mando medio", 
+    "Técnico académico", 
+    "Tesista", 
+    "Servicio social"
+]
 
 # ====================
 # CONFIGURACIÓN INICIAL
@@ -219,7 +232,7 @@ class SSHManager:
                     except FileNotFoundError:
                         # Crear archivo local con estructura correcta
                         columns = [
-                            'economic_number', 'sni', 'sii', 'titulo_tesis', 'tipo_tesis', 'year',
+                            'economic_number', 'nombramiento', 'sni', 'sii', 'titulo_tesis', 'tipo_tesis', 'year',
                             'pub_date', 'departamento', 'directores', 'paginas',
                             'idioma', 'estudiante', 'coautores', 'selected_keywords',
                             'estado'
@@ -308,7 +321,7 @@ def sync_with_remote(economic_number):
         if not download_success:
             # Si no existe el archivo remoto, crea uno local con estructura correcta
             columns = [
-                'economic_number', 'sni', 'sii', 'titulo_tesis', 'tipo_tesis', 'year',
+                'economic_number', 'nombramiento', 'sni', 'sii', 'titulo_tesis', 'tipo_tesis', 'year',
                 'pub_date', 'departamento', 'directores', 'paginas',
                 'idioma', 'estudiante', 'coautores', 'selected_keywords',
                 'estado'
@@ -337,7 +350,7 @@ def sync_with_remote(economic_number):
         except pd.errors.EmptyDataError:
             st.warning("El archivo remoto está vacío o corrupto")
             columns = [
-                'economic_number', 'sni', 'sii', 'titulo_tesis', 'tipo_tesis', 'year',
+                'economic_number', 'nombramiento', 'sni', 'sii', 'titulo_tesis', 'tipo_tesis', 'year',
                 'pub_date', 'departamento', 'directores', 'paginas',
                 'idioma', 'estudiante', 'coautores', 'selected_keywords',
                 'estado'
@@ -364,7 +377,7 @@ def save_to_csv(data: dict):
                 st.warning("⚠️ Trabajando con copia local debido a problemas de conexión")
 
         columns = [
-            'economic_number', 'sni', 'sii', 'titulo_tesis', 'tipo_tesis', 'year',
+            'economic_number', 'nombramiento', 'sni', 'sii', 'titulo_tesis', 'tipo_tesis', 'year',
             'pub_date', 'departamento', 'directores', 'paginas',
             'idioma', 'estudiante', 'coautores', 'selected_keywords',
             'estado'
@@ -475,6 +488,13 @@ def main():
         st.error("El número económico debe contener solo dígitos (0-9)")
         return
 
+    # Selección de nombramiento
+    nombramiento = st.selectbox(
+        "👔 Nombramiento:",
+        options=NOMBRAMIENTO_OPCIONES,
+        index=0
+    )
+
     # Capturar SNI y SII
     col1, col2 = st.columns(2)
     with col1:
@@ -499,7 +519,12 @@ def main():
             tesis_df = pd.read_csv(csv_filename, encoding='utf-8-sig', dtype={'economic_number': str})
             tesis_df['economic_number'] = tesis_df['economic_number'].astype(str).str.strip()
 
-            # Asegurar que los campos SNI y SII existan y tengan valores
+            # Asegurar que los campos necesarios existan y tengan valores
+            if 'nombramiento' not in tesis_df.columns:
+                tesis_df['nombramiento'] = nombramiento
+            else:
+                tesis_df['nombramiento'] = tesis_df['nombramiento'].fillna(nombramiento)
+
             if 'sni' not in tesis_df.columns:
                 tesis_df['sni'] = sni
             else:
@@ -519,14 +544,14 @@ def main():
         except Exception as e:
             st.error(f"Error al leer el archivo: {str(e)}")
             tesis_df = pd.DataFrame(columns=[
-                'economic_number', 'sni', 'sii', 'titulo_tesis', 'tipo_tesis', 'year',
+                'economic_number', 'nombramiento', 'sni', 'sii', 'titulo_tesis', 'tipo_tesis', 'year',
                 'pub_date', 'departamento', 'directores', 'paginas',
                 'idioma', 'estudiante', 'coautores', 'selected_keywords',
                 'estado'
             ])
     else:
         tesis_df = pd.DataFrame(columns=[
-            'economic_number', 'sni', 'sii', 'titulo_tesis', 'tipo_tesis', 'year',
+            'economic_number', 'nombramiento', 'sni', 'sii', 'titulo_tesis', 'tipo_tesis', 'year',
             'pub_date', 'departamento', 'directores', 'paginas',
             'idioma', 'estudiante', 'coautores', 'selected_keywords',
             'estado'
@@ -655,12 +680,14 @@ def main():
 
             st.markdown("**Identificación**")
             st.write(f"🔢 Número económico: {economic_number}")
+            st.write(f"👔 Nombramiento: {nombramiento}")
             st.write(f"🏆 SNI: {sni}")
             st.write(f"⭐ SII: {sii}")
 
             if st.form_submit_button("💾 Guardar nueva tesis"):
                 nuevo_registro = {
                     'economic_number': economic_number,
+                    'nombramiento': nombramiento,
                     'sni': sni,
                     'sii': sii,
                     'titulo_tesis': titulo_tesis,
