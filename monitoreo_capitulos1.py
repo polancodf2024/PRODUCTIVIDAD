@@ -363,6 +363,8 @@ def main():
                     display_columns = ['titulo_libro', 'titulo_capitulo', 'editorial', 'pub_date', 'isbn_issn']
                     if 'sni' in unique_capitulos_investigator.columns and 'sii' in unique_capitulos_investigator.columns:
                         display_columns.extend(['sni', 'sii'])
+                    if 'nombramiento' in unique_capitulos_investigator.columns:
+                        display_columns.append('nombramiento')
                     
                     st.write(f"Capítulos de {row['Investigador']}:")
                     st.dataframe(unique_capitulos_investigator[display_columns])
@@ -498,8 +500,25 @@ def main():
             st.dataframe(sii_stats, hide_index=True)
         else:
             st.warning("El campo 'sii' no está disponible en los datos")
+            
+        # Tabla 9: Distribución por tipo de nombramiento (CAPÍTULOS ÚNICOS)
+        if 'nombramiento' in unique_capitulos.columns:
+            st.subheader("👨‍🏫 Distribución por Tipo de Nombramiento",
+                        help="Clasificación de capítulos según el tipo de nombramiento de los autores.")
+            nombramiento_stats = unique_capitulos['nombramiento'].value_counts().reset_index()
+            nombramiento_stats.columns = ['Tipo de Nombramiento', 'Capítulos únicos']
+            
+            # Añadir fila de totales
+            total_row = pd.DataFrame({
+                'Tipo de Nombramiento': ['TOTAL'],
+                'Capítulos únicos': [nombramiento_stats['Capítulos únicos'].sum()]
+            })
+            nombramiento_stats = pd.concat([nombramiento_stats, total_row], ignore_index=True)
+            st.dataframe(nombramiento_stats, hide_index=True)
+        else:
+            st.warning("El campo 'nombramiento' no está disponible en los datos")
         
-        # Tabla 9: Distribución por países de distribución (CAPÍTULOS ÚNICOS)
+        # Tabla 10: Distribución por países de distribución (CAPÍTULOS ÚNICOS)
         if 'paises_distribucion' in unique_capitulos.columns:
             st.subheader("🌍 Distribución por Países",
                         help="Países donde se distribuyen los libros que contienen los capítulos publicados.")
@@ -524,7 +543,7 @@ def main():
             except:
                 st.warning("No se pudieron procesar los países de distribución")
 
-        # Tabla 10: Distribución por idioma (CAPÍTULOS ÚNICOS)
+        # Tabla 11: Distribución por idioma (CAPÍTULOS ÚNICOS)
         if 'idiomas_disponibles' in unique_capitulos.columns:
             st.subheader("🌐 Distribución por Idioma",
                         help="Idiomas en los que están publicados los libros que contienen los capítulos.")
@@ -541,7 +560,7 @@ def main():
         else:
             st.warning("El campo 'idiomas_disponibles' no está disponible en los datos")
             
-        # Tabla 11: Distribución por formato (CAPÍTULOS ÚNICOS)
+        # Tabla 12: Distribución por formato (CAPÍTULOS ÚNICOS)
         if 'formatos_disponibles' in unique_capitulos.columns:
             st.subheader("📖 Distribución por Formato",
                         help="Formatos disponibles para los libros que contienen los capítulos publicados.")
