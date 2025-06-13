@@ -151,12 +151,18 @@ def main():
         return
     
     try:
-        # Leer y procesar el archivo con los nuevos campos sni y sii
-        df = pd.read_csv("productos_total.csv")
+        # Leer y procesar el archivo con los nuevos campos sni y sii (VERSIÓN CORREGIDA)
+        df = pd.read_csv("productos_total.csv", header=0, encoding='utf-8')
+        df.columns = df.columns.str.strip()  # Limpiar espacios en nombres de columnas
         
-        # Verificar que los nuevos campos existen
+        # Verificación de columnas (para diagnóstico)
+        logging.info(f"Columnas detectadas: {df.columns.tolist()}")
+        
+        # Verificar que los campos clave existen
+        if 'nombramiento' not in df.columns:
+            st.warning("El archivo no contiene el campo 'nombramiento'")
         if 'sni' not in df.columns or 'sii' not in df.columns:
-            st.warning("El archivo productos_total.csv no contiene los campos 'sni' y 'sii'. Se continuará con los campos disponibles.")
+            st.warning("El archivo productos_total.csv no contiene los campos 'sni' y/o 'sii'")
         
         # Convertir y validar fechas
         df['pub_date'] = pd.to_datetime(df['pub_date'], errors='coerce')
@@ -220,9 +226,8 @@ def main():
                    help="Cantidad de artículos científicos distintos, eliminando duplicados.")
         
         if len(filtered_df) != len(unique_articles):
-            st.warning(f"⚠️ **Nota:** Se detectaron {len(filtered_df) - len(unique_articles)} manuscritos duplicados del mismo artículo. ")
+            st.warning(f"⚠️ **Nota:** Se detectaron {len(filtered_df) - len(unique_articles)} manuscritos duplicados del mismo artículo.")
 
-        
         if filtered_df.empty:
             st.warning("No hay publicaciones en el periodo seleccionado")
             return
@@ -235,7 +240,6 @@ def main():
         st.subheader("🔍 Productividad por Investigador",
                    help="Muestra cuántos artículos únicos tiene cada investigador y su posición de autoría.")
         
-        # Crear dataframe con información de participación
         investigator_stats = filtered_df.groupby('investigator_name').agg(
             Articulos_Unicos=('article_title', lambda x: len(set(x))),
             Participaciones=('participation_key', lambda x: ', '.join(sorted(set(x))))
@@ -255,13 +259,10 @@ def main():
         # Mostrar tabla con enlaces clickeables
         for index, row in investigator_stats.iterrows():
             if row['Investigador'] != 'TOTAL':
-                # Crear un expander para cada investigador
                 with st.expander(f"{row['Investigador']} - {row['Artículos únicos']} artículos"):
-                    # Filtrar los artículos del investigador
                     investigator_articles = filtered_df[filtered_df['investigator_name'] == row['Investigador']]
                     unique_articles_investigator = investigator_articles.drop_duplicates(subset=['article_title'])
                     
-                    # Mostrar los artículos (incluyendo los nuevos campos si existen)
                     display_columns = ['article_title', 'journal_full', 'pub_date', 'jcr_group']
                     if 'sni' in unique_articles_investigator.columns and 'sii' in unique_articles_investigator.columns:
                         display_columns.extend(['sni', 'sii'])
@@ -271,7 +272,6 @@ def main():
                     st.write(f"Artículos de {row['Investigador']}:")
                     st.dataframe(unique_articles_investigator[display_columns])
                     
-                    # Opción para descargar en CSV
                     csv = unique_articles_investigator.to_csv(index=False).encode('utf-8')
                     st.download_button(
                         label="Descargar producción científica en CSV",
@@ -281,9 +281,9 @@ def main():
                         key=f"download_{index}"
                     )
         
-        # Tabla 2: Revistas más publicadas (ARTÍCULOS ÚNICOS)
+        # Tabla 2: Revistas más publicadas
         st.subheader("📚 Revistas más Utilizadas",
-                   help="Listado de revistas científicas ordenadas por cantidad de artículos publicados, con su grupo JCR más frecuente.")
+                   help="Listado de revistas científicas ordenadas por cantidad de artículos publicados.")
         journal_stats = unique_articles.groupby('journal_full').agg(
             Total_Articulos=('journal_full', 'size'),
             Grupo_JCR=('jcr_group', lambda x: x.mode()[0] if not x.mode().empty else 'No disponible')
@@ -291,7 +291,6 @@ def main():
         journal_stats = journal_stats.sort_values('Total_Articulos', ascending=False)
         journal_stats.columns = ['Revista', 'Artículos únicos', 'Grupo JCR más frecuente']
         
-        # Añadir fila de totales
         total_row = pd.DataFrame({
             'Revista': ['TOTAL'],
             'Artículos únicos': [journal_stats['Artículos únicos'].sum()],
@@ -300,9 +299,9 @@ def main():
         journal_stats = pd.concat([journal_stats.head(10), total_row], ignore_index=True)
         st.dataframe(journal_stats, hide_index=True)
         
-        # Tabla 3: Disciplinas más comunes (ARTÍCULOS ÚNICOS)
+        # Tabla 3: Disciplinas más comunes
         st.subheader("🧪 Enfoques más Frecuentes",
-                   help="Palabras clave más utilizadas en los artículos, indicando las áreas de investigación predominantes.")
+                   help="Palabras clave más utilizadas en los artículos.")
         try:
             all_keywords = []
             for keywords in unique_articles['selected_keywords']:
@@ -312,7 +311,6 @@ def main():
             keyword_stats = pd.Series(all_keywords).value_counts().reset_index()
             keyword_stats.columns = ['Disciplina', 'Frecuencia']
             
-            # Añadir fila de totales
             total_row = pd.DataFrame({
                 'Disciplina': ['TOTAL'],
                 'Frecuencia': [keyword_stats['Frecuencia'].sum()]
@@ -322,13 +320,12 @@ def main():
         except:
             st.warning("No se pudieron procesar las disciplinas")
         
-        # Tabla 4: Distribución por grupos JCR (ARTÍCULOS ÚNICOS)
+        # Tabla 4: Distribución por grupos JCR
         st.subheader("🏆 Distribución por Índice de Impacto",
-                   help="Clasificación de artículos según el factor de impacto de las revistas (Journal Citation Reports).")
+                   help="Clasificación de artículos según el factor de impacto de las revistas.")
         jcr_stats = unique_articles['jcr_group'].value_counts().reset_index()
         jcr_stats.columns = ['Grupo JCR', 'Artículos únicos']
         
-        # Añadir fila de totales
         total_row = pd.DataFrame({
             'Grupo JCR': ['TOTAL'],
             'Artículos únicos': [jcr_stats['Artículos únicos'].sum()]
@@ -336,15 +333,12 @@ def main():
         jcr_stats = pd.concat([jcr_stats, total_row], ignore_index=True)
         st.dataframe(jcr_stats, hide_index=True)
         
-        # Tabla 5: Distribución temporal (ARTÍCULOS ÚNICOS) - VERSIÓN CORREGIDA
+        # Tabla 5: Distribución temporal
         st.subheader("🕰️ Distribución Mensual",
-                    help="Evolución mensual de la producción científica en el periodo seleccionado.")
-
-        # Convertir a formato "YYYY-MM" en lugar de Period
+                    help="Evolución mensual de la producción científica.")
         time_stats = unique_articles['pub_date'].dt.strftime('%Y-%m').value_counts().sort_index().reset_index()
         time_stats.columns = ['Mes-Año', 'Artículos únicos']
 
-        # Añadir fila de totales
         total_row = pd.DataFrame({
             'Mes-Año': ['TOTAL'],
             'Artículos únicos': [time_stats['Artículos únicos'].sum()]
@@ -352,14 +346,13 @@ def main():
         time_stats = pd.concat([time_stats, total_row], ignore_index=True)
         st.dataframe(time_stats, hide_index=True)
         
-        # Tabla 6: Distribución por nivel SNI (ARTÍCULOS ÚNICOS)
+        # Tabla 6: Distribución por nivel SNI
         if 'sni' in unique_articles.columns:
             st.subheader("📊 Distribución por Nivel SNI",
-                        help="Clasificación de artículos según el nivel del Sistema Nacional de Investigadores (SNI) de los autores.")
+                        help="Clasificación según el nivel del Sistema Nacional de Investigadores.")
             sni_stats = unique_articles['sni'].value_counts().reset_index()
             sni_stats.columns = ['Nivel SNI', 'Artículos únicos']
             
-            # Añadir fila de totales
             total_row = pd.DataFrame({
                 'Nivel SNI': ['TOTAL'],
                 'Artículos únicos': [sni_stats['Artículos únicos'].sum()]
@@ -369,14 +362,13 @@ def main():
         else:
             st.warning("El campo 'sni' no está disponible en los datos")
         
-        # Tabla 7: Distribución por nivel SII (ARTÍCULOS ÚNICOS)
+        # Tabla 7: Distribución por nivel SII
         if 'sii' in unique_articles.columns:
             st.subheader("📈 Distribución por Nivel SII",
-                        help="Clasificación de artículos según el nivel del Sistema Institucional de Investigación (SII) de los autores.")
+                        help="Clasificación según el nivel del Sistema Institucional de Investigación.")
             sii_stats = unique_articles['sii'].value_counts().reset_index()
             sii_stats.columns = ['Nivel SII', 'Artículos únicos']
             
-            # Añadir fila de totales
             total_row = pd.DataFrame({
                 'Nivel SII': ['TOTAL'],
                 'Artículos únicos': [sii_stats['Artículos únicos'].sum()]
@@ -386,14 +378,13 @@ def main():
         else:
             st.warning("El campo 'sii' no está disponible en los datos")
             
-        # Tabla 8: Distribución por tipo de nombramiento (ARTÍCULOS ÚNICOS)
+        # Tabla 8: Distribución por tipo de nombramiento (VERSIÓN CORREGIDA)
         if 'nombramiento' in unique_articles.columns:
             st.subheader("👔 Distribución por Tipo de Nombramiento",
-                        help="Clasificación de artículos según el tipo de nombramiento de los autores.")
+                        help="Clasificación según el tipo de nombramiento de los autores.")
             nombramiento_stats = unique_articles['nombramiento'].value_counts().reset_index()
             nombramiento_stats.columns = ['Tipo de Nombramiento', 'Artículos únicos']
             
-            # Añadir fila de totales
             total_row = pd.DataFrame({
                 'Tipo de Nombramiento': ['TOTAL'],
                 'Artículos únicos': [nombramiento_stats['Artículos únicos'].sum()]
@@ -403,12 +394,8 @@ def main():
         else:
             st.warning("El campo 'nombramiento' no está disponible en los datos")
         
-        # ==========================================
-        # SECCIÓN: DESCARGAR ARCHIVO COMPLETO
-        # ==========================================
+        # Descargar archivo completo
         st.header("📥 Descargar Datos Completos")
-        
-        # Opción para descargar el archivo pro_productos_total.csv
         if Path("productos_total.csv").exists():
             with open("productos_total.csv", "rb") as file:
                 btn = st.download_button(
@@ -416,7 +403,7 @@ def main():
                     data=file,
                     file_name="pro_productos_total.csv",
                     mime="text/csv",
-                    help="Descarga el archivo CSV completo con todos los datos de publicaciones científicas"
+                    help="Descarga el archivo CSV completo con todos los datos"
                 )
             if btn:
                 st.success("Descarga iniciada")
