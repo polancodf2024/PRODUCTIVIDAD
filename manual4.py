@@ -40,8 +40,21 @@ DEPARTAMENTOS_INCICH = [
 # ====================
 # OPCIONES SNI Y SII
 # ====================
-SNI_OPCIONES = ["", "C", "I", "II", "III", "Emérito"]
-SII_OPCIONES = ["", "A", "B", "C", "D", "E", "F", "Emérito"]
+SNI_OPCIONES = ["C", "I", "II", "III", "Emérito"]
+SII_OPCIONES = ["A", "B", "C", "D", "E", "F", "Emérito"]
+
+# ====================
+# OPCIONES NOMBRAMIENTO
+# ====================
+NOMBRAMIENTO_OPCIONES = [
+    "Médico",
+    "Médico especialista",
+    "Investigador",
+    "Mando medio",
+    "Técnico académico",
+    "Tesista",
+    "Servicio social"
+]
 
 # ====================
 # CONFIGURACIÓN INICIAL
@@ -211,7 +224,7 @@ class SSHManager:
                     except FileNotFoundError:
                         # Crear archivo local con estructura correcta
                         columns = [
-                            'economic_number', 'sni', 'sii', 'participation_key', 'investigator_name',
+                            'economic_number', 'nombramiento', 'sni', 'sii', 'participation_key', 'investigator_name',
                             'corresponding_author', 'coauthors', 'article_title', 'year',
                             'pub_date', 'volume', 'number', 'pages', 'journal_full',
                             'journal_abbrev', 'doi', 'jcr_group', 'pmid', 'selected_keywords',
@@ -322,7 +335,7 @@ def sync_with_remote(economic_number):
         if not download_success:
             # Si no existe el archivo remoto, crea uno local con estructura correcta
             columns = [
-                'economic_number', 'sni', 'sii', 'participation_key', 'investigator_name',
+                'economic_number', 'nombramiento', 'sni', 'sii', 'participation_key', 'investigator_name',
                 'corresponding_author', 'coauthors', 'article_title', 'year',
                 'pub_date', 'volume', 'number', 'pages', 'journal_full',
                 'journal_abbrev', 'doi', 'jcr_group', 'pmid', 'selected_keywords',
@@ -352,7 +365,7 @@ def sync_with_remote(economic_number):
         except pd.errors.EmptyDataError:
             st.warning("El archivo remoto está vacío o corrupto")
             columns = [
-                'economic_number', 'sni', 'sii', 'participation_key', 'investigator_name',
+                'economic_number', 'nombramiento', 'sni', 'sii', 'participation_key', 'investigator_name',
                 'corresponding_author', 'coauthors', 'article_title', 'year',
                 'pub_date', 'volume', 'number', 'pages', 'journal_full',
                 'journal_abbrev', 'doi', 'jcr_group', 'pmid', 'selected_keywords',
@@ -380,7 +393,7 @@ def save_to_csv(data: dict):
                 st.warning("⚠️ Trabajando con copia local debido a problemas de conexión")
 
         columns = [
-            'economic_number', 'sni', 'sii', 'participation_key', 'investigator_name',
+            'economic_number', 'nombramiento', 'sni', 'sii', 'participation_key', 'investigator_name',
             'corresponding_author', 'coauthors', 'article_title', 'year',
             'pub_date', 'volume', 'number', 'pages', 'journal_full',
             'journal_abbrev', 'doi', 'jcr_group', 'pmid', 'selected_keywords',
@@ -493,6 +506,13 @@ def main():
         st.error("El número económico debe contener solo dígitos (0-9)")
         return
 
+    # Campo de nombramiento
+    nombramiento = st.selectbox(
+        "👔 Nombramiento:",
+        options=NOMBRAMIENTO_OPCIONES,
+        index=0
+    )
+
     # Capturar SNI y SII
     col1, col2 = st.columns(2)
     with col1:
@@ -517,7 +537,7 @@ def main():
             manual_df = pd.read_csv(csv_filename, encoding='utf-8-sig', dtype={'economic_number': str})
             manual_df['economic_number'] = manual_df['economic_number'].astype(str).str.strip()
 
-            # Asegurar que los campos SNI y SII existan y tengan valores
+            # Asegurar que los campos SNI, SII y nombramiento existan y tengan valores
             if 'sni' not in manual_df.columns:
                 manual_df['sni'] = sni
             else:
@@ -528,6 +548,11 @@ def main():
             else:
                 manual_df['sii'] = manual_df['sii'].fillna(sii)
 
+            if 'nombramiento' not in manual_df.columns:
+                manual_df['nombramiento'] = nombramiento
+            else:
+                manual_df['nombramiento'] = manual_df['nombramiento'].fillna(nombramiento)
+
             # Asegurar que el campo 'estado' exista
             if 'estado' not in manual_df.columns:
                 manual_df['estado'] = 'A'
@@ -537,7 +562,7 @@ def main():
         except Exception as e:
             st.error(f"Error al leer el archivo: {str(e)}")
             manual_df = pd.DataFrame(columns=[
-                'economic_number', 'sni', 'sii', 'participation_key', 'investigator_name',
+                'economic_number', 'nombramiento', 'sni', 'sii', 'participation_key', 'investigator_name',
                 'corresponding_author', 'coauthors', 'article_title', 'year',
                 'pub_date', 'volume', 'number', 'pages', 'journal_full',
                 'journal_abbrev', 'doi', 'jcr_group', 'pmid', 'selected_keywords',
@@ -545,7 +570,7 @@ def main():
             ])
     else:
         manual_df = pd.DataFrame(columns=[
-            'economic_number', 'sni', 'sii', 'participation_key', 'investigator_name',
+            'economic_number', 'nombramiento', 'sni', 'sii', 'participation_key', 'investigator_name',
             'corresponding_author', 'coauthors', 'article_title', 'year',
             'pub_date', 'volume', 'number', 'pages', 'journal_full',
             'journal_abbrev', 'doi', 'jcr_group', 'pmid', 'selected_keywords',
@@ -697,6 +722,7 @@ def main():
 
                 nuevo_registro = {
                     'economic_number': economic_number,
+                    'nombramiento': nombramiento,
                     'sni': sni,
                     'sii': sii,
                     'participation_key': participation_key,
