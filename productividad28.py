@@ -146,6 +146,7 @@ DEPARTAMENTOS_INCICH = [
 
 SNI_OPCIONES = ["", "C", "I", "II", "III", "Emérito"]
 SII_OPCIONES = ["", "A", "B", "C", "D", "E", "F"]
+NOMBRAMIENTO_OPCIONES = ["", "médico", "médico especialista", "investigador", "mando medio", "técnico académico", "tesista", "servicio social"]
 
 # ==================
 # CLASE SSH MEJORADA
@@ -206,7 +207,7 @@ class SSHManager:
                     except FileNotFoundError:
                         # Crear archivo local con estructura correcta
                         columns = [
-                            'economic_number', 'departamento', 'participation_key', 'investigator_name',
+                            'economic_number', 'nombramiento', 'departamento', 'participation_key', 'investigator_name',
                             'corresponding_author', 'coauthors', 'article_title', 'year',
                             'pub_date', 'volume', 'number', 'pages', 'journal_full',
                             'journal_abbrev', 'doi', 'jcr_group', 'pmid', 'selected_keywords',
@@ -409,6 +410,7 @@ def parse_nbib_file(content: str) -> dict:
         'pmid': '',
         'investigator_name': '',
         'economic_number': '',
+        'nombramiento': '',  # Nuevo campo añadido
         'departamento': '',  # Nuevo campo añadido
         'participation_key': '',
         'selected_keywords': [],
@@ -416,7 +418,6 @@ def parse_nbib_file(content: str) -> dict:
         'sni': '',  # Nuevo campo SNI
         'sii': ''   # Nuevo campo SII
     }
-
 
     def extract_field(pattern, multi_line=False):
         nonlocal content
@@ -506,7 +507,7 @@ def sync_with_remote(economic_number):
         if not download_success:
             # Si no existe el archivo remoto, crea uno local con estructura correcta
             columns = [
-                'economic_number', 'departamento', 'participation_key', 'investigator_name',
+                'economic_number', 'nombramiento', 'departamento', 'participation_key', 'investigator_name',
                 'corresponding_author', 'coauthors', 'article_title', 'year',
                 'pub_date', 'volume', 'number', 'pages', 'journal_full',
                 'journal_abbrev', 'doi', 'jcr_group', 'pmid', 'selected_keywords',
@@ -536,7 +537,7 @@ def sync_with_remote(economic_number):
         except pd.errors.EmptyDataError:
             st.warning("El archivo remoto está vacío o corrupto")
             columns = [
-                'economic_number', 'departamento', 'participation_key', 'investigator_name',
+                'economic_number', 'nombramiento', 'departamento', 'participation_key', 'investigator_name',
                 'corresponding_author', 'coauthors', 'article_title', 'year',
                 'pub_date', 'volume', 'number', 'pages', 'journal_full',
                 'journal_abbrev', 'doi', 'jcr_group', 'pmid', 'selected_keywords',
@@ -564,7 +565,7 @@ def save_to_csv(data: dict, sni: str, sii: str):
                 st.warning("⚠️ Trabajando con copia local debido a problemas de conexión")
 
         columns = [
-            'economic_number', 'sni', 'sii', 'departamento', 'participation_key', 'investigator_name',
+            'economic_number', 'nombramiento', 'sni', 'sii', 'departamento', 'participation_key', 'investigator_name',
             'corresponding_author', 'coauthors', 'article_title', 'year',
             'pub_date', 'volume', 'number', 'pages', 'journal_full',
             'journal_abbrev', 'doi', 'jcr_group', 'pmid', 'selected_keywords',
@@ -704,6 +705,14 @@ def main():
         st.error("El número económico debe contener solo dígitos (0-9)")
         return
 
+    # Nuevo campo: nombramiento
+    nombramiento = st.selectbox(
+        "📋 Tipo de nombramiento:",
+        options=["médico", "médico especialista", "investigador", "mando medio", 
+                "técnico académico", "tesista", "servicio social"],
+        index=0
+    )
+
     # Capturar SNI y SII
     col1, col2 = st.columns(2)
     with col1:
@@ -757,7 +766,7 @@ def main():
         except Exception as e:
             st.error(f"Error al leer el archivo: {str(e)}")
             productos_df = pd.DataFrame(columns=[
-                'economic_number', 'sni', 'sii', 'departamento', 'participation_key', 'investigator_name',
+                'economic_number', 'nombramiento', 'sni', 'sii', 'departamento', 'participation_key', 'investigator_name',
                 'corresponding_author', 'coauthors', 'article_title', 'year',
                 'pub_date', 'volume', 'number', 'pages', 'journal_full',
                 'journal_abbrev', 'doi', 'jcr_group', 'pmid', 'selected_keywords',
@@ -765,7 +774,7 @@ def main():
             ])
     else:
         productos_df = pd.DataFrame(columns=[
-            'economic_number', 'sni', 'sii', 'departamento', 'participation_key', 'investigator_name',
+            'economic_number', 'nombramiento', 'sni', 'sii', 'departamento', 'participation_key', 'investigator_name',
             'corresponding_author', 'coauthors', 'article_title', 'year',
             'pub_date', 'volume', 'number', 'pages', 'journal_full',
             'journal_abbrev', 'doi', 'jcr_group', 'pmid', 'selected_keywords',
@@ -860,7 +869,8 @@ def main():
                     st.subheader("📝 Información extraída")
                     st.info(data['article_title'])
 
-                    # Añadir campos SNI y SII al diccionario de datos
+                    # Añadir campos adicionales al diccionario de datos
+                    data['nombramiento'] = nombramiento
                     data['sni'] = sni
                     data['sii'] = sii
 
@@ -905,12 +915,8 @@ def main():
 
                         if st.button("💾 Guardar registro", type="primary"):
                             with st.spinner("Guardando datos..."):
-                                # Asegurar que los campos SNI y SII estén incluidos
-                                data['sni'] = sni
-                                data['sii'] = sii
-
-                                if save_to_csv(data, sni, sii):  # Pasa sni y sii aquí
-                                    st.balloons()  # ¡Los globos se mantienen!
+                                if save_to_csv(data, sni, sii):
+                                    st.balloons()
                                     st.success("✅ Registro guardado exitosamente!")
                                     saved_data = data
                                     show_summary = True
@@ -946,6 +952,7 @@ def main():
 
             st.markdown("**Identificación**")
             st.write(f"🔢 Número económico: {saved_data['economic_number']}")
+            st.write(f"📋 Nombramiento: {saved_data['nombramiento']}")
             st.write(f"👤 Investigador: {saved_data['investigator_name']}")
             st.write(f"🔑 Clave participación: {saved_data['participation_key']}")
             st.write(f"🏢 Departamento: {saved_data['departamento'] or 'No especificado'}")
