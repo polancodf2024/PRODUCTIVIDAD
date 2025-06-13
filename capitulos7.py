@@ -126,11 +126,22 @@ DEPARTAMENTOS_INCICH = [
     "Unidad de Investigación UNAM-INC"
 ]
 
+# Opciones de nombramiento
+NOMBRAMIENTO_OPCIONES = [
+    "Médico", 
+    "Médico especialista", 
+    "Investigador", 
+    "Mando medio", 
+    "Técnico académico", 
+    "Tesista", 
+    "Servicio social"
+]
+
 # ====================
 # OPCIONES SNI Y SII
 # ====================
-SNI_OPCIONES = ["", "C", "I", "II", "III", "Emérito"]
-SII_OPCIONES = ["", "A", "B", "C", "D", "E", "F", "Emérito"]
+SNI_OPCIONES = ["C", "I", "II", "III", "Emérito"]
+SII_OPCIONES = ["A", "B", "C", "D", "E", "F", "Emérito"]
 
 # ====================
 # CONFIGURACIÓN INICIAL
@@ -223,7 +234,7 @@ class SSHManager:
                     except FileNotFoundError:
                         # Crear archivo local con estructura correcta
                         columns = [
-                            'economic_number', 'sni', 'sii', 'departamento', 'autor_principal', 'tipo_participacion', 
+                            'economic_number', 'nombramiento', 'sni', 'sii', 'departamento', 'autor_principal', 'tipo_participacion', 
                             'titulo_libro', 'titulo_capitulo', 'editorial', 'coautores_secundarios', 
                             'year', 'pub_date', 'isbn_issn', 'numero_edicion', 'paginas', 
                             'paises_distribucion', 'idiomas_disponibles', 'formatos_disponibles', 
@@ -313,7 +324,7 @@ def sync_with_remote(economic_number):
         if not download_success:
             # Si no existe el archivo remoto, crea uno local con estructura correcta
             columns = [
-                'economic_number', 'sni', 'sii', 'departamento', 'autor_principal', 'tipo_participacion', 
+                'economic_number', 'nombramiento', 'sni', 'sii', 'departamento', 'autor_principal', 'tipo_participacion', 
                 'titulo_libro', 'titulo_capitulo', 'editorial', 'coautores_secundarios', 
                 'year', 'pub_date', 'isbn_issn', 'numero_edicion', 'paginas', 
                 'paises_distribucion', 'idiomas_disponibles', 'formatos_disponibles', 
@@ -343,7 +354,7 @@ def sync_with_remote(economic_number):
         except pd.errors.EmptyDataError:
             st.warning("El archivo remoto está vacío o corrupto")
             columns = [
-                'economic_number', 'sni', 'sii', 'departamento', 'autor_principal', 'tipo_participacion', 
+                'economic_number', 'nombramiento', 'sni', 'sii', 'departamento', 'autor_principal', 'tipo_participacion', 
                 'titulo_libro', 'titulo_capitulo', 'editorial', 'coautores_secundarios', 
                 'year', 'pub_date', 'isbn_issn', 'numero_edicion', 'paginas', 
                 'paises_distribucion', 'idiomas_disponibles', 'formatos_disponibles', 
@@ -371,7 +382,7 @@ def save_to_csv(data: dict):
                 st.warning("⚠️ Trabajando con copia local debido a problemas de conexión")
 
         columns = [
-            'economic_number', 'sni', 'sii', 'departamento', 'autor_principal', 'tipo_participacion', 
+            'economic_number', 'nombramiento', 'sni', 'sii', 'departamento', 'autor_principal', 'tipo_participacion', 
             'titulo_libro', 'titulo_capitulo', 'editorial', 'coautores_secundarios', 
             'year', 'pub_date', 'isbn_issn', 'numero_edicion', 'paginas', 
             'paises_distribucion', 'idiomas_disponibles', 'formatos_disponibles', 
@@ -465,6 +476,7 @@ def display_publication_info(data):
     st.write(f"🌐 Idiomas: {data['idiomas_disponibles']}")
     st.write(f"📖 Formatos: {data['formatos_disponibles']}")
 
+
 def main():
     st.set_page_config(
         page_title="Captura Capítulos",
@@ -490,6 +502,14 @@ def main():
         st.error("El número económico debe contener solo dígitos (0-9)")
         return
 
+    # Nuevo campo: Nombramiento
+    nombramiento = st.selectbox(
+        "👔 Nombramiento:",
+        options=["Médico", "Médico especialista", "Investigador", "Mando medio", 
+                "Técnico académico", "Tesista", "Servicio social"],
+        index=0
+    )
+
     # Capturar SNI y SII
     col1, col2 = st.columns(2)
     with col1:
@@ -514,7 +534,7 @@ def main():
             capitulos_df = pd.read_csv(csv_filename, encoding='utf-8-sig', dtype={'economic_number': str})
             capitulos_df['economic_number'] = capitulos_df['economic_number'].astype(str).str.strip()
 
-            # Asegurar que los campos SNI y SII existan y tengan valores
+            # Asegurar que los campos SNI, SII y Nombramiento existan y tengan valores
             if 'sni' not in capitulos_df.columns:
                 capitulos_df['sni'] = sni
             else:
@@ -524,6 +544,11 @@ def main():
                 capitulos_df['sii'] = sii
             else:
                 capitulos_df['sii'] = capitulos_df['sii'].fillna(sii)
+                
+            if 'nombramiento' not in capitulos_df.columns:
+                capitulos_df['nombramiento'] = nombramiento
+            else:
+                capitulos_df['nombramiento'] = capitulos_df['nombramiento'].fillna(nombramiento)
 
             # Asegurar que el campo 'estado' exista
             if 'estado' not in capitulos_df.columns:
@@ -534,7 +559,7 @@ def main():
         except Exception as e:
             st.error(f"Error al leer el archivo: {str(e)}")
             capitulos_df = pd.DataFrame(columns=[
-                'economic_number', 'sni', 'sii', 'departamento', 'autor_principal', 'tipo_participacion',
+                'economic_number', 'nombramiento', 'sni', 'sii', 'departamento', 'autor_principal', 'tipo_participacion',
                 'titulo_libro', 'titulo_capitulo', 'editorial', 'coautores_secundarios',
                 'year', 'pub_date', 'isbn_issn', 'numero_edicion', 'paginas',
                 'paises_distribucion', 'idiomas_disponibles', 'formatos_disponibles',
@@ -542,7 +567,7 @@ def main():
             ])
     else:
         capitulos_df = pd.DataFrame(columns=[
-            'economic_number', 'sni', 'sii', 'departamento', 'autor_principal', 'tipo_participacion',
+            'economic_number', 'nombramiento', 'sni', 'sii', 'departamento', 'autor_principal', 'tipo_participacion',
             'titulo_libro', 'titulo_capitulo', 'editorial', 'coautores_secundarios',
             'year', 'pub_date', 'isbn_issn', 'numero_edicion', 'paginas',
             'paises_distribucion', 'idiomas_disponibles', 'formatos_disponibles',
@@ -652,9 +677,9 @@ def main():
             with col3:
                 isbn_issn = st.text_input("🔖 ISBN/ISSN:")
             with col4:
-                numero_edicion = st.text_input("#️⃣ Número de edición:")
+                numero_edicion = st.text_input("#️⃣ Número de edición ej. 1, 2:")
 
-            paginas = st.text_input("📚 Número de páginas del capítulo:")
+            paginas = st.text_input("📚 Número de páginas del capítulo, ej. 123-130:")
 
             # Distribución
             st.subheader("🌍 Distribución")
@@ -682,6 +707,7 @@ def main():
             if st.form_submit_button("💾 Guardar nuevo registro"):
                 nuevo_registro = {
                     'economic_number': economic_number,
+                    'nombramiento': nombramiento,
                     'sni': sni,
                     'sii': sii,
                     'departamento': departamento,
