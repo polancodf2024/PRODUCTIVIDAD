@@ -145,8 +145,8 @@ DEPARTAMENTOS_INCICH = [
 ]
 
 SNI_OPCIONES = ["C", "I", "II", "III", "Emérito"]
-SII_OPCIONES = ["A", "B", "C", "D", "E", "F"]
-NOMBRAMIENTO_OPCIONES = ["Médico", "Médico especialista", "Investigador", "Mando medio", "Técnico académico", "Tesista", "Servicio social"]
+SII_OPCIONES = ["A", "B", "C", "D", "E", "F", "Emérito"]
+NOMBRAMIENTO_OPCIONES = ["Ayudante de investigador", "Investigador", "Mando medio", "Médico", "Médico especialista", "Otro", "Técnico"]
 
 # ==================
 # CLASE SSH MEJORADA
@@ -708,8 +708,8 @@ def main():
     # Nuevo campo: nombramiento
     nombramiento = st.selectbox(
         "📋 Tipo de nombramiento:",
-        options=["médico", "médico especialista", "investigador", "mando medio", 
-                "técnico académico", "tesista", "servicio social"],
+        options=["Ayudante de investigador","Investigador","Mando medio","Médico", "Médico especialista",
+                "Técnico"],
         index=0
     )
 
@@ -792,11 +792,8 @@ def main():
 
         # Crear copia editable solo con las columnas necesarias
         columnas_mostrar = ['article_title', 'journal_full', 'estado']
-        edited_df = productos_df[columnas_mostrar].copy()
-
-        # Mostrar editor de tabla
         edited_df = st.data_editor(
-            edited_df,
+            productos_df[columnas_mostrar],
             column_config={
                 "estado": st.column_config.SelectboxColumn(
                     "Estado",
@@ -810,55 +807,42 @@ def main():
             key="editor_tabla"
         )
 
-        # Verificar cambios en los estados
-        if not edited_df.equals(productos_df[columnas_mostrar]):
-            # Actualizar el estado en el DataFrame original
-            productos_df['estado'] = edited_df['estado']
+        # Verificar si hay cambios en los estados
+        cambios = not edited_df.equals(productos_df[columnas_mostrar])
+        registros_marcados = edited_df[edited_df['estado'] == 'X']
 
-            # Identificar registros marcados para borrar
-            registros_a_borrar = productos_df[productos_df['estado'] == 'X']
+        # Mostrar botón solo si hay cambios y registros marcados con X
+        if cambios and not registros_marcados.empty:
+            if st.button("🗑️ Dar de baja registros marcados", type="primary"):
+                # Actualizar el estado en el DataFrame original
+                productos_df['estado'] = edited_df['estado']
 
-            if not registros_a_borrar.empty:
-                st.warning(f"⚠️ Tiene {len(registros_a_borrar)} registro(s) marcado(s) para dar de baja")
+                # Filtrar solo los registros activos (estado 'A')
+                productos_df = productos_df[productos_df['estado'] == 'A'].copy()
 
-                col1, col2 = st.columns(2)
-                with col1:
-                    if st.button("🗑️ Confirmar baja de registros", type="primary"):
-                        # Filtrar solo los registros activos (estado 'A')
-                        productos_df = productos_df[productos_df['estado'] == 'A'].copy()
+                # Guardar cambios en el archivo
+                productos_df.to_csv(local_productos_filename, index=False, encoding='utf-8-sig')
 
-                        # Guardar cambios en el archivo
-                        productos_df.to_csv(local_productos_filename, index=False, encoding='utf-8-sig')
+                # Sincronizar con servidor remoto
+                with st.spinner("Eliminando registros del servidor remoto..."):
+                    upload_success = SSHManager.upload_remote_file(
+                        local_productos_filename,
+                        os.path.join(CONFIG.REMOTE['DIR'], remote_productos_filename)
+                    )
 
-                        # Sincronizar con servidor remoto
-                        with st.spinner("Guardando cambios..."):
-                            upload_success = SSHManager.upload_remote_file(
-                                local_productos_filename,
-                                os.path.join(CONFIG.REMOTE['DIR'], remote_productos_filename)
-                            )
-
-                        if upload_success:
-                            st.success("✅ Registros eliminados exitosamente del archivo!")
-                            st.balloons()
-                            time.sleep(2)
-                            st.rerun()
-                        else:
-                            st.error("❌ Error al sincronizar con el servidor remoto")
-
-                with col2:
-                    if st.button("↩️ Cancelar operación"):
-                        st.info("Operación cancelada - No se realizaron cambios")
-                        st.rerun()
+                if upload_success:
+                    st.success("✅ Registros eliminados exitosamente!")
+                    st.balloons()
+                    time.sleep(2)
+                    st.rerun()
+                else:
+                    st.error("❌ Error al sincronizar con el servidor remoto")
 
     # Preguntar si desea añadir nuevo registro
     st.divider()
     if st.radio("¿Desea añadir un nuevo registro?", ["No", "Sí"], index=0) == "Sí":
         st.subheader("📤 Subir artículo científico")
         uploaded_file = st.file_uploader("Seleccione archivo .nbib", type=".nbib")
-
-        # Variable para controlar si mostramos el resumen después de guardar
-        show_summary = False
-        saved_data = None
 
         if uploaded_file:
             try:
@@ -918,8 +902,6 @@ def main():
                                 if save_to_csv(data, sni, sii):
                                     st.balloons()
                                     st.success("✅ Registro guardado exitosamente!")
-                                    saved_data = data
-                                    show_summary = True
 
                                     # Intentar subir el archivo actualizado al servidor remoto
                                     with st.spinner("Sincronizando con servidor remoto..."):
@@ -933,34 +915,6 @@ def main():
             except Exception as e:
                 st.error(f"❌ Error: {str(e)}")
                 logging.error(f"Main App Error: {str(e)}")
-
-        # Mostrar resumen después de guardar (si corresponde)
-        if show_summary and saved_data:
-            st.subheader("📄 Resumen del registro guardado")
-
-            st.markdown("**Información del artículo**")
-            st.write(f"📄 Título: {saved_data['article_title']}")
-            st.write(f"📅 Año: {saved_data['year']}")
-            st.write(f"🏛️ Revista: {saved_data['journal_full']}")
-
-            st.markdown("**Autores**")
-            st.markdown(f"📌 Correspondencia: {highlight_author(saved_data['corresponding_author'], saved_data['investigator_name'])}", unsafe_allow_html=True)
-            if saved_data['coauthors']:
-                st.markdown("👥 Coautores:")
-                for author in [a.strip() for a in saved_data['coauthors'].split("; ") if a.strip()]:
-                    st.markdown(f"- {highlight_author(author, saved_data['investigator_name'])}", unsafe_allow_html=True)
-
-            st.markdown("**Identificación**")
-            st.write(f"🔢 Número económico: {saved_data['economic_number']}")
-            st.write(f"📋 Nombramiento: {saved_data['nombramiento']}")
-            st.write(f"👤 Investigador: {saved_data['investigator_name']}")
-            st.write(f"🔑 Clave participación: {saved_data['participation_key']}")
-            st.write(f"🏢 Departamento: {saved_data['departamento'] or 'No especificado'}")
-            st.write(f"🏆 SNI: {saved_data['sni']}")
-            st.write(f"⭐ SII: {saved_data['sii']}")
-
-            if st.button("🔄 Añadir otro registro"):
-                st.rerun()
 
 if __name__ == "__main__":
     main()
