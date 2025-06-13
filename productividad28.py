@@ -144,9 +144,9 @@ DEPARTAMENTOS_INCICH = [
     "Unidad de Investigación UNAM-INC"
 ]
 
-SNI_OPCIONES = ["", "C", "I", "II", "III", "Emérito"]
-SII_OPCIONES = ["", "A", "B", "C", "D", "E", "F"]
-NOMBRAMIENTO_OPCIONES = ["", "médico", "médico especialista", "investigador", "mando medio", "técnico académico", "tesista", "servicio social"]
+SNI_OPCIONES = ["C", "I", "II", "III", "Emérito"]
+SII_OPCIONES = ["A", "B", "C", "D", "E", "F"]
+NOMBRAMIENTO_OPCIONES = ["Médico", "Médico especialista", "Investigador", "Mando medio", "Técnico académico", "Tesista", "Servicio social"]
 
 # ==================
 # CLASE SSH MEJORADA
