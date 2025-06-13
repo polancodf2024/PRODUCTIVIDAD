@@ -265,6 +265,8 @@ def main():
                     display_columns = ['article_title', 'journal_full', 'pub_date', 'jcr_group']
                     if 'sni' in unique_articles_investigator.columns and 'sii' in unique_articles_investigator.columns:
                         display_columns.extend(['sni', 'sii'])
+                    if 'nombramiento' in unique_articles_investigator.columns:
+                        display_columns.append('nombramiento')
                     
                     st.write(f"Artículos de {row['Investigador']}:")
                     st.dataframe(unique_articles_investigator[display_columns])
@@ -350,7 +352,7 @@ def main():
         time_stats = pd.concat([time_stats, total_row], ignore_index=True)
         st.dataframe(time_stats, hide_index=True)
         
-        # Nueva Tabla 6: Distribución por nivel SNI (ARTÍCULOS ÚNICOS)
+        # Tabla 6: Distribución por nivel SNI (ARTÍCULOS ÚNICOS)
         if 'sni' in unique_articles.columns:
             st.subheader("📊 Distribución por Nivel SNI",
                         help="Clasificación de artículos según el nivel del Sistema Nacional de Investigadores (SNI) de los autores.")
@@ -367,7 +369,7 @@ def main():
         else:
             st.warning("El campo 'sni' no está disponible en los datos")
         
-        # Nueva Tabla 7: Distribución por nivel SII (ARTÍCULOS ÚNICOS)
+        # Tabla 7: Distribución por nivel SII (ARTÍCULOS ÚNICOS)
         if 'sii' in unique_articles.columns:
             st.subheader("📈 Distribución por Nivel SII",
                         help="Clasificación de artículos según el nivel del Sistema Institucional de Investigación (SII) de los autores.")
@@ -383,9 +385,26 @@ def main():
             st.dataframe(sii_stats, hide_index=True)
         else:
             st.warning("El campo 'sii' no está disponible en los datos")
+            
+        # Tabla 8: Distribución por tipo de nombramiento (ARTÍCULOS ÚNICOS)
+        if 'nombramiento' in unique_articles.columns:
+            st.subheader("👔 Distribución por Tipo de Nombramiento",
+                        help="Clasificación de artículos según el tipo de nombramiento de los autores.")
+            nombramiento_stats = unique_articles['nombramiento'].value_counts().reset_index()
+            nombramiento_stats.columns = ['Tipo de Nombramiento', 'Artículos únicos']
+            
+            # Añadir fila de totales
+            total_row = pd.DataFrame({
+                'Tipo de Nombramiento': ['TOTAL'],
+                'Artículos únicos': [nombramiento_stats['Artículos únicos'].sum()]
+            })
+            nombramiento_stats = pd.concat([nombramiento_stats, total_row], ignore_index=True)
+            st.dataframe(nombramiento_stats, hide_index=True)
+        else:
+            st.warning("El campo 'nombramiento' no está disponible en los datos")
         
         # ==========================================
-        # NUEVA SECCIÓN: DESCARGAR ARCHIVO COMPLETO
+        # SECCIÓN: DESCARGAR ARCHIVO COMPLETO
         # ==========================================
         st.header("📥 Descargar Datos Completos")
         
