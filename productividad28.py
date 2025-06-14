@@ -783,7 +783,13 @@ def main():
     st.divider()
     if st.radio("¿Desea añadir un nuevo registro?", ["No", "Sí"], index=0) == "Sí":
         st.subheader("📤 Subir artículo científico")
-        uploaded_file = st.file_uploader("Seleccione archivo .nbib", type=".nbib")
+        uploaded_file = st.file_uploader("Seleccione el archivo .nbib", type=".nbib",help="""
+Pasos para obtener el archivo .nbib:
+1. Busque su artículo en PubMed
+2. Haga clic en el botón 'Cite' (localizado a la derecha del título)
+3. En el menú desplegable, seleccione 'Download .nbib'
+4. Suba el archivo descargado aquí
+""")
 
         if uploaded_file:
             try:
