@@ -51,77 +51,18 @@ CONFIG = Config()
 # CATEGORÍAS DE KEYWORDS
 # ====================
 KEYWORD_CATEGORIES = {
-    "Accidente Cerebrovascular": ["accidente cerebrovascular", "acv", "ictus", "stroke"],
-    "Alzheimer": ["alzheimer", "demencia", "enfermedad neurodegenerativa"],
-    "Arritmias": [
-        "arritmia", "fibrilación auricular", "fa", "flutter auricular",
-        "taquicardia ventricular", "tv", "fibrilación ventricular", "fv",
-        "bradicardia", "bloqueo auriculoventricular", "síndrome de brugada",
-        "síndrome de qt largo", "marcapasos", "desfibrilador automático"
-    ],
-    "Bioinformática": ["bioinformática", "genómica computacional", "análisis de secuencias", "biología de sistemas"],
-    "Bioquímica": ["bioquímica", "metabolismo", "enzimas", "rutas metabólicas"],
-    "Biología Molecular": ["adn", "arn", "transcripción", "replicación"],
-    "Biomarcadores Cardíacos": [
-        "troponina", "nt-probnp", "bnp", "ck-mb", "lactato deshidrogenasa",
-        "mioglobina", "péptidos natriuréticos"
-    ],
-    "Biotecnología": ["biotecnología", "terapia génica", "crispr", "organismos modificados genéticamente"],
-    "Cáncer de Mama": ["cáncer de mama", "tumor mamario", "neoplasia mamaria"],
-    "Cardiología Pediátrica": [
-        "cardiopatía congénita", "comunicación interauricular", "cia",
-        "comunicación interventricular", "civ", "tetralogía de fallot",
-        "transposición grandes vasos", "ductus arterioso persistente"
-    ],
-    "Cardiomiopatías": [
-        "cardiomiopatía", "miocardiopatía", "cardiomiopatía hipertrófica", "hcm",
-        "cardiomiopatía dilatada", "dcm", "cardiomiopatía restrictiva",
-        "displasia arritmogénica", "miocardiopatía no compactada", "amiloidosis cardíaca"
-    ],
-    "Endocrinología": ["diabetes", "tiroides", "hormonas", "metabolismo"],
-    "Enfermedad Vascular Periférica": [
-        "enfermedad arterial periférica", "eap", "claudicación intermitente",
-        "índice tobillo-brazo", "isquemia crítica", "arteriopatía obliterante"
-    ],
-    "Epidemiología": ["epidemiología", "estudios poblacionales", "incidencia", "prevalencia"],
-    "Epilepsia": ["epilepsia", "crisis epiléptica", "convulsiones"],
-    "Farmacología": ["farmacología", "fármacos", "dosis-respuesta", "toxicidad"],
-    "Gastroenterología": ["colon", "hígado", "páncreas", "enfermedad inflamatoria intestinal"],
-    "Genética": ["genética", "mutaciones", "genoma humano", "síndromes genéticos"],
-    "Hipertensión y Riesgo Cardiovascular": [
-        "hipertensión arterial", "hta", "hipertensión pulmonar",
-        "crisis hipertensiva", "mapa", "monitorización ambulatoria",
-        "riesgo cardiovascular", "score framingham", "ascvd"
-    ],
-    "Inmunología": ["autoinmunidad", "inmunodeficiencia", "alergias", "linfocitos"],
-    "Inmunoterapia": ["inmunoterapia", "terapia car-t", "checkpoint inmunológico"],
-    "Insuficiencia Cardíaca": [
-        "insuficiencia cardíaca", "ic", "fallo cardíaco", "disfunción ventricular",
-        "icfe", "icfd", "fracción de eyección reducida", "fracción de eyección preservada",
-        "nyha clase ii", "nyha clase iii", "edema pulmonar", "congestión venosa"
-    ],
-    "Investigación Clínica": ["ensayo clínico", "randomizado", "estudio de cohorte", "fase iii"],
-    "Leucemia": ["leucemia", "leucemias agudas", "leucemia mieloide"],
-    "Microbiología": ["microbiología", "bacterias", "virus", "antimicrobianos"],
-    "Nefrología": ["insuficiencia renal", "glomerulonefritis", "diálisis"],
-    "Neumología": ["asma", "epoc", "fibrosis pulmonar", "síndrome de apnea del sueño"],
-    "Neurociencia": ["neurociencia", "plasticidad neuronal", "sinapsis", "neurodegeneración"],
-    "Oncología Molecular": ["oncología molecular", "mutaciones tumorales", "biomarcadores cáncer"],
-    "Procedimientos Cardiológicos": [
-        "cateterismo cardíaco", "angioplastia", "stent coronario",
-        "bypass coronario", "cabg", "ecocardiograma", "eco stress",
-        "resonancia cardíaca", "prueba de esfuerzo", "holter"
-    ],
-    "Síndrome Coronario Agudo": [
-        "síndrome coronario agudo", "sca", "infarto agudo de miocardio", "iam",
-        "iamcest", "iamnest", "angina inestable", "troponina elevada",
-        "oclusión coronaria", "elevación st", "depresión st"
-    ],
-    "Valvulopatías": [
-        "valvulopatía", "estenosis aórtica", "insuficiencia aórtica",
-        "stenosis mitral", "insuficiencia mitral", "prolapso mitral",
-        "tavi", "taavi", "anillo mitral", "reemplazo valvular"
-    ],
+    "Enfermedad coronaria": [],
+    "Síndrome metabólico": [],
+    "Hipertensión arterial sistémica/pulmonar primaria": [],
+    "Enfermedad valvular": [],
+    "Miocardiopatías y enfermedad de Chagas": [],
+    "Sistemas biológicos: celular, molecular y producción de energía": [],
+    "Cardiopatías congénitas": [],
+    "Nefropatías": [],
+    "Elaboración de dispositivos intracardiacos": [],
+    "Medio ambiente y sociomedicina": [],
+    "COVID-19 (SARS-Cov-2)": [],
+    "Otros": [],
 }
 
 # ====================
@@ -137,7 +78,7 @@ DEPARTAMENTOS_INCICH = [
     "Farmacología",
     "Fisiología",
     "Fisiopatología Cardio-Renal",
-    "Fisiotepatología Cardiorenal",
+    "Fisiotepatologíay  Cardiorenal",
     "Inmunología",
     "Instrumentación Electromecánica",
     "Oficina de Apoyo Sistemático para la Investigación Superior (OASIS)",
@@ -868,15 +809,15 @@ def main():
                     data['departamento'] = departamento
 
                     selected_categories = st.multiselect(
-                        "Seleccione 3 palabras clave:",
+                        "Seleccione al menos 1 línea de investigación:",
                         options=list(KEYWORD_CATEGORIES.keys()),
-                        default=extract_keywords(data['article_title'])[:3],
+                        default=extract_keywords(data['article_title'])[:1],
                         max_selections=3
                     )
 
                     # Validación de palabras clave
-                    if len(selected_categories) != 3:
-                        st.error("Debe seleccionar exactamente 3 palabras clave")
+                    if len(selected_categories) < 1:
+                        st.error("Debe seleccionar al menos 1 línea de investigación")
                     else:
                         data['selected_keywords'] = selected_categories
 
