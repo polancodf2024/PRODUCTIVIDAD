@@ -725,11 +725,25 @@ def main():
     # Mostrar registros existentes si los hay
     if not productos_df.empty:
         st.subheader(f"📋 Registros existentes para {economic_number}")
+       # st.info("""
+       # **Pasos para dar de baja registros:**
+       # - Determine que registro quiere borrar
+       # - De doble clic sobre la letra 'A' (campo Estado), de ese registro
+       # - Seleccione 'X' si quiere da de baja el registro
+       # - Seleccione 'A' si quiere que el registro no  sea dado de baja
+       # - Cuando termine, aparecerá un botón, de clic para confirmar.
+       # """)
         st.info("""
-        **Instrucciones:**
-        - Marque con 'X' los registros que desee dar de baja
-        - Todos los demás deben mantenerse con 'A' (Activo)
+        **Instrucciones para dar de baja registros:**
+
+        1. **Identifique** el registro que desea eliminar  
+        2. **Haga doble clic** en la letra 'A' (columna Estado) del registro seleccionado  
+        3. **Seleccione**:  
+           - 'X' para marcar el registro para eliminación  
+           - 'A' para mantener el registro activo 
+        4. **Confirme los cambios** dando clic en el botón "Dar de baja registros 'X'", que aparecerá automáticamente. 
         """)
+
 
         # Crear copia editable solo con las columnas necesarias
         columnas_mostrar = ['article_title', 'journal_full', 'estado']
@@ -754,7 +768,7 @@ def main():
 
         # Mostrar botón solo si hay cambios y registros marcados con X
         if cambios and not registros_marcados.empty:
-            if st.button("🗑️ Dar de baja registros marcados", type="primary"):
+            if st.button("🗑️ Dar de baja registros 'X'", type="primary"):
                 # Actualizar el estado en el DataFrame original
                 productos_df['estado'] = edited_df['estado']
 
