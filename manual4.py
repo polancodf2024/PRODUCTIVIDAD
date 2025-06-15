@@ -18,7 +18,7 @@ logging.basicConfig(
 )
 
 # ====================
-# DEPARTAMENTOS INCICH
+# DEPARTAMENTOS INCICH (actualizado desde productividad28.py)
 # ====================
 DEPARTAMENTOS_INCICH = [
     "Bioquímica",
@@ -30,7 +30,7 @@ DEPARTAMENTOS_INCICH = [
     "Farmacología",
     "Fisiología",
     "Fisiopatología Cardio-Renal",
-    "Fisiotepatología Cardiorenal",
+    "Fisiotepatologíay  Cardiorenal",
     "Inmunología",
     "Instrumentación Electromecánica",
     "Oficina de Apoyo Sistemático para la Investigación Superior (OASIS)",
@@ -38,23 +38,40 @@ DEPARTAMENTOS_INCICH = [
 ]
 
 # ====================
-# OPCIONES SNI Y SII
+# OPCIONES SNI Y SII (actualizado desde productividad28.py)
 # ====================
 SNI_OPCIONES = ["C", "I", "II", "III", "Emérito"]
 SII_OPCIONES = ["A", "B", "C", "D", "E", "F", "Emérito"]
 
 # ====================
-# OPCIONES NOMBRAMIENTO
+# OPCIONES NOMBRAMIENTO (actualizado desde productividad28.py)
 # ====================
 NOMBRAMIENTO_OPCIONES = [
-    "Médico",
-    "Médico especialista",
+    "Ayudante de investigador",
     "Investigador",
     "Mando medio",
-    "Técnico académico",
-    "Tesista",
-    "Servicio social"
+    "Médico",
+    "Médico especialista",
+    "Técnico"
 ]
+
+# ====================
+# CATEGORÍAS DE KEYWORDS (actualizado desde productividad28.py)
+# ====================
+KEYWORD_CATEGORIES = {
+    "Enfermedad coronaria": [],
+    "Síndrome metabólico": [],
+    "Hipertensión arterial sistémica/pulmonar primaria": [],
+    "Enfermedad valvular": [],
+    "Miocardiopatías y enfermedad de Chagas": [],
+    "Sistemas biológicos: celular, molecular y producción de energía": [],
+    "Cardiopatías congénitas": [],
+    "Nefropatías": [],
+    "Elaboración de dispositivos intracardiacos": [],
+    "Medio ambiente y sociomedicina": [],
+    "COVID-19 (SARS-Cov-2)": [],
+    "Otros": [],
+}
 
 # ====================
 # CONFIGURACIÓN INICIAL
@@ -87,83 +104,6 @@ class Config:
         self.LOGO_PATH = "escudo_COLOR.jpg"
 
 CONFIG = Config()
-
-# ====================
-# CATEGORÍAS DE KEYWORDS
-# ====================
-KEYWORD_CATEGORIES = {
-    "Accidente Cerebrovascular": ["accidente cerebrovascular", "acv", "ictus", "stroke"],
-    "Alzheimer": ["alzheimer", "demencia", "enfermedad neurodegenerativa"],
-    "Arritmias": [
-        "arritmia", "fibrilación auricular", "fa", "flutter auricular",
-        "taquicardia ventricular", "tv", "fibrilación ventricular", "fv",
-        "bradicardia", "bloqueo auriculoventricular", "síndrome de brugada",
-        "síndrome de qt largo", "marcapasos", "desfibrilador automático"
-    ],
-    "Bioinformática": ["bioinformática", "genómica computacional", "análisis de secuencias", "biología de sistemas"],
-    "Bioquímica": ["bioquímica", "metabolismo", "enzimas", "rutas metabólicas"],
-    "Biología Molecular": ["adn", "arn", "transcripción", "replicación"],
-    "Biomarcadores Cardíacos": [
-        "troponina", "nt-probnp", "bnp", "ck-mb", "lactato deshidrogenasa",
-        "mioglobina", "péptidos natriuréticos"
-    ],
-    "Biotecnología": ["biotecnología", "terapia génica", "crispr", "organismos modificados genéticamente"],
-    "Cáncer de Mama": ["cáncer de mama", "tumor mamario", "neoplasia mamaria"],
-    "Cardiología Pediátrica": [
-        "cardiopatía congénita", "comunicación interauricular", "cia",
-        "comunicación interventricular", "civ", "tetralogía de fallot",
-        "transposición grandes vasos", "ductus arterioso persistente"
-    ],
-    "Cardiomiopatías": [
-        "cardiomiopatía", "miocardiopatía", "cardiomiopatía hipertrófica", "hcm",
-        "cardiomiopatía dilatada", "dcm", "cardiomiopatía restrictiva",
-        "displasia arritmogénica", "miocardiopatía no compactada", "amiloidosis cardíaca"
-    ],
-    "Endocrinología": ["diabetes", "tiroides", "hormonas", "metabolismo"],
-    "Enfermedad Vascular Periférica": [
-        "enfermedad arterial periférica", "eap", "claudicación intermitente",
-        "índice tobillo-brazo", "isquemia crítica", "arteriopatía obliterante"
-    ],
-    "Epidemiología": ["epidemiología", "estudios poblacionales", "incidencia", "prevalencia"],
-    "Epilepsia": ["epilepsia", "crisis epiléptica", "convulsiones"],
-    "Farmacología": ["farmacología", "fármacos", "dosis-respuesta", "toxicidad"],
-    "Gastroenterología": ["colon", "hígado", "páncreas", "enfermedad inflamatoria intestinal"],
-    "Genética": ["genética", "mutaciones", "genoma humano", "síndromes genéticos"],
-    "Hipertensión y Riesgo Cardiovascular": [
-        "hipertensión arterial", "hta", "hipertensión pulmonar",
-        "crisis hipertensiva", "mapa", "monitorización ambulatoria",
-        "riesgo cardiovascular", "score framingham", "ascvd"
-    ],
-    "Inmunología": ["autoinmunidad", "inmunodeficiencia", "alergias", "linfocitos"],
-    "Inmunoterapia": ["inmunoterapia", "terapia car-t", "checkpoint inmunológico"],
-    "Insuficiencia Cardíaca": [
-        "insuficiencia cardíaca", "ic", "fallo cardíaco", "disfunción ventricular",
-        "icfe", "icfd", "fracción de eyección reducida", "fracción de eyección preservada",
-        "nyha clase ii", "nyha clase iii", "edema pulmonar", "congestión venosa"
-    ],
-    "Investigación Clínica": ["ensayo clínico", "randomizado", "estudio de cohorte", "fase iii"],
-    "Leucemia": ["leucemia", "leucemias agudas", "leucemia mieloide"],
-    "Microbiología": ["microbiología", "bacterias", "virus", "antimicrobianos"],
-    "Nefrología": ["insuficiencia renal", "glomerulonefritis", "diálisis"],
-    "Neumología": ["asma", "epoc", "fibrosis pulmonar", "síndrome de apnea del sueño"],
-    "Neurociencia": ["neurociencia", "plasticidad neuronal", "sinapsis", "neurodegeneración"],
-    "Oncología Molecular": ["oncología molecular", "mutaciones tumorales", "biomarcadores cáncer"],
-    "Procedimientos Cardiológicos": [
-        "cateterismo cardíaco", "angioplastia", "stent coronario",
-        "bypass coronario", "cabg", "ecocardiograma", "eco stress",
-        "resonancia cardíaca", "prueba de esfuerzo", "holter"
-    ],
-    "Síndrome Coronario Agudo": [
-        "síndrome coronario agudo", "sca", "infarto agudo de miocardio", "iam",
-        "iamcest", "iamnest", "angina inestable", "troponina elevada",
-        "oclusión coronaria", "elevación st", "depresión st"
-    ],
-    "Valvulopatías": [
-        "valvulopatía", "estenosis aórtica", "insuficiencia aórtica",
-        "stenosis mitral", "insuficiencia mitral", "prolapso mitral",
-        "tavi", "taavi", "anillo mitral", "reemplazo valvular"
-    ],
-}
 
 # ==================
 # CLASE SSH MANAGER
@@ -224,11 +164,11 @@ class SSHManager:
                     except FileNotFoundError:
                         # Crear archivo local con estructura correcta
                         columns = [
-                            'economic_number', 'nombramiento', 'sni', 'sii', 'participation_key', 'investigator_name',
+                            'economic_number', 'nombramiento', 'sni', 'sii', 'departamento', 'participation_key', 'investigator_name',
                             'corresponding_author', 'coauthors', 'article_title', 'year',
                             'pub_date', 'volume', 'number', 'pages', 'journal_full',
                             'journal_abbrev', 'doi', 'jcr_group', 'pmid', 'selected_keywords',
-                            'departamento', 'estado'
+                            'estado'
                         ]
                         pd.DataFrame(columns=columns).to_csv(local_path, index=False)
                         logging.info(f"Archivo remoto no encontrado, creado local con estructura: {local_path}")
@@ -335,11 +275,11 @@ def sync_with_remote(economic_number):
         if not download_success:
             # Si no existe el archivo remoto, crea uno local con estructura correcta
             columns = [
-                'economic_number', 'nombramiento', 'sni', 'sii', 'participation_key', 'investigator_name',
+                'economic_number', 'nombramiento', 'sni', 'sii', 'departamento', 'participation_key', 'investigator_name',
                 'corresponding_author', 'coauthors', 'article_title', 'year',
                 'pub_date', 'volume', 'number', 'pages', 'journal_full',
                 'journal_abbrev', 'doi', 'jcr_group', 'pmid', 'selected_keywords',
-                'departamento', 'estado'
+                'estado'
             ]
 
             # Verifica si el archivo local ya existe
@@ -365,11 +305,11 @@ def sync_with_remote(economic_number):
         except pd.errors.EmptyDataError:
             st.warning("El archivo remoto está vacío o corrupto")
             columns = [
-                'economic_number', 'nombramiento', 'sni', 'sii', 'participation_key', 'investigator_name',
+                'economic_number', 'nombramiento', 'sni', 'sii', 'departamento', 'participation_key', 'investigator_name',
                 'corresponding_author', 'coauthors', 'article_title', 'year',
                 'pub_date', 'volume', 'number', 'pages', 'journal_full',
                 'journal_abbrev', 'doi', 'jcr_group', 'pmid', 'selected_keywords',
-                'departamento', 'estado'
+                'estado'
             ]
             pd.DataFrame(columns=columns).to_csv(csv_filename, index=False)
             return False
@@ -393,11 +333,11 @@ def save_to_csv(data: dict):
                 st.warning("⚠️ Trabajando con copia local debido a problemas de conexión")
 
         columns = [
-            'economic_number', 'nombramiento', 'sni', 'sii', 'participation_key', 'investigator_name',
+            'economic_number', 'nombramiento', 'sni', 'sii', 'departamento', 'participation_key', 'investigator_name',
             'corresponding_author', 'coauthors', 'article_title', 'year',
             'pub_date', 'volume', 'number', 'pages', 'journal_full',
             'journal_abbrev', 'doi', 'jcr_group', 'pmid', 'selected_keywords',
-            'departamento', 'estado'
+            'estado'
         ]
 
         # Verificar si el archivo existe y tiene contenido válido
@@ -562,28 +502,35 @@ def main():
         except Exception as e:
             st.error(f"Error al leer el archivo: {str(e)}")
             manual_df = pd.DataFrame(columns=[
-                'economic_number', 'nombramiento', 'sni', 'sii', 'participation_key', 'investigator_name',
+                'economic_number', 'nombramiento', 'sni', 'sii', 'departamento', 'participation_key', 'investigator_name',
                 'corresponding_author', 'coauthors', 'article_title', 'year',
                 'pub_date', 'volume', 'number', 'pages', 'journal_full',
                 'journal_abbrev', 'doi', 'jcr_group', 'pmid', 'selected_keywords',
-                'departamento', 'estado'
+                'estado'
             ])
     else:
         manual_df = pd.DataFrame(columns=[
-            'economic_number', 'nombramiento', 'sni', 'sii', 'participation_key', 'investigator_name',
+            'economic_number', 'nombramiento', 'sni', 'sii', 'departamento', 'participation_key', 'investigator_name',
             'corresponding_author', 'coauthors', 'article_title', 'year',
             'pub_date', 'volume', 'number', 'pages', 'journal_full',
             'journal_abbrev', 'doi', 'jcr_group', 'pmid', 'selected_keywords',
-            'departamento', 'estado'
+            'estado'
         ])
 
     # Mostrar registros existentes si los hay
     if not manual_df.empty:
         st.subheader(f"📋 Registros existentes para {economic_number}")
         st.info("""
-        **Instrucciones:**
-        - Marque con 'X' los registros que desee dar de baja
-        - Todos los demás deben mantenerse con 'A' (Activo)
+        **Instrucciones para eliminar registros:**
+
+        1. **Localice** el registro que desea eliminar de la lista.
+        2. **Edite el estado** haciendo doble clic sobre la letra 'A' en la columna "Estado".
+        3. **Seleccione una opción**:
+           - 'X' para marcar el registro para eliminación.
+           - 'A' para mantener el registro activo.
+
+        *Nota:* El botón **"Confirmar baja de registros"** aparecerá automáticamente cuando haya registros marcados con 'X'.
+        Este botón le permitirá eliminar definitivamente los registros seleccionados.
         """)
 
         # Crear copia editable solo con las columnas necesarias
@@ -617,33 +564,26 @@ def main():
             if not registros_a_borrar.empty:
                 st.warning(f"⚠️ Tiene {len(registros_a_borrar)} registro(s) marcado(s) para dar de baja")
 
-                col1, col2 = st.columns(2)
-                with col1:
-                    if st.button("🗑️ Confirmar baja de registros", type="primary"):
-                        # Filtrar solo los registros activos (estado 'A')
-                        manual_df = manual_df[manual_df['estado'] == 'A'].copy()
+            if st.button("🗑️ Confirmar baja de registros", type="primary"):
+                # Filtrar solo los registros activos (estado 'A')
+                manual_df = manual_df[manual_df['estado'] == 'A'].copy()
 
-                        # Guardar cambios en el archivo
-                        manual_df.to_csv(csv_filename, index=False, encoding='utf-8-sig')
+                # Guardar cambios en el archivo
+                manual_df.to_csv(csv_filename, index=False, encoding='utf-8-sig')
 
-                        # Sincronizar con servidor remoto
-                        with st.spinner("Guardando cambios..."):
-                            remote_filename = f"{CONFIG.CSV_PREFIX}{economic_number}.csv"
-                            remote_path = os.path.join(CONFIG.REMOTE['DIR'], remote_filename)
-                            upload_success = SSHManager.upload_remote_file(csv_filename, remote_path)
+                # Sincronizar con servidor remoto
+                with st.spinner("Guardando cambios..."):
+                    remote_filename = f"{CONFIG.CSV_PREFIX}{economic_number}.csv"
+                    remote_path = os.path.join(CONFIG.REMOTE['DIR'], remote_filename)
+                    upload_success = SSHManager.upload_remote_file(csv_filename, remote_path)
 
-                        if upload_success:
-                            st.success("✅ Registros eliminados exitosamente del archivo!")
-                            st.balloons()
-                            time.sleep(2)
-                            st.rerun()
-                        else:
-                            st.error("❌ Error al sincronizar con el servidor remoto")
-
-                with col2:
-                    if st.button("↩️ Cancelar operación"):
-                        st.info("Operación cancelada - No se realizaron cambios")
-                        st.rerun()
+                if upload_success:
+                    st.success("✅ Registros eliminados exitosamente del archivo!")
+                    st.balloons()
+                    time.sleep(2)
+                    st.rerun()
+                else:
+                    st.error("❌ Error al sincronizar con el servidor remoto")
 
     # Preguntar si desea añadir nuevo registro
     st.divider()
@@ -651,7 +591,13 @@ def main():
         # Formulario para nuevo registro
         st.subheader("📝 Nuevo registro de artículo")
 
-        with st.form("nuevo_articulo", clear_on_submit=True):
+        # Usar session_state para mantener los datos del formulario
+        if 'form_data' not in st.session_state:
+            st.session_state.form_data = None
+            st.session_state.show_confirmation = False
+
+        # Formulario principal con botón de submit
+        with st.form("nuevo_articulo"):
             article_title = st.text_area("📄 Título del artículo:", height=100)
             corresponding_author = st.text_input("📌 Autor para correspondencia:")
             coauthors = st.text_area("👥 Coautores (separados por punto y coma ';'):", help="Ejemplo: Autor1; Autor2; Autor3")
@@ -697,59 +643,100 @@ def main():
                 index=0
             )
 
-            # Palabras clave
-            st.subheader("🔑 Palabras clave")
+            # Palabras clave (mínimo 1, máximo 3)
+            st.subheader("🔑 Líneas de Investigación")
             selected_categories = st.multiselect(
-                f"Seleccione hasta {CONFIG.MAX_KEYWORDS} palabras clave:",
+                "Seleccione al menos 1 línea de investigación:",
                 options=list(KEYWORD_CATEGORIES.keys()),
                 max_selections=CONFIG.MAX_KEYWORDS
             )
 
-            if st.form_submit_button("💾 Guardar nuevo registro"):
-                # Verificación de autoría
-                authors_list = []
-                if corresponding_author:
-                    authors_list.append(corresponding_author)
-                if coauthors:
-                    authors_list.extend([author.strip() for author in coauthors.split(";") if author.strip()])
+            # Botón de submit para avanzar a confirmación
+            submitted = st.form_submit_button("De clic si ha  respondido todo lo  anterior.")
 
-                if not authors_list:
-                    st.error("Debe ingresar al menos un autor")
-                    return
+            if submitted:
+                # Validación de campos obligatorios
+                if not article_title or not corresponding_author or not year:
+                    st.error("Por favor complete los campos obligatorios: Título, Autor para correspondencia y Año")
+                    st.stop()
 
-                investigator_name = st.selectbox("Seleccione su nombre como aparece en la publicación:", authors_list)
-                participation_key = "CA" if investigator_name == corresponding_author else f"{authors_list.index(investigator_name)}C"
+                if not selected_categories:
+                    st.error("Por favor seleccione al menos una línea de investigación")
+                    st.stop()
 
-                nuevo_registro = {
+                st.session_state.form_data = {
                     'economic_number': economic_number,
                     'nombramiento': nombramiento,
                     'sni': sni,
                     'sii': sii,
-                    'participation_key': participation_key,
-                    'investigator_name': investigator_name,
+                    'departamento': departamento,
                     'corresponding_author': corresponding_author,
                     'coauthors': coauthors,
                     'article_title': article_title,
                     'year': year,
-                    'pub_date': pub_date if pub_date else year,
-                    'volume': volume,
-                    'number': number,
-                    'pages': pages,
+                    'pub_date': pub_date if pub_date else f"{year}-01-01",
+                    'volume': volume or '0',
+                    'number': number or '0',
+                    'pages': pages or '0',
                     'journal_full': journal_full,
                     'journal_abbrev': journal_abbrev,
                     'doi': doi,
                     'jcr_group': jcr_group,
                     'pmid': pmid,
-                    'selected_keywords': str(selected_categories),
-                    'departamento': departamento,
+                    'selected_keywords': str(selected_categories)
+                }
+                st.session_state.show_confirmation = True
+                st.rerun()
+
+        # Mostrar sección de confirmación si está activa
+        if st.session_state.get('show_confirmation', False) and st.session_state.form_data:
+            st.subheader("🔍 Confirmación de Autoría")
+
+            # Construir lista de autores
+            authors_list = [st.session_state.form_data['corresponding_author'].strip()]
+            if st.session_state.form_data['coauthors']:
+                authors_list.extend([author.strip() for author in st.session_state.form_data['coauthors'].split(";") if author.strip()])
+
+            investigator_name = st.selectbox(
+                "Seleccione su nombre como aparece en la publicación:",
+                options=authors_list,
+                key="investigator_select"
+            )
+
+            # Calcular participation_key
+            if investigator_name == st.session_state.form_data['corresponding_author']:
+                participation_key = "CA"
+            else:
+                author_position = authors_list.index(investigator_name) + 1
+                participation_key = f"{author_position}C"
+
+            # Botón de acción final (sin col2)
+            if st.button("✅ Guardar registro definitivo", type="primary"):
+                # Crear registro completo
+                nuevo_registro = {
+                    **st.session_state.form_data,
+                    'participation_key': participation_key,
+                    'investigator_name': investigator_name,
                     'estado': 'A'
                 }
 
                 if save_to_csv(nuevo_registro):
                     st.success("✅ Registro guardado exitosamente!")
                     st.balloons()
+                    # Limpiar session_state y recargar
+                    del st.session_state.form_data
+                    st.session_state.show_confirmation = False
                     time.sleep(2)
                     st.rerun()
+                else:
+                    st.error("❌ Error al guardar el registro")
+
+            # Opción para volver a editar debajo del botón principal
+            if st.button("↩️ Volver a editar", key="volver_editar"):
+                st.session_state.show_confirmation = False
+                st.rerun()
+
 
 if __name__ == "__main__":
     main()
+

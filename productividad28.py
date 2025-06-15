@@ -725,25 +725,18 @@ def main():
     # Mostrar registros existentes si los hay
     if not productos_df.empty:
         st.subheader(f"📋 Registros existentes para {economic_number}")
-       # st.info("""
-       # **Pasos para dar de baja registros:**
-       # - Determine que registro quiere borrar
-       # - De doble clic sobre la letra 'A' (campo Estado), de ese registro
-       # - Seleccione 'X' si quiere da de baja el registro
-       # - Seleccione 'A' si quiere que el registro no  sea dado de baja
-       # - Cuando termine, aparecerá un botón, de clic para confirmar.
-       # """)
         st.info("""
-        **Instrucciones para dar de baja registros:**
+        **Instrucciones para eliminar registros:**
 
-        1. **Identifique** el registro que desea eliminar  
-        2. **Haga doble clic** en la letra 'A' (columna Estado) del registro seleccionado  
-        3. **Seleccione**:  
-           - 'X' para marcar el registro para eliminación  
-           - 'A' para mantener el registro activo 
-        4. **Confirme los cambios** dando clic en el botón "Dar de baja registros 'X'", que aparecerá automáticamente. 
+        1. **Localice** el registro que desea eliminar de la lista.
+        2. **Edite el estado** haciendo doble clic sobre la letra 'A' en la columna "Estado".
+        3. **Seleccione una opción**:
+           - 'X' para marcar el registro para eliminación.
+           - 'A' para mantener el registro activo.
+
+        *Nota:* El botón **"Confirmar baja de registros"** aparecerá automáticamente cuando haya registros marcados con 'X'.
+        Este botón le permitirá eliminar definitivamente los registros seleccionados.
         """)
-
 
         # Crear copia editable solo con las columnas necesarias
         columnas_mostrar = ['article_title', 'journal_full', 'estado']
@@ -797,13 +790,17 @@ def main():
     st.divider()
     if st.radio("¿Desea añadir un nuevo registro?", ["No", "Sí"], index=0) == "Sí":
         st.subheader("📤 Subir artículo científico")
-        uploaded_file = st.file_uploader("Seleccione el archivo .nbib", type=".nbib",help="""
-Pasos para obtener el archivo .nbib:
-1. Busque su artículo en PubMed
-2. Haga clic en el botón 'Cite' (localizado a la derecha del título)
-3. En el menú desplegable, seleccione 'Download .nbib'
-4. Suba el archivo descargado aquí
-""")
+        st.info("""
+        **Instrucciones para subir el artículo:**
+
+        1. **Busque** su artículo en PubMed
+        2. **Haga clic** en el botón 'Cite' (localizado a la derecha del título)
+        3. **Seleccione** 'Download .nbib' en el menú desplegable
+        4. **Suba** el archivo descargado en el siguiente campo
+
+        *Nota:* El sistema procesará automáticamente la información del artículo al subir el archivo.
+        """)
+        uploaded_file = st.file_uploader("Seleccione el archivo .nbib", type=".nbib")
 
         if uploaded_file:
             try:
@@ -841,12 +838,7 @@ Pasos para obtener el archivo .nbib:
                     else:
                         data['selected_keywords'] = selected_categories
 
-                        cols = st.columns(2)
-                        with cols[0]:
-                            display_author_info(data, "")
-                        with cols[1]:
-                            display_publication_info(data)
-
+                        # Selección del investigador principal
                         authors_list = []
                         if data['corresponding_author']:
                             authors_list.append(data['corresponding_author'])
