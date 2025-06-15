@@ -22,77 +22,18 @@ logging.basicConfig(
 # CATEGORÍAS DE KEYWORDS PARA TESIS
 # ====================
 KEYWORD_CATEGORIES = {
-    "Accidente Cerebrovascular": ["accidente cerebrovascular", "acv", "ictus", "stroke"],
-    "Alzheimer": ["alzheimer", "demencia", "enfermedad neurodegenerativa"],
-    "Arritmias": [
-        "arritmia", "fibrilación auricular", "fa", "flutter auricular",
-        "taquicardia ventricular", "tv", "fibrilación ventricular", "fv",
-        "bradicardia", "bloqueo auriculoventricular", "síndrome de brugada",
-        "síndrome de qt largo", "marcapasos", "desfibrilador automático"
-    ],
-    "Bioinformática": ["bioinformática", "genómica computacional", "análisis de secuencias", "biología de sistemas"],
-    "Bioquímica": ["bioquímica", "metabolismo", "enzimas", "rutas metabólicas"],
-    "Biología Molecular": ["adn", "arn", "transcripción", "replicación"],
-    "Biomarcadores Cardíacos": [
-        "troponina", "nt-probnp", "bnp", "ck-mb", "lactato deshidrogenasa",
-        "mioglobina", "péptidos natriuréticos"
-    ],
-    "Biotecnología": ["biotecnología", "terapia génica", "crispr", "organismos modificados genéticamente"],
-    "Cáncer de Mama": ["cáncer de mama", "tumor mamario", "neoplasia mamaria"],
-    "Cardiología Pediátrica": [
-        "cardiopatía congénita", "comunicación interauricular", "cia",
-        "comunicación interventricular", "civ", "tetralogía de fallot",
-        "transposición grandes vasos", "ductus arterioso persistente"
-    ],
-    "Cardiomiopatías": [
-        "cardiomiopatía", "miocardiopatía", "cardiomiopatía hipertrófica", "hcm",
-        "cardiomiopatía dilatada", "dcm", "cardiomiopatía restrictiva",
-        "displasia arritmogénica", "miocardiopatía no compactada", "amiloidosis cardíaca"
-    ],
-    "Endocrinología": ["diabetes", "tiroides", "hormonas", "metabolismo"],
-    "Enfermedad Vascular Periférica": [
-        "enfermedad arterial periférica", "eap", "claudicación intermitente",
-        "índice tobillo-brazo", "isquemia crítica", "arteriopatía obliterante"
-    ],
-    "Epidemiología": ["epidemiología", "estudios poblacionales", "incidencia", "prevalencia"],
-    "Epilepsia": ["epilepsia", "crisis epiléptica", "convulsiones"],
-    "Farmacología": ["farmacología", "fármacos", "dosis-respuesta", "toxicidad"],
-    "Gastroenterología": ["colon", "hígado", "páncreas", "enfermedad inflamatoria intestinal"],
-    "Genética": ["genética", "mutaciones", "genoma humano", "síndromes genéticos"],
-    "Hipertensión y Riesgo Cardiovascular": [
-        "hipertensión arterial", "hta", "hipertensión pulmonar",
-        "crisis hipertensiva", "mapa", "monitorización ambulatoria",
-        "riesgo cardiovascular", "score framingham", "ascvd"
-    ],
-    "Inmunología": ["autoinmunidad", "inmunodeficiencia", "alergias", "linfocitos"],
-    "Inmunoterapia": ["inmunoterapia", "terapia car-t", "checkpoint inmunológico"],
-    "Insuficiencia Cardíaca": [
-        "insuficiencia cardíaca", "ic", "fallo cardíaco", "disfunción ventricular",
-        "icfe", "icfd", "fracción de eyección reducida", "fracción de eyección preservada",
-        "nyha clase ii", "nyha clase iii", "edema pulmonar", "congestión venosa"
-    ],
-    "Investigación Clínica": ["ensayo clínico", "randomizado", "estudio de cohorte", "fase iii"],
-    "Leucemia": ["leucemia", "leucemias agudas", "leucemia mieloide"],
-    "Microbiología": ["microbiología", "bacterias", "virus", "antimicrobianos"],
-    "Nefrología": ["insuficiencia renal", "glomerulonefritis", "diálisis"],
-    "Neumología": ["asma", "epoc", "fibrosis pulmonar", "síndrome de apnea del sueño"],
-    "Neurociencia": ["neurociencia", "plasticidad neuronal", "sinapsis", "neurodegeneración"],
-    "Oncología Molecular": ["oncología molecular", "mutaciones tumorales", "biomarcadores cáncer"],
-    "Procedimientos Cardiológicos": [
-        "cateterismo cardíaco", "angioplastia", "stent coronario",
-        "bypass coronario", "cabg", "ecocardiograma", "eco stress",
-        "resonancia cardíaca", "prueba de esfuerzo", "holter"
-    ],
-    "Síndrome Coronario Agudo": [
-        "síndrome coronario agudo", "sca", "infarto agudo de miocardio", "iam",
-        "iamcest", "iamnest", "angina inestable", "troponina elevada",
-        "oclusión coronaria", "elevación st", "depresión st"
-    ],
-    "Valvulopatías": [
-        "valvulopatía", "estenosis aórtica", "insuficiencia aórtica",
-        "stenosis mitral", "insuficiencia mitral", "prolapso mitral",
-        "tavi", "taavi", "anillo mitral", "reemplazo valvular"
-    ],
+    "Enfermedad coronaria": [],
+    "Síndrome metabólico": [],
+    "Hipertensión arterial sistémica/pulmonar primaria": [],
+    "Enfermedad valvular": [],
+    "Miocardiopatías y enfermedad de Chagas": [],
+    "Sistemas biológicos: celular, molecular y producción de energía": [],
+    "Cardiopatías congénitas": [],
+    "Nefropatías": [],
+    "Elaboración de dispositivos intracardiacos": [],
+    "Medio ambiente y sociomedicina": [],
+    "COVID-19 (SARS-Cov-2)": [],
+    "Otros": [],
 }
 
 # ====================
@@ -249,330 +190,249 @@ def main():
         page_icon="📚",
         layout="wide"
     )
-    
-    # Añadir logo en la parte superior
+
+    # Mostrar logo si existe
     if Path(CONFIG.LOGO_PATH).exists():
         st.image(CONFIG.LOGO_PATH, width=200)
-    
+
     st.title("Análisis de Tesis")
-    
+
     # Sincronizar archivo tesis_total.csv al inicio
     if not sync_tesis_file():
         st.warning("⚠️ Trabajando con copia local de tesis_total.csv debido a problemas de conexión")
-    
+
     # Verificar si el archivo local existe
     if not Path("tesis_total.csv").exists():
         st.error("No se encontró el archivo tesis_total.csv")
         return
-    
+
     try:
-        # Leer y procesar el archivo con los nuevos campos sni y sii
+        # Leer y procesar el archivo
         df = pd.read_csv("tesis_total.csv")
-        
-        # Verificar que los campos importantes existen
+
+        # Verificar campos requeridos
         required_columns = ['directores', 'titulo_tesis', 'pub_date', 'estado', 'selected_keywords']
         missing_columns = [col for col in required_columns if col not in df.columns]
-        
+
         if missing_columns:
-            st.warning(f"El archivo tesis_total.csv no contiene los campos requeridos: {', '.join(missing_columns)}")
+            st.warning(f"Faltan campos requeridos: {', '.join(missing_columns)}")
             return
-        
+
         # Convertir y validar fechas
         df['pub_date'] = pd.to_datetime(df['pub_date'], errors='coerce')
         df = df[(df['estado'] == 'A') & (df['pub_date'].notna())]
-        
+
         if df.empty:
             st.warning("No hay tesis válidas para analizar")
             return
-        
+
         st.success(f"Datos cargados correctamente. Registros activos: {len(df)}")
-        
-        # Obtener rangos de fechas disponibles
+
+        # Obtener rangos de fechas
         min_date = df['pub_date'].min()
         max_date = df['pub_date'].max()
-        
-        # Selector de rango mes-año con ayuda
+
+        # Selector de rango de fechas
         st.header("📅 Selección de Periodo")
         col1, col2 = st.columns(2)
-        
+
         with col1:
-            start_year = st.selectbox("Año inicio", 
-                                   range(min_date.year, max_date.year+1),
-                                   index=0,
-                                   help="Selecciona el año inicial para el análisis.")
-            start_month = st.selectbox("Mes inicio", 
-                                    range(1, 13), 
-                                    index=min_date.month-1,
-                                    format_func=lambda x: datetime(1900, x, 1).strftime('%B'),
-                                    help="Selecciona el mes inicial para el análisis.")
-        
+            start_year = st.selectbox("Año inicio", range(min_date.year, max_date.year+1), index=0)
+            start_month = st.selectbox("Mes inicio", range(1, 13), index=min_date.month-1,
+                                     format_func=lambda x: datetime(1900, x, 1).strftime('%B'))
+
         with col2:
-            end_year = st.selectbox("Año término", 
-                                  range(min_date.year, max_date.year+1),
-                                  index=len(range(min_date.year, max_date.year+1))-1,
-                                  help="Selecciona el año final para el análisis.")
-            end_month = st.selectbox("Mes término", 
-                                   range(1, 13), 
-                                   index=max_date.month-1,
-                                   format_func=lambda x: datetime(1900, x, 1).strftime('%B'),
-                                   help="Selecciona el mes final para el análisis.")
-        
-        # Calcular fechas de inicio y fin
+            end_year = st.selectbox("Año término", range(min_date.year, max_date.year+1),
+                                  index=len(range(min_date.year, max_date.year+1))-1)
+            end_month = st.selectbox("Mes término", range(1, 13), index=max_date.month-1,
+                                   format_func=lambda x: datetime(1900, x, 1).strftime('%B'))
+
+        # Calcular fechas
         start_day = 1
         end_day = calendar.monthrange(end_year, end_month)[1]
-        
         date_start = datetime(start_year, start_month, start_day)
         date_end = datetime(end_year, end_month, end_day)
-        
+
         # Filtrar dataframe
-        filtered_df = df[(df['pub_date'] >= pd.to_datetime(date_start)) & 
+        filtered_df = df[(df['pub_date'] >= pd.to_datetime(date_start)) &
                        (df['pub_date'] <= pd.to_datetime(date_end))]
-        
-        # Obtener tesis únicas para estadísticas precisas
         unique_tesis = filtered_df.drop_duplicates(subset=['titulo_tesis'])
-        
-        st.markdown(f"**Periodo seleccionado:** {date_start.strftime('%d/%m/%Y')} - {date_end.strftime('%d/%m/%Y')}",
-                   help="Rango de fechas seleccionado para el análisis.")
-        st.markdown(f"**Registros encontrados:** {len(filtered_df)}",
-                   help="Total de registros en el periodo, incluyendo posibles duplicados de la misma tesis.")
-        st.markdown(f"**Tesis únicas:** {len(unique_tesis)}",
-                   help="Cantidad de tesis distintas, eliminando duplicados.")
-        
+
+        st.markdown(f"**Periodo:** {date_start.strftime('%d/%m/%Y')} - {date_end.strftime('%d/%m/%Y')}")
+        st.markdown(f"**Registros encontrados:** {len(filtered_df)}")
+        st.markdown(f"**Tesis únicas:** {len(unique_tesis)}")
+
         if len(filtered_df) != len(unique_tesis):
-            st.warning(f"⚠️ **Nota:** Se detectaron {len(filtered_df) - len(unique_tesis)} registros duplicados de la misma tesis.")
-        
+            st.warning(f"⚠️ Se detectaron {len(filtered_df) - len(unique_tesis)} registros duplicados")
+
         if filtered_df.empty:
             st.warning("No hay tesis en el periodo seleccionado")
             return
-        
-        # Análisis consolidado en tablas
-        st.header("📊 Estadísticas Consolidadas",
-                help="Métricas generales basadas en los filtros aplicados.")
-        
-        # Tabla 1: Productividad por director (TESIS ÚNICAS)
-        st.subheader("🔍 Productividad por Director",
-                   help="Muestra cuántas tesis únicas ha dirigido cada investigador.")
-        
-        # Crear dataframe con información de directores
+
+        # Análisis consolidado
+        st.header("📊 Estadísticas Consolidadas")
+
+        # 1. Productividad por director
+        st.subheader("🔍 Productividad por director de tesis")
         director_stats = filtered_df.groupby('directores').agg(
             Tesis_Unicas=('titulo_tesis', lambda x: len(set(x)))
-        ).reset_index()
-        
-        director_stats = director_stats.sort_values('Tesis_Unicas', ascending=False)
+        ).reset_index().sort_values('Tesis_Unicas', ascending=False)
+
         director_stats.columns = ['Director', 'Tesis únicas']
-        
-        # Añadir fila de totales
-        total_row = pd.DataFrame({
-            'Director': ['TOTAL'],
-            'Tesis únicas': [director_stats['Tesis únicas'].sum()]
-        })
+        total_row = pd.DataFrame({'Director': ['TOTAL'], 'Tesis únicas': [director_stats['Tesis únicas'].sum()]})
         director_stats = pd.concat([director_stats.head(10), total_row], ignore_index=True)
-        
-        # Mostrar tabla con enlaces clickeables
+
         for index, row in director_stats.iterrows():
             if row['Director'] != 'TOTAL':
-                # Crear un expander para cada director
                 with st.expander(f"{row['Director']} - {row['Tesis únicas']} tesis"):
-                    # Filtrar las tesis del director
-                    director_tesis = filtered_df[filtered_df['directores'] == row['Director']]
-                    unique_tesis_director = director_tesis.drop_duplicates(subset=['titulo_tesis'])
-                    
-                    # Mostrar las tesis (incluyendo los nuevos campos si existen)
-                    display_columns = ['titulo_tesis', 'tipo_tesis', 'pub_date', 'estudiante']
-                    if 'sni' in unique_tesis_director.columns and 'sii' in unique_tesis_director.columns:
-                        display_columns.extend(['sni', 'sii'])
-                    if 'nombramiento' in unique_tesis_director.columns:
-                        display_columns.append('nombramiento')
-                    
-                    st.write(f"Tesis dirigidas por {row['Director']}:")
-                    st.dataframe(unique_tesis_director[display_columns])
-                    
-                    # Opción para descargar en CSV
-                    csv = unique_tesis_director.to_csv(index=False).encode('utf-8')
+                    director_tesis = filtered_df[filtered_df['directores'] == row['Director']].drop_duplicates('titulo_tesis')
+
+                    # Mostrar todos los campos disponibles excepto 'estado'
+                    display_cols = [col for col in director_tesis.columns if col != 'estado']
+                    st.dataframe(
+                        director_tesis[display_cols],
+                        column_config={
+                            "pub_date": st.column_config.DateColumn("Fecha", format="DD/MM/YYYY"),
+                            "selected_keywords": st.column_config.ListColumn("Palabras clave")
+                        },
+                        hide_index=True,
+                        use_container_width=True
+                    )
+
+                    csv = director_tesis.to_csv(index=False).encode('utf-8')
                     st.download_button(
-                        label="Descargar producción de tesis en CSV",
+                        "Descargar CSV",
                         data=csv,
                         file_name=f"tesis_{row['Director'].replace(' ', '_')}.csv",
                         mime='text/csv',
                         key=f"download_{index}"
                     )
-        
-        # Tabla 2: Tipos de tesis más comunes (TESIS ÚNICAS)
-        st.subheader("🎓 Tipos de Tesis",
-                   help="Distribución de los tipos de tesis.")
+
+        # 2. Tipos de tesis
+        st.subheader("🎓 Distribución por tipo de tesis")
         tipo_stats = unique_tesis['tipo_tesis'].value_counts().reset_index()
-        tipo_stats.columns = ['Tipo de tesis', 'Tesis únicas']
-        
-        # Añadir fila de totales
-        total_row = pd.DataFrame({
-            'Tipo de tesis': ['TOTAL'],
-            'Tesis únicas': [tipo_stats['Tesis únicas'].sum()]
-        })
-        tipo_stats = pd.concat([tipo_stats, total_row], ignore_index=True)
-        st.dataframe(tipo_stats, hide_index=True)
-        
-        # Tabla 3: Enfoques más frecuentes (TESIS ÚNICAS)
-        st.subheader("🧪 Enfoques más Frecuentes",
-                   help="Palabras clave más utilizadas en las tesis, indicando las áreas de investigación predominantes.")
+        tipo_stats.columns = ['Tipo', 'Cantidad']
+        total_tipo = pd.DataFrame({'Tipo': ['TOTAL'], 'Cantidad': [tipo_stats['Cantidad'].sum()]})
+        tipo_completo = pd.concat([tipo_stats, total_tipo], ignore_index=True)
+        st.dataframe(tipo_completo)
+
+        # 3. Líneas de investigación (VERSIÓN CORREGIDA)
+        st.subheader("🧪 Líneas de investigación")
         try:
-            all_keywords = []
+            # Nuevo enfoque para manejar líneas con comas
+            keyword_counts = {}
+
             for keywords in unique_tesis['selected_keywords']:
                 if pd.notna(keywords):
-                    # Limpiar y procesar las palabras clave
-                    cleaned = str(keywords).strip("[]'").replace("'", "").split(", ")
-                    all_keywords.extend([k.strip() for k in cleaned if k.strip()])
-            
-            keyword_stats = pd.Series(all_keywords).value_counts().reset_index()
-            keyword_stats.columns = ['Enfoque', 'Frecuencia']
-            
-            # Añadir fila de totales
-            total_row = pd.DataFrame({
-                'Enfoque': ['TOTAL'],
-                'Frecuencia': [keyword_stats['Frecuencia'].sum()]
-            })
-            keyword_stats = pd.concat([keyword_stats.head(10), total_row], ignore_index=True)
-            st.dataframe(keyword_stats, hide_index=True)
+                    # Procesar como lista literal si empieza con [
+                    if keywords.startswith('['):
+                        try:
+                            # Evaluar como lista literal de Python
+                            keyword_list = eval(keywords)
+                            if isinstance(keyword_list, list):
+                                for kw in keyword_list:
+                                    kw = str(kw).strip()
+                                    if kw:
+                                        keyword_counts[kw] = keyword_counts.get(kw, 0) + 1
+                        except:
+                            # Fallback para formato incorrecto
+                            cleaned = keywords.strip("[]").replace("'", "").split(",")
+                            for kw in cleaned:
+                                kw = kw.strip()
+                                if kw:
+                                    keyword_counts[kw] = keyword_counts.get(kw, 0) + 1
+                    else:
+                        # Tratar todo el string como una sola línea de investigación
+                        keyword_counts[keywords.strip()] = keyword_counts.get(keywords.strip(), 0) + 1
+
+            # Convertir a DataFrame
+            kw_stats = pd.DataFrame.from_dict(keyword_counts, orient='index', columns=['Frecuencia'])
+            kw_stats = kw_stats.reset_index().rename(columns={'index': 'Línea'})
+            kw_stats = kw_stats.sort_values('Frecuencia', ascending=False)
+
+            # Agregar total
+            total_kw = pd.DataFrame({'Línea': ['TOTAL'], 'Frecuencia': [kw_stats['Frecuencia'].sum()]})
+            kw_completo = pd.concat([kw_stats.head(10), total_kw], ignore_index=True)
+            st.dataframe(kw_completo)
         except Exception as e:
-            st.warning(f"No se pudieron procesar las palabras clave: {str(e)}")
-        
-        # Tabla 4: Distribución por departamentos (TESIS ÚNICAS)
+            st.warning(f"Error procesando palabras clave: {str(e)}")
+
+        # 4. Distribución por departamento
         if 'departamento' in unique_tesis.columns:
-            st.subheader("🏛️ Distribución por Departamento",
-                       help="Clasificación de tesis según el departamento de adscripción del director.")
+            st.subheader("🏛️ Distribución por departamento")
             depto_stats = unique_tesis['departamento'].value_counts().reset_index()
-            depto_stats.columns = ['Departamento', 'Tesis únicas']
-            
-            # Añadir fila de totales
-            total_row = pd.DataFrame({
-                'Departamento': ['TOTAL'],
-                'Tesis únicas': [depto_stats['Tesis únicas'].sum()]
-            })
-            depto_stats = pd.concat([depto_stats, total_row], ignore_index=True)
-            st.dataframe(depto_stats, hide_index=True)
-        else:
-            st.warning("El campo 'departamento' no está disponible en los datos")
-        
-        # Tabla 5: Distribución temporal (TESIS ÚNICAS)
-        st.subheader("🕰️ Distribución Mensual",
-                    help="Evolución mensual de la producción de tesis en el periodo seleccionado.")
+            depto_stats.columns = ['Departamento', 'Cantidad']
+            total_depto = pd.DataFrame({'Departamento': ['TOTAL'], 'Cantidad': [depto_stats['Cantidad'].sum()]})
+            depto_completo = pd.concat([depto_stats, total_depto], ignore_index=True)
+            st.dataframe(depto_completo)
 
-        # Convertir a formato "YYYY-MM"
+        # 5. Distribución temporal
+        st.subheader("🕰️ Distribución mensual")
         time_stats = unique_tesis['pub_date'].dt.to_period('M').astype(str).value_counts().sort_index().reset_index()
-        time_stats.columns = ['Mes-Año', 'Tesis únicas']
+        time_stats.columns = ['Mes-Año', 'Cantidad']
+        total_time = pd.DataFrame({'Mes-Año': ['TOTAL'], 'Cantidad': [time_stats['Cantidad'].sum()]})
+        time_completo = pd.concat([time_stats, total_time], ignore_index=True)
+        st.dataframe(time_completo)
 
-        # Añadir fila de totales
-        total_row = pd.DataFrame({
-            'Mes-Año': ['TOTAL'],
-            'Tesis únicas': [time_stats['Tesis únicas'].sum()]
-        })
-        time_stats = pd.concat([time_stats, total_row], ignore_index=True)
-        st.dataframe(time_stats, hide_index=True)
-        
-        # Tabla 6: Distribución por nivel SNI (TESIS ÚNICAS)
+        # 6. Distribución por SNI
         if 'sni' in unique_tesis.columns:
-            st.subheader("📊 Distribución por Nivel SNI",
-                        help="Clasificación de tesis según el nivel del Sistema Nacional de Investigadores (SNI) de los directores.")
+            st.subheader("📊 Distribución por nivel de SNI")
             sni_stats = unique_tesis['sni'].value_counts().reset_index()
-            sni_stats.columns = ['Nivel SNI', 'Tesis únicas']
-            
-            # Añadir fila de totales
-            total_row = pd.DataFrame({
-                'Nivel SNI': ['TOTAL'],
-                'Tesis únicas': [sni_stats['Tesis únicas'].sum()]
-            })
-            sni_stats = pd.concat([sni_stats, total_row], ignore_index=True)
-            st.dataframe(sni_stats, hide_index=True)
-        else:
-            st.warning("El campo 'sni' no está disponible en los datos")
-        
-        # Tabla 7: Distribución por nivel SII (TESIS ÚNICAS)
+            sni_stats.columns = ['Nivel SNI', 'Cantidad']
+            total_sni = pd.DataFrame({'Nivel SNI': ['TOTAL'], 'Cantidad': [sni_stats['Cantidad'].sum()]})
+            sni_completo = pd.concat([sni_stats, total_sni], ignore_index=True)
+            st.dataframe(sni_completo)
+
+        # 7. Distribución por SII
         if 'sii' in unique_tesis.columns:
-            st.subheader("📈 Distribución por Nivel SII",
-                        help="Clasificación de tesis según el nivel del Sistema Institucional de Investigación (SII) de los directores.")
+            st.subheader("📈 Distribución por nivel de SII")
             sii_stats = unique_tesis['sii'].value_counts().reset_index()
-            sii_stats.columns = ['Nivel SII', 'Tesis únicas']
-            
-            # Añadir fila de totales
-            total_row = pd.DataFrame({
-                'Nivel SII': ['TOTAL'],
-                'Tesis únicas': [sii_stats['Tesis únicas'].sum()]
-            })
-            sii_stats = pd.concat([sii_stats, total_row], ignore_index=True)
-            st.dataframe(sii_stats, hide_index=True)
-        else:
-            st.warning("El campo 'sii' no está disponible en los datos")
-            
-        # Tabla 8: Distribución por tipo de nombramiento (TESIS ÚNICAS)
+            sii_stats.columns = ['Nivel SII', 'Cantidad']
+            total_sii = pd.DataFrame({'Nivel SII': ['TOTAL'], 'Cantidad': [sii_stats['Cantidad'].sum()]})
+            sii_completo = pd.concat([sii_stats, total_sii], ignore_index=True)
+            st.dataframe(sii_completo)
+
+        # 8. Tipo de nombramiento
         if 'nombramiento' in unique_tesis.columns:
-            st.subheader("👨‍🏫 Distribución por Tipo de Nombramiento",
-                        help="Clasificación de tesis según el tipo de nombramiento de los directores.")
-            nombramiento_stats = unique_tesis['nombramiento'].value_counts().reset_index()
-            nombramiento_stats.columns = ['Tipo de Nombramiento', 'Tesis únicas']
-            
-            # Añadir fila de totales
-            total_row = pd.DataFrame({
-                'Tipo de Nombramiento': ['TOTAL'],
-                'Tesis únicas': [nombramiento_stats['Tesis únicas'].sum()]
-            })
-            nombramiento_stats = pd.concat([nombramiento_stats, total_row], ignore_index=True)
-            st.dataframe(nombramiento_stats, hide_index=True)
-        else:
-            st.warning("El campo 'nombramiento' no está disponible en los datos")
-        
-        # Tabla 9: Distribución por idioma (TESIS ÚNICAS)
+            st.subheader("👨‍🏫 Distribución por nombramiento")
+            nomb_stats = unique_tesis['nombramiento'].value_counts().reset_index()
+            nomb_stats.columns = ['Nombramiento', 'Cantidad']
+            total_nomb = pd.DataFrame({'Nombramiento': ['TOTAL'], 'Cantidad': [nomb_stats['Cantidad'].sum()]})
+            nomb_completo = pd.concat([nomb_stats, total_nomb], ignore_index=True)
+            st.dataframe(nomb_completo)
+
+        # 9. Distribución por idioma
         if 'idioma' in unique_tesis.columns:
-            st.subheader("🌐 Distribución por Idioma",
-                        help="Idiomas en los que están escritas las tesis.")
+            st.subheader("🌐 Distribución por idioma")
             idioma_stats = unique_tesis['idioma'].value_counts().reset_index()
-            idioma_stats.columns = ['Idioma', 'Tesis únicas']
-            
-            # Añadir fila de totales
-            total_row = pd.DataFrame({
-                'Idioma': ['TOTAL'],
-                'Tesis únicas': [idioma_stats['Tesis únicas'].sum()]
-            })
-            idioma_stats = pd.concat([idioma_stats, total_row], ignore_index=True)
-            st.dataframe(idioma_stats, hide_index=True)
-        else:
-            st.warning("El campo 'idioma' no está disponible en los datos")
-            
-        # Tabla 10: Estudiantes con más tesis (TESIS ÚNICAS)
-        st.subheader("👨‍🎓 Estudiantes con más tesis",
-                    help="Listado de estudiantes ordenados por cantidad de tesis realizadas.")
+            idioma_stats.columns = ['Idioma', 'Cantidad']
+            total_idioma = pd.DataFrame({'Idioma': ['TOTAL'], 'Cantidad': [idioma_stats['Cantidad'].sum()]})
+            idioma_completo = pd.concat([idioma_stats, total_idioma], ignore_index=True)
+            st.dataframe(idioma_completo)
+
+        # 10. Estudiantes con más tesis
+        st.subheader("👨‍🎓 Estudiantes")
         estudiante_stats = unique_tesis['estudiante'].value_counts().reset_index()
-        estudiante_stats.columns = ['Estudiante', 'Tesis únicas']
-        
-        # Añadir fila de totales
-        total_row = pd.DataFrame({
-            'Estudiante': ['TOTAL'],
-            'Tesis únicas': [estudiante_stats['Tesis únicas'].sum()]
-        })
-        estudiante_stats = pd.concat([estudiante_stats.head(10), total_row], ignore_index=True)
-        st.dataframe(estudiante_stats, hide_index=True)
-        
-        # ==========================================
-        # SECCIÓN: DESCARGAR ARCHIVO COMPLETO
-        # ==========================================
-        st.header("📥 Descargar Datos Completos")
-        
-        # Opción para descargar el archivo pro_tesis_total.csv
+        estudiante_stats.columns = ['Estudiante', 'Cantidad']
+        total_est = pd.DataFrame({'Estudiante': ['TOTAL'], 'Cantidad': [estudiante_stats['Cantidad'].sum()]})
+        est_completo = pd.concat([estudiante_stats.head(10), total_est], ignore_index=True)
+        st.dataframe(est_completo)
+
+        # Descarga de archivo completo
+        st.header("📥 Descargar datos")
         if Path("tesis_total.csv").exists():
-            with open("tesis_total.csv", "rb") as file:
-                btn = st.download_button(
-                    label="Descargar archivo pro_tesis_total.csv completo",
-                    data=file,
+            with open("tesis_total.csv", "rb") as f:
+                st.download_button(
+                    "Descargar archivo completo",
+                    data=f,
                     file_name="pro_tesis_total.csv",
-                    mime="text/csv",
-                    help="Descarga el archivo CSV completo con todos los datos de tesis"
+                    mime="text/csv"
                 )
-            if btn:
-                st.success("Descarga iniciada")
-        else:
-            st.warning("El archivo tesis_total.csv no está disponible para descargar")
-        
+
     except Exception as e:
-        st.error(f"Error al procesar el archivo: {str(e)}")
+        st.error(f"Error al procesar datos: {str(e)}")
         logging.error(f"Error en main: {str(e)}")
 
 if __name__ == "__main__":
     main()
+
