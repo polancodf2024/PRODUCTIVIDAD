@@ -21,79 +21,19 @@ logging.basicConfig(
 # CATEGORÍAS DE KEYWORDS
 # ====================
 KEYWORD_CATEGORIES = {
-    "Accidente Cerebrovascular": ["accidente cerebrovascular", "acv", "ictus", "stroke"],
-    "Alzheimer": ["alzheimer", "demencia", "enfermedad neurodegenerativa"],
-    "Arritmias": [
-        "arritmia", "fibrilación auricular", "fa", "flutter auricular",
-        "taquicardia ventricular", "tv", "fibrilación ventricular", "fv",
-        "bradicardia", "bloqueo auriculoventricular", "síndrome de brugada",
-        "síndrome de qt largo", "marcapasos", "desfibrilador automático"
-    ],
-    "Bioinformática": ["bioinformática", "genómica computacional", "análisis de secuencias", "biología de sistemas"],
-    "Bioquímica": ["bioquímica", "metabolismo", "enzimas", "rutas metabólicas"],
-    "Biología Molecular": ["adn", "arn", "transcripción", "replicación"],
-    "Biomarcadores Cardíacos": [
-        "troponina", "nt-probnp", "bnp", "ck-mb", "lactato deshidrogenasa",
-        "mioglobina", "péptidos natriuréticos"
-    ],
-    "Biotecnología": ["biotecnología", "terapia génica", "crispr", "organismos modificados genéticamente"],
-    "Cáncer de Mama": ["cáncer de mama", "tumor mamario", "neoplasia mamaria"],
-    "Cardiología Pediátrica": [
-        "cardiopatía congénita", "comunicación interauricular", "cia",
-        "comunicación interventricular", "civ", "tetralogía de fallot",
-        "transposición grandes vasos", "ductus arterioso persistente"
-    ],
-    "Cardiomiopatías": [
-        "cardiomiopatía", "miocardiopatía", "cardiomiopatía hipertrófica", "hcm",
-        "cardiomiopatía dilatada", "dcm", "cardiomiopatía restrictiva",
-        "displasia arritmogénica", "miocardiopatía no compactada", "amiloidosis cardíaca"
-    ],
-    "Endocrinología": ["diabetes", "tiroides", "hormonas", "metabolismo"],
-    "Enfermedad Vascular Periférica": [
-        "enfermedad arterial periférica", "eap", "claudicación intermitente",
-        "índice tobillo-brazo", "isquemia crítica", "arteriopatía obliterante"
-    ],
-    "Epidemiología": ["epidemiología", "estudios poblacionales", "incidencia", "prevalencia"],
-    "Epilepsia": ["epilepsia", "crisis epiléptica", "convulsiones"],
-    "Farmacología": ["farmacología", "fármacos", "dosis-respuesta", "toxicidad"],
-    "Gastroenterología": ["colon", "hígado", "páncreas", "enfermedad inflamatoria intestinal"],
-    "Genética": ["genética", "mutaciones", "genoma humano", "síndromes genéticos"],
-    "Hipertensión y Riesgo Cardiovascular": [
-        "hipertensión arterial", "hta", "hipertensión pulmonar",
-        "crisis hipertensiva", "mapa", "monitorización ambulatoria",
-        "riesgo cardiovascular", "score framingham", "ascvd"
-    ],
-    "Inmunología": ["autoinmunidad", "inmunodeficiencia", "alergias", "linfocitos"],
-    "Inmunoterapia": ["inmunoterapia", "terapia car-t", "checkpoint inmunológico"],
-    "Insuficiencia Cardíaca": [
-        "insuficiencia cardíaca", "ic", "fallo cardíaco", "disfunción ventricular",
-        "icfe", "icfd", "fracción de eyección reducida", "fracción de eyección preservada",
-        "nyha clase ii", "nyha clase iii", "edema pulmonar", "congestión venosa"
-    ],
-    "Investigación Clínica": ["ensayo clínico", "randomizado", "estudio de cohorte", "fase iii"],
-    "Leucemia": ["leucemia", "leucemias agudas", "leucemia mieloide"],
-    "Microbiología": ["microbiología", "bacterias", "virus", "antimicrobianos"],
-    "Nefrología": ["insuficiencia renal", "glomerulonefritis", "diálisis"],
-    "Neumología": ["asma", "epoc", "fibrosis pulmonar", "síndrome de apnea del sueño"],
-    "Neurociencia": ["neurociencia", "plasticidad neuronal", "sinapsis", "neurodegeneración"],
-    "Oncología Molecular": ["oncología molecular", "mutaciones tumorales", "biomarcadores cáncer"],
-    "Procedimientos Cardiológicos": [
-        "cateterismo cardíaco", "angioplastia", "stent coronario",
-        "bypass coronario", "cabg", "ecocardiograma", "eco stress",
-        "resonancia cardíaca", "prueba de esfuerzo", "holter"
-    ],
-    "Síndrome Coronario Agudo": [
-        "síndrome coronario agudo", "sca", "infarto agudo de miocardio", "iam",
-        "iamcest", "iamnest", "angina inestabile", "troponina elevada",
-        "oclusión coronaria", "elevación st", "depresión st"
-    ],
-    "Valvulopatías": [
-        "valvulopatía", "estenosis aórtica", "insuficiencia aórtica",
-        "stenosis mitral", "insuficiencia mitral", "prolapso mitral",
-        "tavi", "taavi", "anillo mitral", "reemplazo valvular"
-    ],
+    "Enfermedad coronaria": [],
+    "Síndrome metabólico": [],
+    "Hipertensión arterial sistémica/pulmonar primaria": [],
+    "Enfermedad valvular": [],
+    "Miocardiopatías y enfermedad de Chagas": [],
+    "Sistemas biológicos: celular, molecular y producción de energía": [],
+    "Cardiopatías congénitas": [],
+    "Nefropatías": [],
+    "Elaboración de dispositivos intracardiacos": [],
+    "Medio ambiente y sociomedicina": [],
+    "COVID-19 (SARS-Cov-2)": [],
+    "Otros": [],
 }
-
 # ====================
 # OPCIONES DISPONIBLES
 # ====================
@@ -127,15 +67,8 @@ DEPARTAMENTOS_INCICH = [
 ]
 
 # Opciones de nombramiento
-NOMBRAMIENTO_OPCIONES = [
-    "Médico", 
-    "Médico especialista", 
-    "Investigador", 
-    "Mando medio", 
-    "Técnico académico", 
-    "Tesista", 
-    "Servicio social"
-]
+NOMBRAMIENTO_OPCIONES = ["Ayudante de investigador", "Investigador", "Mando medio", "Médico", "Médico especialista", "Otro", "Técnico"]
+
 
 # ====================
 # OPCIONES SNI Y SII
@@ -476,7 +409,6 @@ def display_publication_info(data):
     st.write(f"🌐 Idiomas: {data['idiomas_disponibles']}")
     st.write(f"📖 Formatos: {data['formatos_disponibles']}")
 
-
 def main():
     st.set_page_config(
         page_title="Captura Capítulos",
@@ -505,7 +437,7 @@ def main():
     # Nuevo campo: Nombramiento
     nombramiento = st.selectbox(
         "👔 Nombramiento:",
-        options=["Médico", "Médico especialista", "Investigador", "Mando medio", 
+        options=["Médico", "Médico especialista", "Investigador", "Mando medio",
                 "Técnico académico", "Tesista", "Servicio social"],
         index=0
     )
@@ -544,7 +476,7 @@ def main():
                 capitulos_df['sii'] = sii
             else:
                 capitulos_df['sii'] = capitulos_df['sii'].fillna(sii)
-                
+
             if 'nombramiento' not in capitulos_df.columns:
                 capitulos_df['nombramiento'] = nombramiento
             else:
@@ -578,9 +510,16 @@ def main():
     if not capitulos_df.empty:
         st.subheader(f"📋 Capítulos registrados para {economic_number}")
         st.info("""
-        **Instrucciones:**
-        - Marque con 'X' los registros que desee dar de baja
-        - Todos los demás deben mantenerse con 'A' (Activo)
+        **Instrucciones para eliminar registros:**
+
+        1. **Localice** el registro que desea eliminar de la lista.
+        2. **Edite el estado** haciendo doble clic sobre la letra 'A' en la columna "Estado".
+        3. **Seleccione una opción**:
+           - 'X' para marcar el registro para eliminación.
+           - 'A' para mantener el registro activo.
+
+        *Nota:* El botón **"Confirmar baja de registros"** aparecerá automáticamente cuando haya registros marcados con 'X'.
+        Este botón le permitirá eliminar definitivamente los registros seleccionados.
         """)
 
         # Crear copia editable solo con las columnas necesarias
@@ -614,33 +553,26 @@ def main():
             if not registros_a_borrar.empty:
                 st.warning(f"⚠️ Tiene {len(registros_a_borrar)} registro(s) marcado(s) para dar de baja")
 
-                col1, col2 = st.columns(2)
-                with col1:
-                    if st.button("🗑️ Confirmar baja de registros", type="primary"):
-                        # Filtrar solo los registros activos (estado 'A')
-                        capitulos_df = capitulos_df[capitulos_df['estado'] == 'A'].copy()
+                if st.button("🗑️ Confirmar baja de registros", type="primary"):
+                    # Filtrar solo los registros activos (estado 'A')
+                    capitulos_df = capitulos_df[capitulos_df['estado'] == 'A'].copy()
 
-                        # Guardar cambios en el archivo
-                        capitulos_df.to_csv(csv_filename, index=False, encoding='utf-8-sig')
+                    # Guardar cambios en el archivo
+                    capitulos_df.to_csv(csv_filename, index=False, encoding='utf-8-sig')
 
-                        # Sincronizar con servidor remoto
-                        with st.spinner("Guardando cambios..."):
-                            remote_filename = f"{CONFIG.CSV_PREFIX}{economic_number}.csv"
-                            remote_path = os.path.join(CONFIG.REMOTE['DIR'], remote_filename)
-                            upload_success = SSHManager.upload_remote_file(csv_filename, remote_path)
+                    # Sincronizar con servidor remoto
+                    with st.spinner("Guardando cambios..."):
+                        remote_filename = f"{CONFIG.CSV_PREFIX}{economic_number}.csv"
+                        remote_path = os.path.join(CONFIG.REMOTE['DIR'], remote_filename)
+                        upload_success = SSHManager.upload_remote_file(csv_filename, remote_path)
 
-                        if upload_success:
-                            st.success("✅ Registros eliminados exitosamente del archivo!")
-                            st.balloons()
-                            time.sleep(2)
-                            st.rerun()
-                        else:
-                            st.error("❌ Error al sincronizar con el servidor remoto")
-
-                with col2:
-                    if st.button("↩️ Cancelar operación"):
-                        st.info("Operación cancelada - No se realizaron cambios")
+                    if upload_success:
+                        st.success("✅ Registros eliminados exitosamente del archivo!")
+                        st.balloons()
+                        time.sleep(2)
                         st.rerun()
+                    else:
+                        st.error("❌ Error al sincronizar con el servidor remoto")
 
     # Preguntar si desea añadir nuevo registro
     st.divider()
@@ -663,7 +595,7 @@ def main():
             titulo_libro = st.text_area("📖 Título del libro:")
             titulo_capitulo = st.text_area("📄 Título del capítulo:")
             editorial = st.text_input("🏢 Editorial:")
-            coautores_secundarios = st.text_area("👥 Coautores (separados por ';'):")
+            coautores_secundarios = st.text_area("👥 Coautores del capítulo (separados por ';'):")
 
             # Detalles de publicación
             st.subheader("📅 Detalles de publicación")
@@ -679,7 +611,7 @@ def main():
             with col4:
                 numero_edicion = st.text_input("#️⃣ Número de edición ej. 1, 2:")
 
-            paginas = st.text_input("📚 Número de páginas del capítulo, ej. 123-130:")
+            paginas = st.text_input("📚 Número de páginas del capítulo, ej. 23:")
 
             # Distribución
             st.subheader("🌍 Distribución")
@@ -697,9 +629,9 @@ def main():
             )
 
             # Palabras clave
-            st.subheader("🔍 Palabras clave")
+            st.subheader("🔍 Líneas de investigación")
             selected_categories = st.multiselect(
-                f"Seleccione hasta {CONFIG.MAX_KEYWORDS} palabras clave:",
+                f"Seleccione al menos 1 línea de investigación:",
                 options=list(KEYWORD_CATEGORIES.keys()),
                 max_selections=CONFIG.MAX_KEYWORDS
             )
