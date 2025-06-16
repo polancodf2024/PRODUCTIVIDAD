@@ -20,7 +20,7 @@ logging.basicConfig(
 # ====================
 # CATEGORÍAS DE LÍNEAS DE INVESTIGACIÓN
 # ====================
-LINEAS_INVESTIGACION  = {
+LINEAS_INVESTIGACION = {
     "Enfermedad coronaria": [],
     "Síndrome metabólico": [],
     "Hipertensión arterial sistémica/pulmonar primaria": [],
@@ -92,7 +92,7 @@ class Config:
         }
         
         # Prefijos
-        self.CSV_PREFIX = st.secrets["prefixes"]["congresos"]  # Cambiado a congresos
+        self.CSV_PREFIX = st.secrets["prefixes"]["congresos"]
         
         # Otros parámetros
         self.TIMEOUT_SECONDS = 30
@@ -163,7 +163,8 @@ class SSHManager:
                         columns = [
                             'economic_number', 'nombramiento', 'sni', 'sii', 'departamento',
                             'titulo_congreso', 'institucion', 'tipo_congreso', 'pais',
-                            'rol', 'titulo_ponencia', 'linea_investigacion', 'estado'
+                            'año_congreso', 'fecha_exacta_congreso', 'rol', 
+                            'titulo_ponencia', 'linea_investigacion', 'estado'
                         ]
                         pd.DataFrame(columns=columns).to_csv(local_path, index=False)
                         logging.info(f"Archivo remoto no encontrado, creado local con estructura: {local_path}")
@@ -251,7 +252,8 @@ def sync_with_remote(economic_number):
             columns = [
                 'economic_number', 'nombramiento', 'sni', 'sii', 'departamento',
                 'titulo_congreso', 'institucion', 'tipo_congreso', 'pais',
-                'rol', 'titulo_ponencia', 'linea_investigacion', 'estado'
+                'año_congreso', 'fecha_exacta_congreso', 'rol', 
+                'titulo_ponencia', 'linea_investigacion', 'estado'
             ]
 
             # Verifica si el archivo local ya existe
@@ -279,7 +281,8 @@ def sync_with_remote(economic_number):
             columns = [
                 'economic_number', 'nombramiento', 'sni', 'sii', 'departamento',
                 'titulo_congreso', 'institucion', 'tipo_congreso', 'pais',
-                'rol', 'titulo_ponencia', 'linea_investigacion', 'estado'
+                'año_congreso', 'fecha_exacta_congreso', 'rol', 
+                'titulo_ponencia', 'linea_investigacion', 'estado'
             ]
             pd.DataFrame(columns=columns).to_csv(csv_filename, index=False)
             return False
@@ -305,7 +308,8 @@ def save_to_csv(data: dict):
         columns = [
             'economic_number', 'nombramiento', 'sni', 'sii', 'departamento',
             'titulo_congreso', 'institucion', 'tipo_congreso', 'pais',
-            'rol', 'titulo_ponencia', 'linea_investigacion', 'estado'
+            'año_congreso', 'fecha_exacta_congreso', 'rol', 
+            'titulo_ponencia', 'linea_investigacion', 'estado'
         ]
 
         # Verificar si el archivo existe y tiene contenido válido
@@ -377,6 +381,8 @@ def display_congreso_info(data, investigator_name):
     st.markdown(f"📌 Título: {data['titulo_congreso']}")
     st.markdown(f"🏛️ Institución: {data['institucion']}")
     st.markdown(f"🌍 Tipo: {data['tipo_congreso']} ({data['pais']})")
+    st.markdown(f"📅 Año: {data['año_congreso']}")
+    st.markdown(f"🗓️ Fecha exacta: {data['fecha_exacta_congreso']}")
     
     st.markdown("**Participación**")
     st.markdown(f"🎭 Rol: {highlight_participant(data['rol'], investigator_name)}", unsafe_allow_html=True)
@@ -469,13 +475,15 @@ def main():
             congresos_df = pd.DataFrame(columns=[
                 'economic_number', 'nombramiento', 'sni', 'sii', 'departamento',
                 'titulo_congreso', 'institucion', 'tipo_congreso', 'pais',
-                'rol', 'titulo_ponencia', 'linea_investigacion', 'estado'
+                'año_congreso', 'fecha_exacta_congreso', 'rol', 
+                'titulo_ponencia', 'linea_investigacion', 'estado'
             ])
     else:
         congresos_df = pd.DataFrame(columns=[
             'economic_number', 'nombramiento', 'sni', 'sii', 'departamento',
             'titulo_congreso', 'institucion', 'tipo_congreso', 'pais',
-            'rol', 'titulo_ponencia', 'linea_investigacion', 'estado'
+            'año_congreso', 'fecha_exacta_congreso', 'rol', 
+            'titulo_ponencia', 'linea_investigacion', 'estado'
         ])
 
     # Mostrar registros existentes si los hay
@@ -497,7 +505,8 @@ def main():
         # Crear copia editable con todos los campos excepto economic_number
         columnas_mostrar = [
             'titulo_congreso', 'institucion', 'tipo_congreso', 'pais',
-            'rol', 'titulo_ponencia', 'linea_investigacion', 'estado'
+            'año_congreso', 'fecha_exacta_congreso', 'rol', 
+            'titulo_ponencia', 'linea_investigacion', 'estado'
         ]
 
         # Mostrar expander con detalles completos
@@ -585,6 +594,13 @@ def main():
                     index=0
                 )
             
+            # Campos de fecha y año
+            col3, col4 = st.columns(2)
+            with col3:
+                año_congreso = st.text_input("📅 Año del congreso (ej. 2025):")
+            with col4:
+                fecha_exacta_congreso = st.text_input("🗓️ Fecha exacta (AAAA-MM-DD):", placeholder="AAAA-MM-DD")
+            
             rol = st.selectbox(
                 "🎭 Rol en el congreso:",
                 options=ROLES_PARTICIPACION,
@@ -614,6 +630,8 @@ def main():
                     'institucion': institucion,
                     'tipo_congreso': tipo_congreso,
                     'pais': pais,
+                    'año_congreso': año_congreso,
+                    'fecha_exacta_congreso': fecha_exacta_congreso if fecha_exacta_congreso else f"{año_congreso}-01-01",
                     'rol': rol,
                     'titulo_ponencia': titulo_ponencia if rol in ["Ponente", "Expositor"] else "N/A",
                     'linea_investigacion': ', '.join(linea_investigacion) if linea_investigacion else "Otra",
