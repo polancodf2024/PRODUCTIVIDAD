@@ -612,7 +612,7 @@ def main():
             with col4:
                 numero_edicion = st.text_input("#️⃣ Número de edición ej. 1, 2:")
 
-            paginas = st.text_input("📚 Número de páginas ej. 123-130:")
+            paginas = st.text_input("📚 Número de páginas ej. 250:")
 
             # Distribución
             st.subheader("🌍 Distribución")
