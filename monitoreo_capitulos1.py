@@ -330,7 +330,7 @@ def main():
                 help="Métricas generales basadas en los filtros aplicados.")
         
         # Tabla 1: Productividad por investigador (CAPÍTULOS ÚNICOS) con participación
-        st.subheader("🔍 Productividad por Investigador",
+        st.subheader("🔍 Productividad por investigador",
                    help="Muestra cuántos capítulos únicos tiene cada investigador y su tipo de participación.")
         
         # Crear dataframe con información de participación
@@ -380,7 +380,7 @@ def main():
                     )
         
         # Tabla 2: Editoriales más utilizadas (CAPÍTULOS ÚNICOS)
-        st.subheader("🏢 Editoriales más Utilizadas",
+        st.subheader("🏢 Editoriales más utilizadas",
                    help="Listado de editoriales ordenadas por cantidad de capítulos publicados.")
         editorial_stats = unique_capitulos.groupby('editorial').agg(
             Total_Capitulos=('editorial', 'size')
@@ -397,7 +397,7 @@ def main():
         st.dataframe(editorial_stats, hide_index=True)
         
         # Tabla 3: Tipos de participación más comunes (CAPÍTULOS ÚNICOS)
-        st.subheader("🎭 Tipos de Participación",
+        st.subheader("🎭 Tipos de participación",
                    help="Distribución de los tipos de participación en los capítulos.")
         participacion_stats = unique_capitulos['tipo_participacion'].value_counts().reset_index()
         participacion_stats.columns = ['Tipo de participación', 'Capítulos únicos']
@@ -411,15 +411,19 @@ def main():
         st.dataframe(participacion_stats, hide_index=True)
         
         # Tabla 4: Enfoques más frecuentes (CAPÍTULOS ÚNICOS)
-        st.subheader("🧪 Enfoques más Frecuentes",
-                   help="Palabras clave más utilizadas en los capítulos, indicando las áreas de investigación predominantes.")
+        st.subheader("🧪 Líneas de investigación",
+                   help="Líneas de investigación más utilizadas en los capítulos, indicando las áreas de investigación predominantes.")
         try:
             all_keywords = []
             for keywords in unique_capitulos['selected_keywords']:
                 if pd.notna(keywords):
-                    # Limpiar y procesar las palabras clave
-                    cleaned = str(keywords).strip("[]'").replace("'", "").split(", ")
-                    all_keywords.extend([k.strip() for k in cleaned if k.strip()])
+#                    # Limpiar y procesar las palabras clave
+#                    cleaned = str(keywords).strip("[]'").replace("'", "").split(", ")
+#                    all_keywords.extend([k.strip() for k in cleaned if k.strip()])
+            # Ahora (mantiene la cadena completa):
+                    cleaned = str(keywords).strip("[]'").replace("'", "")
+                    if cleaned:  # Solo agregar si no está vacío
+                        all_keywords.append(cleaned)
             
             keyword_stats = pd.Series(all_keywords).value_counts().reset_index()
             keyword_stats.columns = ['Enfoque', 'Frecuencia']
@@ -436,7 +440,7 @@ def main():
         
         # Tabla 5: Distribución por departamentos (CAPÍTULOS ÚNICOS)
         if 'departamento' in unique_capitulos.columns:
-            st.subheader("🏛️ Distribución por Departamento",
+            st.subheader("🏛️ Distribución por departamento de adscripción",
                        help="Clasificación de capítulos según el departamento de adscripción del autor principal.")
             depto_stats = unique_capitulos['departamento'].value_counts().reset_index()
             depto_stats.columns = ['Departamento', 'Capítulos únicos']
@@ -452,7 +456,7 @@ def main():
             st.warning("El campo 'departamento' no está disponible en los datos")
         
         # Tabla 6: Distribución temporal (CAPÍTULOS ÚNICOS)
-        st.subheader("🕰️ Distribución Mensual",
+        st.subheader("🕰️ Distribución mensual",
                     help="Evolución mensual de la producción de capítulos en el periodo seleccionado.")
 
         # Convertir a formato "YYYY-MM"
@@ -469,7 +473,7 @@ def main():
         
         # Tabla 7: Distribución por nivel SNI (CAPÍTULOS ÚNICOS)
         if 'sni' in unique_capitulos.columns:
-            st.subheader("📊 Distribución por Nivel SNI",
+            st.subheader("📊 Distribución por nivel SNI",
                         help="Clasificación de capítulos según el nivel del Sistema Nacional de Investigadores (SNI) de los autores.")
             sni_stats = unique_capitulos['sni'].value_counts().reset_index()
             sni_stats.columns = ['Nivel SNI', 'Capítulos únicos']
@@ -486,7 +490,7 @@ def main():
         
         # Tabla 8: Distribución por nivel SII (CAPÍTULOS ÚNICOS)
         if 'sii' in unique_capitulos.columns:
-            st.subheader("📈 Distribución por Nivel SII",
+            st.subheader("📈 Distribución por nivel SII",
                         help="Clasificación de capítulos según el nivel del Sistema Institucional de Investigación (SII) de los autores.")
             sii_stats = unique_capitulos['sii'].value_counts().reset_index()
             sii_stats.columns = ['Nivel SII', 'Capítulos únicos']
@@ -503,7 +507,7 @@ def main():
             
         # Tabla 9: Distribución por tipo de nombramiento (CAPÍTULOS ÚNICOS)
         if 'nombramiento' in unique_capitulos.columns:
-            st.subheader("👨‍🏫 Distribución por Tipo de Nombramiento",
+            st.subheader("👨‍🏫 Distribución por nombramiento institucional",
                         help="Clasificación de capítulos según el tipo de nombramiento de los autores.")
             nombramiento_stats = unique_capitulos['nombramiento'].value_counts().reset_index()
             nombramiento_stats.columns = ['Tipo de Nombramiento', 'Capítulos únicos']
@@ -520,7 +524,7 @@ def main():
         
         # Tabla 10: Distribución por países de distribución (CAPÍTULOS ÚNICOS)
         if 'paises_distribucion' in unique_capitulos.columns:
-            st.subheader("🌍 Distribución por Países",
+            st.subheader("🌍 Distribución por países",
                         help="Países donde se distribuyen los libros que contienen los capítulos publicados.")
             
             try:
@@ -545,7 +549,7 @@ def main():
 
         # Tabla 11: Distribución por idioma (CAPÍTULOS ÚNICOS)
         if 'idiomas_disponibles' in unique_capitulos.columns:
-            st.subheader("🌐 Distribución por Idioma",
+            st.subheader("🌐 Distribución por idioma",
                         help="Idiomas en los que están publicados los libros que contienen los capítulos.")
             idioma_stats = unique_capitulos['idiomas_disponibles'].value_counts().reset_index()
             idioma_stats.columns = ['Idioma', 'Capítulos únicos']
@@ -562,7 +566,7 @@ def main():
             
         # Tabla 12: Distribución por formato (CAPÍTULOS ÚNICOS)
         if 'formatos_disponibles' in unique_capitulos.columns:
-            st.subheader("📖 Distribución por Formato",
+            st.subheader("📖 Distribución por tipo de formato",
                         help="Formatos disponibles para los libros que contienen los capítulos publicados.")
             formato_stats = unique_capitulos['formatos_disponibles'].value_counts().reset_index()
             formato_stats.columns = ['Formato', 'Capítulos únicos']
