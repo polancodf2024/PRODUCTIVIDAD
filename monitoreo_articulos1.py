@@ -23,8 +23,9 @@ logging.basicConfig(
 class Config:
     def __init__(self):
         # Configuración SFTP
-        self.REMOTE_PRODUCTOS_FILE = "pro_productos_total.csv"  # Nombre completo del archivo remoto
-        self.TIMEOUT_SECONDS = 30
+        self.REMOTE_PRODUCTOS_FILE = "pro_productos_total.csv"
+        self.REMOTE_GENERADOR_PATH = f"/home/POLANCO6/PRODUCTIVIDAD/{st.secrets['prefixes']['generador']}"
+        self.TIMEOUT_SECONDS = 120  # Aumentado para ejecución remota
         
         self.REMOTE = {
             'HOST': st.secrets["sftp"]["host"],
@@ -117,6 +118,54 @@ class SSHManager:
             finally:
                 ssh.close()
 
+    @staticmethod
+    def execute_remote_python_script(remote_script_path):
+        """Ejecuta un script Python remoto con reintentos"""
+        command = f"python3 {remote_script_path}"
+        for attempt in range(SSHManager.MAX_RETRIES):
+            ssh = SSHManager.get_connection()
+            if not ssh:
+                return False, "Error de conexión SSH"
+                
+            try:
+                stdin, stdout, stderr = ssh.exec_command(command, timeout=60)
+                exit_status = stdout.channel.recv_exit_status()
+                output = stdout.read().decode('utf-8').strip()
+                error = stderr.read().decode('utf-8').strip()
+                
+                if exit_status != 0:
+                    raise Exception(f"Código {exit_status}: {error}")
+                
+                logging.info(f"Script {remote_script_path} ejecutado correctamente")
+                return True, output
+            except Exception as e:
+                logging.error(f"Intento {attempt + 1} fallido: {str(e)}")
+                if attempt < SSHManager.MAX_RETRIES - 1:
+                    time.sleep(SSHManager.RETRY_DELAY)
+                else:
+                    return False, str(e)
+            finally:
+                ssh.close()
+
+def ejecutar_generador_remoto():
+    """Ejecuta el script generador.py en el servidor remoto"""
+    try:
+        with st.spinner("🔄 Ejecutando generador.py en servidor remoto..."):
+            success, message = SSHManager.execute_remote_python_script(CONFIG.REMOTE_GENERADOR_PATH)
+            
+            if success:
+                st.success("✅ generador.py ejecutado correctamente en el servidor")
+                logging.info("Ejecución remota exitosa del generador")
+                return True
+            else:
+                st.error(f"❌ Error ejecutando generador.py: {message}")
+                logging.error(f"Error en ejecución remota: {message}")
+                return False
+    except Exception as e:
+        st.error(f"❌ Error inesperado: {str(e)}")
+        logging.error(f"Error en ejecutar_generador_remoto: {str(e)}")
+        return False
+
 def sync_productos_file():
     """Sincroniza el archivo productos_total.csv desde el servidor remoto"""
     try:
@@ -141,7 +190,11 @@ def main():
 
     st.title("Análisis de Artículos")
 
-    # Sincronizar archivo productos_total.csv al inicio
+    # Paso 1: Ejecutar generador remoto para actualizar datos
+    if not ejecutar_generador_remoto():
+        st.warning("⚠️ Continuando con datos existentes (pueden no estar actualizados)")
+
+    # Paso 2: Sincronizar archivo productos_total.csv
     if not sync_productos_file():
         st.warning("⚠️ Trabajando con copia local de productos_total.csv debido a problemas de conexión")
 
@@ -228,7 +281,7 @@ def main():
         duplicates_count = len(filtered_df) - len(unique_articles)
 
         if duplicates_count > 0:
-            if len(unique_articles) == 1:
+            if duplicates_count == 1:
                 st.warning(f"⚠️ **Nota:** Se detectó {duplicates_count} artículo duplicado.")
             else:
                 st.warning(f"⚠️ **Nota:** Se detectaron {duplicates_count} artículos duplicados.")
@@ -437,4 +490,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
