@@ -22,10 +22,11 @@ logging.basicConfig(
 # ====================
 class Config:
     def __init__(self):
-        # Configuración SFTP
-        self.REMOTE_PRODUCTOS_FILE = "pro_productos_total.csv"
-        self.REMOTE_GENERADOR_PATH = "/home/POLANCO6/PRODUCTIVIDAD/generador.py"
-        self.TIMEOUT_SECONDS = 120  # Aumentado para ejecución remota
+        # Configuración SFTP usando secrets.toml
+        self.REMOTE_PRODUCTOS_FILE = f"{st.secrets['prefixes']['productos']}total.csv"
+        self.REMOTE_GENERADOR_PATH = f"{st.secrets['sftp']['dir']}/{st.secrets['prefixes']['generador']}"
+        self.REMOTE_DIR = st.secrets["sftp"]["dir"]
+        self.TIMEOUT_SECONDS = 30
         
         self.REMOTE = {
             'HOST': st.secrets["sftp"]["host"],
@@ -118,58 +119,77 @@ class SSHManager:
             finally:
                 ssh.close()
 
-    @staticmethod
-    def execute_remote_python_script(remote_script_path):
-        """Ejecuta un script Python remoto con reintentos"""
-        command = f"python3 {remote_script_path}"
-        for attempt in range(SSHManager.MAX_RETRIES):
+def ejecutar_generador_remoto():
+    """Ejecuta el script generador.sh en el servidor remoto"""
+    ssh = None
+    try:
+        with st.spinner("🔄 Ejecutando generador.sh en servidor remoto..."):
+            # Establecer conexión SSH
             ssh = SSHManager.get_connection()
             if not ssh:
-                return False, "Error de conexión SSH"
-                
-            try:
-                stdin, stdout, stderr = ssh.exec_command(command, timeout=60)
-                exit_status = stdout.channel.recv_exit_status()
-                output = stdout.read().decode('utf-8').strip()
-                error = stderr.read().decode('utf-8').strip()
-                
-                if exit_status != 0:
-                    raise Exception(f"Código {exit_status}: {error}")
-                
-                logging.info(f"Script {remote_script_path} ejecutado correctamente")
-                return True, output
-            except Exception as e:
-                logging.error(f"Intento {attempt + 1} fallido: {str(e)}")
-                if attempt < SSHManager.MAX_RETRIES - 1:
-                    time.sleep(SSHManager.RETRY_DELAY)
-                else:
-                    return False, str(e)
-            finally:
-                ssh.close()
-
-def ejecutar_generador_remoto():
-    """Ejecuta el script generador.py en el servidor remoto"""
-    try:
-        with st.spinner("🔄 Ejecutando generador.py en servidor remoto..."):
-            success, message = SSHManager.execute_remote_python_script(CONFIG.REMOTE_GENERADOR_PATH)
-            
-            if success:
-                st.success("✅ generador.py ejecutado correctamente en el servidor")
-                logging.info("Ejecución remota exitosa del generador")
-                return True
-            else:
-                st.error(f"❌ Error ejecutando generador.py: {message}")
-                logging.error(f"Error en ejecución remota: {message}")
                 return False
+
+            # 1. Verificar que el script existe
+            sftp = ssh.open_sftp()
+            try:
+                sftp.stat(CONFIG.REMOTE_GENERADOR_PATH)
+                logging.info(f"Script encontrado en: {CONFIG.REMOTE_GENERADOR_PATH}")
+            except FileNotFoundError:
+                st.error(f"❌ Error: No se encontró el script en {CONFIG.REMOTE_GENERADOR_PATH}")
+                logging.error(f"Script no encontrado: {CONFIG.REMOTE_GENERADOR_PATH}")
+                return False
+            finally:
+                sftp.close()
+
+            # 2. Ejecutar el script en el directorio correcto
+            comando = f"cd {CONFIG.REMOTE_DIR} && bash {CONFIG.REMOTE_GENERADOR_PATH}"
+            logging.info(f"Ejecutando comando: {comando}")
+            
+            stdin, stdout, stderr = ssh.exec_command(comando)
+            exit_status = stdout.channel.recv_exit_status()
+            output = stdout.read().decode('utf-8').strip()
+            error = stderr.read().decode('utf-8').strip()
+
+            # 3. Verificar resultados
+            if exit_status != 0:
+                error_msg = f"Código {exit_status}\nOutput: {output}\nError: {error}"
+                st.error(f"❌ Error en la ejecución: {error_msg}")
+                logging.error(f"Error ejecutando generador.sh: {error_msg}")
+                return False
+
+            logging.info("Script ejecutado correctamente")
+            
+            # 4. Verificar que el archivo se creó en la ubicación correcta
+            sftp = ssh.open_sftp()
+            output_path = os.path.join(CONFIG.REMOTE_DIR, CONFIG.REMOTE_PRODUCTOS_FILE)
+            try:
+                sftp.stat(output_path)
+                file_size = sftp.stat(output_path).st_size
+                logging.info(f"Archivo creado en: {output_path} (Tamaño: {file_size} bytes)")
+                st.success("✅ generador.sh ejecutado correctamente en el servidor")
+                return True
+                
+            except FileNotFoundError:
+                error_msg = f"No se encontró el archivo de salida en {output_path}"
+                st.error(f"❌ Error: {error_msg}")
+                logging.error(error_msg)
+                return False
+            finally:
+                sftp.close()
+
     except Exception as e:
-        st.error(f"❌ Error inesperado: {str(e)}")
-        logging.error(f"Error en ejecutar_generador_remoto: {str(e)}")
+        error_msg = f"Error inesperado: {str(e)}"
+        st.error(f"❌ {error_msg}")
+        logging.error(f"Error en ejecutar_generador_remoto: {error_msg}")
         return False
+    finally:
+        if ssh:
+            ssh.close()
 
 def sync_productos_file():
     """Sincroniza el archivo productos_total.csv desde el servidor remoto"""
     try:
-        remote_path = os.path.join(CONFIG.REMOTE['DIR'], CONFIG.REMOTE_PRODUCTOS_FILE)
+        remote_path = os.path.join(CONFIG.REMOTE_DIR, CONFIG.REMOTE_PRODUCTOS_FILE)
         local_path = "productos_total.csv"
         
         with st.spinner("🔄 Sincronizando archivo productos_total.csv desde el servidor..."):
