@@ -24,7 +24,7 @@ class Config:
     def __init__(self):
         # Configuración SFTP usando secrets.toml
         self.REMOTE_PRODUCTOS_FILE = f"{st.secrets['prefixes']['productos']}total.csv"
-        self.REMOTE_GENERADOR_PATH = f"{st.secrets['sftp']['dir']}/{st.secrets['prefixes']['generador']}"
+        self.REMOTE_GENERADOR_PATH = f"{st.secrets['sftp']['dir']}/{st.secrets['prefixes']['generadorarticulos']}"
         self.REMOTE_DIR = st.secrets["sftp"]["dir"]
         self.TIMEOUT_SECONDS = 30
         
@@ -120,10 +120,10 @@ class SSHManager:
                 ssh.close()
 
 def ejecutar_generador_remoto():
-    """Ejecuta el script generador.sh en el servidor remoto"""
+    """Ejecuta el script generadorarticulos.sh en el servidor remoto"""
     ssh = None
     try:
-        with st.spinner("🔄 Ejecutando generador.sh en servidor remoto..."):
+        with st.spinner("🔄 Ejecutando generadorarticulos.sh en servidor remoto..."):
             # Establecer conexión SSH
             ssh = SSHManager.get_connection()
             if not ssh:
@@ -154,7 +154,7 @@ def ejecutar_generador_remoto():
             if exit_status != 0:
                 error_msg = f"Código {exit_status}\nOutput: {output}\nError: {error}"
                 st.error(f"❌ Error en la ejecución: {error_msg}")
-                logging.error(f"Error ejecutando generador.sh: {error_msg}")
+                logging.error(f"Error ejecutando generadorarticulos.sh: {error_msg}")
                 return False
 
             logging.info("Script ejecutado correctamente")
@@ -166,7 +166,7 @@ def ejecutar_generador_remoto():
                 sftp.stat(output_path)
                 file_size = sftp.stat(output_path).st_size
                 logging.info(f"Archivo creado en: {output_path} (Tamaño: {file_size} bytes)")
-                st.success("✅ generador.sh ejecutado correctamente en el servidor")
+                st.success("✅ generadorarticulos.sh ejecutado correctamente en el servidor")
                 return True
                 
             except FileNotFoundError:
