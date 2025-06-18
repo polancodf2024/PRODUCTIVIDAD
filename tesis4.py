@@ -579,7 +579,7 @@ def main():
                 index=0
             )
             directores = st.text_input("👨‍🏫 Director(es) de tesis (separados por ';'):")
-            paginas = st.text_input("🔖 Número de páginas ej. 123-130:")
+            paginas = st.text_input("🔖 Número de páginas ej. 230:")
             idioma = st.selectbox(
                 "🌐 Idioma principal de la tesis:",
                 options=IDIOMAS_TESIS,
