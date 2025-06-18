@@ -24,7 +24,7 @@ class Config:
     def __init__(self):
         # Configuración SFTP
         self.REMOTE_PRODUCTOS_FILE = "pro_productos_total.csv"
-        self.REMOTE_GENERADOR_PATH = f"/home/POLANCO6/PRODUCTIVIDAD/{st.secrets['prefixes']['generador']}"
+        self.REMOTE_GENERADOR_PATH = "/home/POLANCO6/PRODUCTIVIDAD/generador.py"
         self.TIMEOUT_SECONDS = 120  # Aumentado para ejecución remota
         
         self.REMOTE = {
