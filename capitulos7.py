@@ -439,7 +439,7 @@ def main():
     nombramiento = st.selectbox(
         "👔 Nombramiento:",
         options=["Ayudante de investigador", "Investigador", "Mando medio", "Médico",
-                "", "Médico especialista", "Otro", "Técnico"],
+                "Médico especialista", "Otro", "Técnico"],
         index=0
     )
 
