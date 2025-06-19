@@ -18,82 +18,6 @@ logging.basicConfig(
     datefmt='%Y-%m-%d %H:%M:%S'
 )
 
-# ====================
-# CATEGORÍAS DE KEYWORDS PARA CAPÍTULOS
-# ====================
-KEYWORD_CATEGORIES = {
-    "Accidente Cerebrovascular": ["accidente cerebrovascular", "acv", "ictus", "stroke"],
-    "Alzheimer": ["alzheimer", "demencia", "enfermedad neurodegenerativa"],
-    "Arritmias": [
-        "arritmia", "fibrilación auricular", "fa", "flutter auricular",
-        "taquicardia ventricular", "tv", "fibrilación ventricular", "fv",
-        "bradicardia", "bloqueo auriculoventricular", "síndrome de brugada",
-        "síndrome de qt largo", "marcapasos", "desfibrilador automático"
-    ],
-    "Bioinformática": ["bioinformática", "genómica computacional", "análisis de secuencias", "biología de sistemas"],
-    "Bioquímica": ["bioquímica", "metabolismo", "enzimas", "rutas metabólicas"],
-    "Biología Molecular": ["adn", "arn", "transcripción", "replicación"],
-    "Biomarcadores Cardíacos": [
-        "troponina", "nt-probnp", "bnp", "ck-mb", "lactato deshidrogenasa",
-        "mioglobina", "péptidos natriuréticos"
-    ],
-    "Biotecnología": ["biotecnología", "terapia génica", "crispr", "organismos modificados genéticamente"],
-    "Cáncer de Mama": ["cáncer de mama", "tumor mamario", "neoplasia mamaria"],
-    "Cardiología Pediátrica": [
-        "cardiopatía congénita", "comunicación interauricular", "cia",
-        "comunicación interventricular", "civ", "tetralogía de fallot",
-        "transposición grandes vasos", "ductus arterioso persistente"
-    ],
-    "Cardiomiopatías": [
-        "cardiomiopatía", "miocardiopatía", "cardiomiopatía hipertrófica", "hcm",
-        "cardiomiopatía dilatada", "dcm", "cardiomiopatía restrictiva",
-        "displasia arritmogénica", "miocardiopatía no compactada", "amiloidosis cardíaca"
-    ],
-    "Endocrinología": ["diabetes", "tiroides", "hormonas", "metabolismo"],
-    "Enfermedad Vascular Periférica": [
-        "enfermedad arterial periférica", "eap", "claudicación intermitente",
-        "índice tobillo-brazo", "isquemia crítica", "arteriopatía obliterante"
-    ],
-    "Epidemiología": ["epidemiología", "estudios poblacionales", "incidencia", "prevalencia"],
-    "Epilepsia": ["epilepsia", "crisis epiléptica", "convulsiones"],
-    "Farmacología": ["farmacología", "fármacos", "dosis-respuesta", "toxicidad"],
-    "Gastroenterología": ["colon", "hígado", "páncreas", "enfermedad inflamatoria intestinal"],
-    "Genética": ["genética", "mutaciones", "genoma humano", "síndromes genéticos"],
-    "Hipertensión y Riesgo Cardiovascular": [
-        "hipertensión arterial", "hta", "hipertensión pulmonar",
-        "crisis hipertensiva", "mapa", "monitorización ambulatoria",
-        "riesgo cardiovascular", "score framingham", "ascvd"
-    ],
-    "Inmunología": ["autoinmunidad", "inmunodeficiencia", "alergias", "linfocitos"],
-    "Inmunoterapia": ["inmunoterapia", "terapia car-t", "checkpoint inmunológico"],
-    "Insuficiencia Cardíaca": [
-        "insuficiencia cardíaca", "ic", "fallo cardíaco", "disfunción ventricular",
-        "icfe", "icfd", "fracción de eyección reducida", "fracción de eyección preservada",
-        "nyha clase ii", "nyha clase iii", "edema pulmonar", "congestión venosa"
-    ],
-    "Investigación Clínica": ["ensayo clínico", "randomizado", "estudio de cohorte", "fase iii"],
-    "Leucemia": ["leucemia", "leucemias agudas", "leucemia mieloide"],
-    "Microbiología": ["microbiología", "bacterias", "virus", "antimicrobianos"],
-    "Nefrología": ["insuficiencia renal", "glomerulonefritis", "diálisis"],
-    "Neumología": ["asma", "epoc", "fibrosis pulmonar", "síndrome de apnea del sueño"],
-    "Neurociencia": ["neurociencia", "plasticidad neuronal", "sinapsis", "neurodegeneración"],
-    "Oncología Molecular": ["oncología molecular", "mutaciones tumorales", "biomarcadores cáncer"],
-    "Procedimientos Cardiológicos": [
-        "cateterismo cardíaco", "angioplastia", "stent coronario",
-        "bypass coronario", "cabg", "ecocardiograma", "eco stress",
-        "resonancia cardíaca", "prueba de esfuerzo", "holter"
-    ],
-    "Síndrome Coronario Agudo": [
-        "síndrome coronario agudo", "sca", "infarto agudo de miocardio", "iam",
-        "iamcest", "iamnest", "angina inestabile", "troponina elevada",
-        "oclusión coronaria", "elevación st", "depresión st"
-    ],
-    "Valvulopatías": [
-        "valvulopatía", "estenosis aórtica", "insuficiencia aórtica",
-        "stenosis mitral", "insuficiencia mitral", "prolapso mitral",
-        "tavi", "taavi", "anillo mitral", "reemplazo valvular"
-    ],
-}
 
 # ====================
 # CONFIGURACIÓN INICIAL
@@ -223,387 +147,279 @@ def highlight_author(author: str, investigator_name: str) -> str:
         return f"<span style='background-color: {CONFIG.HIGHLIGHT_COLOR};'>{author}</span>"
     return author
 
+def parse_custom_date(date_str):
+    """Función para parsear fechas en formato 'YYYY_MM-DD' o 'YYYY-MM-DD'"""
+    if pd.isna(date_str):
+        return pd.NaT
+    
+    try:
+        # Primero intentamos con el formato que parece estar en tus datos (2025_06-02)
+        if '_' in date_str:
+            year_part, month_day_part = date_str.split('_')
+            month, day = month_day_part.split('-')
+            return datetime(int(year_part), int(month), int(day))
+        else:
+            # Si no tiene '_', probamos con formato estándar
+            return pd.to_datetime(date_str)
+    except:
+        return pd.NaT
+
 def main():
     st.set_page_config(
         page_title="Análisis de Capítulos",
         page_icon="📚",
         layout="wide"
     )
-    
-    # Añadir logo en la parte superior
+
+    # Añadir logo
     if Path(CONFIG.LOGO_PATH).exists():
         st.image(CONFIG.LOGO_PATH, width=200)
-    
+
     st.title("Análisis de Capítulos de Libros")
-    
-    # Sincronizar archivo capitulos_total.csv al inicio
+
+    # Sincronizar archivo
     if not sync_capitulos_file():
-        st.warning("⚠️ Trabajando con copia local de capitulos_total.csv debido a problemas de conexión")
-    
-    # Verificar si el archivo local existe
+        st.warning("⚠️ Trabajando con copia local debido a problemas de conexión")
+
     if not Path("capitulos_total.csv").exists():
-        st.error("No se encontró el archivo capitulos_total.csv")
+        st.error("Archivo no encontrado")
         return
-    
+
     try:
-        # Leer y procesar el archivo con los nuevos campos sni y sii
-        df = pd.read_csv("capitulos_total.csv")
-        
-        # Verificar que los campos importantes existen
-        required_columns = ['autor_principal', 'titulo_libro', 'titulo_capitulo', 'pub_date', 'estado', 'selected_keywords']
+        # Leer archivo con manejo robusto de valores nulos
+        df = pd.read_csv(
+            "capitulos_total.csv",
+            keep_default_na=True,
+            na_values=['None', 'none', 'NONE', '', 'NA', 'na', 'Na', 'n/a', 'N/A'],
+            dtype={'year': 'object'}
+        )
+
+#        # Mostrar datos crudos para depuración
+#        st.subheader("📝 Datos completos (sin filtros)")
+#        st.dataframe(df)
+
+        # Verificar campos obligatorios
+        required_columns = [
+            'autor_principal', 'titulo_libro', 'titulo_capitulo',
+            'estado', 'tipo_participacion'
+        ]
         missing_columns = [col for col in required_columns if col not in df.columns]
-        
+
         if missing_columns:
-            st.warning(f"El archivo capitulos_total.csv no contiene los campos requeridos: {', '.join(missing_columns)}")
+            st.error(f"Faltan columnas requeridas: {', '.join(missing_columns)}")
             return
-        
-        # Convertir y validar fechas
-        df['pub_date'] = pd.to_datetime(df['pub_date'], errors='coerce')
-        df = df[(df['estado'] == 'A') & (df['pub_date'].notna())]
-        
-        if df.empty:
-            st.warning("No hay capítulos válidos para analizar")
-            return
-        
-        st.success(f"Datos cargados correctamente. Registros activos: {len(df)}")
-        
-        # Obtener rangos de fechas disponibles
-        min_date = df['pub_date'].min()
-        max_date = df['pub_date'].max()
-        
-        # Selector de rango mes-año con ayuda
+
+        # Convertir fechas manteniendo registros sin fecha
+        df['pub_date'] = df['pub_date'].apply(
+            lambda x: parse_custom_date(x) if pd.notna(x) else pd.NaT
+        )
+
+        # Filtrar solo registros activos
+        df = df[df['estado'] == 'A'].copy()
+
+        st.success(f"✅ Datos cargados: {len(df)} registros activos")
+#        st.write(f"📌 Tipos de participación encontrados: {df['tipo_participacion'].unique()}")
+
+        # Configurar rangos de fecha
+        valid_dates = df[df['pub_date'].notna()]
+        min_date = valid_dates['pub_date'].min() if not valid_dates.empty else datetime.now()
+        max_date = valid_dates['pub_date'].max() if not valid_dates.empty else datetime.now()
+
+        # Selector de periodo
         st.header("📅 Selección de Periodo")
         col1, col2 = st.columns(2)
-        
+
         with col1:
-            start_year = st.selectbox("Año inicio", 
-                                   range(min_date.year, max_date.year+1),
-                                   index=0,
-                                   help="Selecciona el año inicial para el análisis.")
-            start_month = st.selectbox("Mes inicio", 
-                                    range(1, 13), 
-                                    index=min_date.month-1,
-                                    format_func=lambda x: datetime(1900, x, 1).strftime('%B'),
-                                    help="Selecciona el mes inicial para el análisis.")
-        
+            start_year = st.selectbox(
+                "Año inicio",
+                range(min_date.year, max_date.year+1),
+                index=0
+            )
+            start_month = st.selectbox(
+                "Mes inicio",
+                range(1, 13),
+                index=min_date.month-1,
+                format_func=lambda x: datetime(1900, x, 1).strftime('%B')
+            )
+
         with col2:
-            end_year = st.selectbox("Año término", 
-                                  range(min_date.year, max_date.year+1),
-                                  index=len(range(min_date.year, max_date.year+1))-1,
-                                  help="Selecciona el año final para el análisis.")
-            end_month = st.selectbox("Mes término", 
-                                   range(1, 13), 
-                                   index=max_date.month-1,
-                                   format_func=lambda x: datetime(1900, x, 1).strftime('%B'),
-                                   help="Selecciona el mes final para el análisis.")
-        
-        # Calcular fechas de inicio y fin
-        start_day = 1
-        end_day = calendar.monthrange(end_year, end_month)[1]
-        
-        date_start = datetime(start_year, start_month, start_day)
-        date_end = datetime(end_year, end_month, end_day)
-        
-        # Filtrar dataframe
-        filtered_df = df[(df['pub_date'] >= pd.to_datetime(date_start)) & 
-                       (df['pub_date'] <= pd.to_datetime(date_end))]
-        
-        # Obtener capítulos únicos para estadísticas precisas
+            end_year = st.selectbox(
+                "Año término",
+                range(min_date.year, max_date.year+1),
+                index=len(range(min_date.year, max_date.year+1))-1
+            )
+            end_month = st.selectbox(
+                "Mes término",
+                range(1, 13),
+                index=max_date.month-1,
+                format_func=lambda x: datetime(1900, x, 1).strftime('%B')
+            )
+
+        # Calcular periodo seleccionado
+        date_start = datetime(start_year, start_month, 1)
+        date_end = datetime(
+            end_year,
+            end_month,
+            calendar.monthrange(end_year, end_month)[1]
+        )
+
+        # Filtrar incluyendo registros sin fecha
+        filtered_df = df[
+            (df['pub_date'].isna()) |
+            (
+                (df['pub_date'] >= pd.to_datetime(date_start)) &
+                (df['pub_date'] <= pd.to_datetime(date_end))
+            )
+        ].copy()
+
+        st.markdown(f"**Periodo seleccionado:** {date_start.strftime('%d/%m/%Y')} - {date_end.strftime('%d/%m/%Y')}")
+        st.markdown(f"**Registros encontrados:** {len(filtered_df)}")
+
+        # Obtener capítulos únicos
         unique_capitulos = filtered_df.drop_duplicates(subset=['titulo_capitulo'])
-        
-        st.markdown(f"**Periodo seleccionado:** {date_start.strftime('%d/%m/%Y')} - {date_end.strftime('%d/%m/%Y')}",
-                   help="Rango de fechas seleccionado para el análisis.")
-        st.markdown(f"**Registros encontrados:** {len(filtered_df)}",
-                   help="Total de registros en el periodo, incluyendo posibles duplicados del mismo capítulo.")
-        st.markdown(f"**Capítulos únicos:** {len(unique_capitulos)}",
-                   help="Cantidad de capítulos distintos, eliminando duplicados.")
-        
-        if len(filtered_df) != len(unique_capitulos):
-            st.warning(f"⚠️ **Nota:** Se detectaron {len(filtered_df) - len(unique_capitulos)} registros duplicados del mismo capítulo.")
-        
+        st.markdown(f"**Capítulos únicos:** {len(unique_capitulos)}")
+
         if filtered_df.empty:
             st.warning("No hay capítulos en el periodo seleccionado")
             return
-        
-        # Análisis consolidado en tablas
-        st.header("📊 Estadísticas Consolidadas",
-                help="Métricas generales basadas en los filtros aplicados.")
-        
-        # Tabla 1: Productividad por investigador (CAPÍTULOS ÚNICOS) con participación
-        st.subheader("🔍 Productividad por investigador",
-                   help="Muestra cuántos capítulos únicos tiene cada investigador y su tipo de participación.")
-        
-        # Crear dataframe con información de participación
+
+        # Análisis consolidado
+        st.header("📊 Estadísticas Consolidadas")
+
+        # 1. Productividad por investigador (versión corregida)
+        st.subheader("🔍 Productividad por investigador")
+
+        # Calcular estadísticas
         investigator_stats = filtered_df.groupby('autor_principal').agg(
             Capítulos_Unicos=('titulo_capitulo', lambda x: len(set(x))),
-            Participaciones=('tipo_participacion', lambda x: ', '.join(sorted(set(x))))
+            Participaciones=('tipo_participacion', lambda x: ', '.join(sorted(set(x)))),
+            Primer_Capítulo=('pub_date', 'min'),
+            Último_Capítulo=('pub_date', 'max')
         ).reset_index()
-        
+
         investigator_stats = investigator_stats.sort_values('Capítulos_Unicos', ascending=False)
-        investigator_stats.columns = ['Investigador', 'Capítulos únicos', 'Tipo de participación']
-        
-        # Añadir fila de totales
+        investigator_stats.columns = [
+            'Investigador', 'Capítulos únicos', 'Tipos de participación',
+            'Primer capítulo', 'Último capítulo'
+        ]
+
+        # Preparar fila de totales con tipos de datos consistentes
         total_row = pd.DataFrame({
             'Investigador': ['TOTAL'],
             'Capítulos únicos': [investigator_stats['Capítulos únicos'].sum()],
-            'Tipo de participación': ['']
+            'Tipos de participación': [''],
+            'Primer capítulo': [pd.NaT],  # Usar NaT en lugar de None
+            'Último capítulo': [pd.NaT]
         })
-        investigator_stats = pd.concat([investigator_stats.head(10), total_row], ignore_index=True)
-        
-        # Mostrar tabla con enlaces clickeables
-        for index, row in investigator_stats.iterrows():
+
+        # Asegurar tipos de datos consistentes
+        investigator_stats['Primer capítulo'] = pd.to_datetime(investigator_stats['Primer capítulo'])
+        investigator_stats['Último capítulo'] = pd.to_datetime(investigator_stats['Último capítulo'])
+
+        # Concatenar con tipos consistentes
+        investigator_stats = pd.concat([
+            investigator_stats,
+            total_row
+        ], ignore_index=True)
+
+        # Formatear fechas para visualización
+        investigator_stats['Primer capítulo'] = investigator_stats['Primer capítulo'].apply(
+            lambda x: x.strftime('%d/%m/%Y') if pd.notna(x) else 'N/A'
+        )
+        investigator_stats['Último capítulo'] = investigator_stats['Último capítulo'].apply(
+            lambda x: x.strftime('%d/%m/%Y') if pd.notna(x) else 'N/A'
+        )
+
+        st.dataframe(investigator_stats, hide_index=True)
+
+        # Detalle por investigador
+        for _, row in investigator_stats.iterrows():
             if row['Investigador'] != 'TOTAL':
-                # Crear un expander para cada investigador
                 with st.expander(f"{row['Investigador']} - {row['Capítulos únicos']} capítulos"):
-                    # Filtrar los capítulos del investigador
-                    investigator_capitulos = filtered_df[filtered_df['autor_principal'] == row['Investigador']]
-                    unique_capitulos_investigator = investigator_capitulos.drop_duplicates(subset=['titulo_capitulo'])
-                    
-                    # Mostrar los capítulos (incluyendo los nuevos campos si existen)
-                    display_columns = ['titulo_libro', 'titulo_capitulo', 'editorial', 'pub_date', 'isbn_issn']
-                    if 'sni' in unique_capitulos_investigator.columns and 'sii' in unique_capitulos_investigator.columns:
-                        display_columns.extend(['sni', 'sii'])
-                    if 'nombramiento' in unique_capitulos_investigator.columns:
-                        display_columns.append('nombramiento')
-                    
-                    st.write(f"Capítulos de {row['Investigador']}:")
-                    st.dataframe(unique_capitulos_investigator[display_columns])
-                    
-                    # Opción para descargar en CSV
-                    csv = unique_capitulos_investigator.to_csv(index=False).encode('utf-8')
+                    investigator_data = filtered_df[
+                        filtered_df['autor_principal'] == row['Investigador']
+                    ].drop_duplicates(subset=['titulo_capitulo'])
+
+                    display_cols = [
+                        'titulo_libro', 'titulo_capitulo', 'editorial',
+                        'pub_date', 'isbn_issn', 'tipo_participacion'
+                    ]
+
+                    # Añadir campos opcionales si existen
+                    optional_cols = ['sni', 'sii', 'nombramiento', 'departamento']
+                    for col in optional_cols:
+                        if col in investigator_data.columns:
+                            display_cols.append(col)
+
+                    # Formatear fecha para visualización
+                    temp_df = investigator_data[display_cols].copy()
+                    if 'pub_date' in temp_df.columns:
+                        temp_df['pub_date'] = temp_df['pub_date'].apply(
+                            lambda x: x.strftime('%d/%m/%Y') if pd.notna(x) else 'N/A'
+                        )
+
+                    st.dataframe(temp_df)
+
+                    # Botón de descarga
+                    csv = temp_df.to_csv(index=False).encode('utf-8')
                     st.download_button(
-                        label="Descargar producción de capítulos en CSV",
+                        label=f"Descargar {row['Investigador']}",
                         data=csv,
                         file_name=f"capitulos_{row['Investigador'].replace(' ', '_')}.csv",
-                        mime='text/csv',
-                        key=f"download_{index}"
+                        mime='text/csv'
                     )
-        
-        # Tabla 2: Editoriales más utilizadas (CAPÍTULOS ÚNICOS)
-        st.subheader("🏢 Editoriales más utilizadas",
-                   help="Listado de editoriales ordenadas por cantidad de capítulos publicados.")
-        editorial_stats = unique_capitulos.groupby('editorial').agg(
-            Total_Capitulos=('editorial', 'size')
-        ).reset_index()
-        editorial_stats = editorial_stats.sort_values('Total_Capitulos', ascending=False)
-        editorial_stats.columns = ['Editorial', 'Capítulos únicos']
-        
-        # Añadir fila de totales
-        total_row = pd.DataFrame({
-            'Editorial': ['TOTAL'],
-            'Capítulos únicos': [editorial_stats['Capítulos únicos'].sum()]
-        })
-        editorial_stats = pd.concat([editorial_stats.head(10), total_row], ignore_index=True)
+
+        # 2. Estadísticas por editorial
+        st.subheader("🏢 Editoriales")
+        editorial_stats = unique_capitulos['editorial'].value_counts().reset_index()
+        editorial_stats.columns = ['Editorial', 'Capítulos']
         st.dataframe(editorial_stats, hide_index=True)
-        
-        # Tabla 3: Tipos de participación más comunes (CAPÍTULOS ÚNICOS)
-        st.subheader("🎭 Tipos de participación",
-                   help="Distribución de los tipos de participación en los capítulos.")
+
+        # 3. Distribución por tipo de participación
+        st.subheader("🎭 Tipos de participación")
         participacion_stats = unique_capitulos['tipo_participacion'].value_counts().reset_index()
-        participacion_stats.columns = ['Tipo de participación', 'Capítulos únicos']
-        
-        # Añadir fila de totales
-        total_row = pd.DataFrame({
-            'Tipo de participación': ['TOTAL'],
-            'Capítulos únicos': [participacion_stats['Capítulos únicos'].sum()]
-        })
-        participacion_stats = pd.concat([participacion_stats, total_row], ignore_index=True)
+        participacion_stats.columns = ['Tipo', 'Capítulos']
         st.dataframe(participacion_stats, hide_index=True)
-        
-        # Tabla 4: Enfoques más frecuentes (CAPÍTULOS ÚNICOS)
-        st.subheader("🧪 Líneas de investigación",
-                   help="Líneas de investigación más utilizadas en los capítulos, indicando las áreas de investigación predominantes.")
-        try:
-            all_keywords = []
-            for keywords in unique_capitulos['selected_keywords']:
-                if pd.notna(keywords):
-#                    # Limpiar y procesar las palabras clave
-#                    cleaned = str(keywords).strip("[]'").replace("'", "").split(", ")
-#                    all_keywords.extend([k.strip() for k in cleaned if k.strip()])
-            # Ahora (mantiene la cadena completa):
-                    cleaned = str(keywords).strip("[]'").replace("'", "")
-                    if cleaned:  # Solo agregar si no está vacío
-                        all_keywords.append(cleaned)
-            
-            keyword_stats = pd.Series(all_keywords).value_counts().reset_index()
-            keyword_stats.columns = ['Enfoque', 'Frecuencia']
-            
-            # Añadir fila de totales
-            total_row = pd.DataFrame({
-                'Enfoque': ['TOTAL'],
-                'Frecuencia': [keyword_stats['Frecuencia'].sum()]
-            })
-            keyword_stats = pd.concat([keyword_stats.head(10), total_row], ignore_index=True)
-            st.dataframe(keyword_stats, hide_index=True)
-        except Exception as e:
-            st.warning(f"No se pudieron procesar las palabras clave: {str(e)}")
-        
-        # Tabla 5: Distribución por departamentos (CAPÍTULOS ÚNICOS)
-        if 'departamento' in unique_capitulos.columns:
-            st.subheader("🏛️ Distribución por departamento de adscripción",
-                       help="Clasificación de capítulos según el departamento de adscripción del autor principal.")
-            depto_stats = unique_capitulos['departamento'].value_counts().reset_index()
-            depto_stats.columns = ['Departamento', 'Capítulos únicos']
-            
-            # Añadir fila de totales
-            total_row = pd.DataFrame({
-                'Departamento': ['TOTAL'],
-                'Capítulos únicos': [depto_stats['Capítulos únicos'].sum()]
-            })
-            depto_stats = pd.concat([depto_stats, total_row], ignore_index=True)
-            st.dataframe(depto_stats, hide_index=True)
-        else:
-            st.warning("El campo 'departamento' no está disponible en los datos")
-        
-        # Tabla 6: Distribución temporal (CAPÍTULOS ÚNICOS)
-        st.subheader("🕰️ Distribución mensual",
-                    help="Evolución mensual de la producción de capítulos en el periodo seleccionado.")
 
-        # Convertir a formato "YYYY-MM"
-        time_stats = unique_capitulos['pub_date'].dt.to_period('M').astype(str).value_counts().sort_index().reset_index()
-        time_stats.columns = ['Mes-Año', 'Capítulos únicos']
-
-        # Añadir fila de totales
-        total_row = pd.DataFrame({
-            'Mes-Año': ['TOTAL'],
-            'Capítulos únicos': [time_stats['Capítulos únicos'].sum()]
-        })
-        time_stats = pd.concat([time_stats, total_row], ignore_index=True)
-        st.dataframe(time_stats, hide_index=True)
-        
-        # Tabla 7: Distribución por nivel SNI (CAPÍTULOS ÚNICOS)
-        if 'sni' in unique_capitulos.columns:
-            st.subheader("📊 Distribución por nivel SNI",
-                        help="Clasificación de capítulos según el nivel del Sistema Nacional de Investigadores (SNI) de los autores.")
-            sni_stats = unique_capitulos['sni'].value_counts().reset_index()
-            sni_stats.columns = ['Nivel SNI', 'Capítulos únicos']
-            
-            # Añadir fila de totales
-            total_row = pd.DataFrame({
-                'Nivel SNI': ['TOTAL'],
-                'Capítulos únicos': [sni_stats['Capítulos únicos'].sum()]
-            })
-            sni_stats = pd.concat([sni_stats, total_row], ignore_index=True)
-            st.dataframe(sni_stats, hide_index=True)
-        else:
-            st.warning("El campo 'sni' no está disponible en los datos")
-        
-        # Tabla 8: Distribución por nivel SII (CAPÍTULOS ÚNICOS)
-        if 'sii' in unique_capitulos.columns:
-            st.subheader("📈 Distribución por nivel SII",
-                        help="Clasificación de capítulos según el nivel del Sistema Institucional de Investigación (SII) de los autores.")
-            sii_stats = unique_capitulos['sii'].value_counts().reset_index()
-            sii_stats.columns = ['Nivel SII', 'Capítulos únicos']
-            
-            # Añadir fila de totales
-            total_row = pd.DataFrame({
-                'Nivel SII': ['TOTAL'],
-                'Capítulos únicos': [sii_stats['Capítulos únicos'].sum()]
-            })
-            sii_stats = pd.concat([sii_stats, total_row], ignore_index=True)
-            st.dataframe(sii_stats, hide_index=True)
-        else:
-            st.warning("El campo 'sii' no está disponible en los datos")
-            
-        # Tabla 9: Distribución por tipo de nombramiento (CAPÍTULOS ÚNICOS)
-        if 'nombramiento' in unique_capitulos.columns:
-            st.subheader("👨‍🏫 Distribución por nombramiento institucional",
-                        help="Clasificación de capítulos según el tipo de nombramiento de los autores.")
-            nombramiento_stats = unique_capitulos['nombramiento'].value_counts().reset_index()
-            nombramiento_stats.columns = ['Tipo de Nombramiento', 'Capítulos únicos']
-            
-            # Añadir fila de totales
-            total_row = pd.DataFrame({
-                'Tipo de Nombramiento': ['TOTAL'],
-                'Capítulos únicos': [nombramiento_stats['Capítulos únicos'].sum()]
-            })
-            nombramiento_stats = pd.concat([nombramiento_stats, total_row], ignore_index=True)
-            st.dataframe(nombramiento_stats, hide_index=True)
-        else:
-            st.warning("El campo 'nombramiento' no está disponible en los datos")
-        
-        # Tabla 10: Distribución por países de distribución (CAPÍTULOS ÚNICOS)
-        if 'paises_distribucion' in unique_capitulos.columns:
-            st.subheader("🌍 Distribución por países",
-                        help="Países donde se distribuyen los libros que contienen los capítulos publicados.")
-            
+        # 4. Palabras clave
+        if 'selected_keywords' in unique_capitulos.columns:
+            st.subheader("🧪 Palabras clave")
             try:
-                all_countries = []
-                for countries in unique_capitulos['paises_distribucion']:
-                    if pd.notna(countries):
-                        cleaned = str(countries).strip().split(", ")
-                        all_countries.extend([c.strip() for c in cleaned if c.strip()])
-                
-                country_stats = pd.Series(all_countries).value_counts().reset_index()
-                country_stats.columns = ['País', 'Frecuencia']
-                
-                # Añadir fila de totales
-                total_row = pd.DataFrame({
-                    'País': ['TOTAL'],
-                    'Frecuencia': [country_stats['Frecuencia'].sum()]
-                })
-                country_stats = pd.concat([country_stats.head(10), total_row], ignore_index=True)
-                st.dataframe(country_stats, hide_index=True)
-            except:
-                st.warning("No se pudieron procesar los países de distribución")
+                keywords = unique_capitulos['selected_keywords'].dropna().apply(
+                    lambda x: [k.strip("[]'\" ") for k in str(x).split(',')]
+                ).explode()
 
-        # Tabla 11: Distribución por idioma (CAPÍTULOS ÚNICOS)
-        if 'idiomas_disponibles' in unique_capitulos.columns:
-            st.subheader("🌐 Distribución por idioma",
-                        help="Idiomas en los que están publicados los libros que contienen los capítulos.")
-            idioma_stats = unique_capitulos['idiomas_disponibles'].value_counts().reset_index()
-            idioma_stats.columns = ['Idioma', 'Capítulos únicos']
-            
-            # Añadir fila de totales
-            total_row = pd.DataFrame({
-                'Idioma': ['TOTAL'],
-                'Capítulos únicos': [idioma_stats['Capítulos únicos'].sum()]
-            })
-            idioma_stats = pd.concat([idioma_stats, total_row], ignore_index=True)
-            st.dataframe(idioma_stats, hide_index=True)
+                keyword_stats = keywords.value_counts().reset_index()
+                keyword_stats.columns = ['Palabra clave', 'Frecuencia']
+                st.dataframe(keyword_stats, hide_index=True)
+            except Exception as e:
+                st.warning(f"No se pudieron procesar palabras clave: {str(e)}")
+
+        # 5. Distribución temporal
+        st.subheader("🕰️ Distribución por mes")
+        if not unique_capitulos['pub_date'].isna().all():
+            time_stats = unique_capitulos[unique_capitulos['pub_date'].notna()].copy()
+            time_stats['Mes-Año'] = time_stats['pub_date'].dt.to_period('M').astype(str)
+            time_stats = time_stats['Mes-Año'].value_counts().sort_index().reset_index()
+            time_stats.columns = ['Mes-Año', 'Capítulos']
+            st.dataframe(time_stats, hide_index=True)
         else:
-            st.warning("El campo 'idiomas_disponibles' no está disponible en los datos")
-            
-        # Tabla 12: Distribución por formato (CAPÍTULOS ÚNICOS)
-        if 'formatos_disponibles' in unique_capitulos.columns:
-            st.subheader("📖 Distribución por tipo de formato",
-                        help="Formatos disponibles para los libros que contienen los capítulos publicados.")
-            formato_stats = unique_capitulos['formatos_disponibles'].value_counts().reset_index()
-            formato_stats.columns = ['Formato', 'Capítulos únicos']
-            
-            # Añadir fila de totales
-            total_row = pd.DataFrame({
-                'Formato': ['TOTAL'],
-                'Capítulos únicos': [formato_stats['Capítulos únicos'].sum()]
-            })
-            formato_stats = pd.concat([formato_stats, total_row], ignore_index=True)
-            st.dataframe(formato_stats, hide_index=True)
-        else:
-            st.warning("El campo 'formatos_disponibles' no está disponible en los datos")
-        
-        # ==========================================
-        # SECCIÓN: DESCARGAR ARCHIVO COMPLETO
-        # ==========================================
-        st.header("📥 Descargar Datos Completos")
-        
-        # Opción para descargar el archivo pro_capitulos_total.csv
-        if Path("capitulos_total.csv").exists():
-            with open("capitulos_total.csv", "rb") as file:
-                btn = st.download_button(
-                    label="Descargar archivo pro_capitulos_total.csv completo",
-                    data=file,
-                    file_name="pro_capitulos_total.csv",
-                    mime="text/csv",
-                    help="Descarga el archivo CSV completo con todos los datos de capítulos"
-                )
-            if btn:
-                st.success("Descarga iniciada")
-        else:
-            st.warning("El archivo capitulos_total.csv no está disponible para descargar")
-        
+            st.warning("No hay fechas válidas para mostrar distribución temporal")
+
+        # Descarga completa
+        st.header("📥 Descargar datos completos")
+        if st.button("Exportar todos los datos a CSV"):
+            csv = df.to_csv(index=False).encode('utf-8')
+            st.download_button(
+                label="Descargar CSV completo",
+                data=csv,
+                file_name="capitulos_completos.csv",
+                mime='text/csv'
+            )
+
     except Exception as e:
-        st.error(f"Error al procesar el archivo: {str(e)}")
-        logging.error(f"Error en main: {str(e)}")
+        st.error(f"Error crítico: {str(e)}")
+        logging.exception("Error en main:")
 
 if __name__ == "__main__":
     main()
