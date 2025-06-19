@@ -70,6 +70,7 @@ DEPARTAMENTOS_INCICH = [
 NOMBRAMIENTO_OPCIONES = ["Ayudante de investigador", "Investigador", "Mando medio", "Médico", "Médico especialista", "Otro", "Técnico"]
 
 
+
 # ====================
 # OPCIONES SNI Y SII
 # ====================
@@ -437,10 +438,11 @@ def main():
     # Nuevo campo: Nombramiento
     nombramiento = st.selectbox(
         "👔 Nombramiento:",
-        options=["Médico", "Médico especialista", "Investigador", "Mando medio",
-                "Técnico académico", "Tesista", "Servicio social"],
+        options=["Ayudante de investigador", "Investigador", "Mando medio", "Médico",
+                "", "Médico especialista", "Otro", "Técnico"],
         index=0
     )
+
 
     # Capturar SNI y SII
     col1, col2 = st.columns(2)
