@@ -15,7 +15,7 @@ logging.basicConfig(
     filename='monitoreo_congresos.log',
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
-    datefmt='%Y-%m-%d %H:%M:%S'
+    datefmt='%Y-%m-%d'
 )
 
 # ====================
@@ -25,6 +25,7 @@ class Config:
     def __init__(self):
         # Configuración SFTP
         self.REMOTE_CONGRESOS_FILE = "pro_congresos_total.csv"  # Nombre completo del archivo remoto
+        self.REMOTE_GENERADOR_PATH = f"{st.secrets['sftp']['dir']}/{st.secrets['prefixes']['generadorcongresos']}"
         self.TIMEOUT_SECONDS = 30
         
         self.REMOTE = {
@@ -122,6 +123,73 @@ class SSHManager:
             finally:
                 ssh.close()
 
+def ejecutar_generador_remoto():
+    """Ejecuta el script generadorcongresos.sh en el servidor remoto"""
+    ssh = None
+    try:
+        with st.spinner("🔄 Ejecutando generadorcongresos.sh en servidor remoto..."):
+            # Establecer conexión SSH
+            ssh = SSHManager.get_connection()
+            if not ssh:
+                return False
+
+            # 1. Verificar que el script existe
+            sftp = ssh.open_sftp()
+            try:
+                sftp.stat(CONFIG.REMOTE_GENERADOR_PATH)
+                logging.info(f"Script encontrado en: {CONFIG.REMOTE_GENERADOR_PATH}")
+            except FileNotFoundError:
+                st.error(f"❌ Error: No se encontró el script en {CONFIG.REMOTE_GENERADOR_PATH}")
+                logging.error(f"Script no encontrado: {CONFIG.REMOTE_GENERADOR_PATH}")
+                return False
+            finally:
+                sftp.close()
+
+            # 2. Ejecutar el script en el directorio correcto
+            comando = f"cd {CONFIG.REMOTE['DIR']} && bash {CONFIG.REMOTE_GENERADOR_PATH}"
+            logging.info(f"Ejecutando comando: {comando}")
+            
+            stdin, stdout, stderr = ssh.exec_command(comando)
+            exit_status = stdout.channel.recv_exit_status()
+            output = stdout.read().decode('utf-8').strip()
+            error = stderr.read().decode('utf-8').strip()
+
+            # 3. Verificar resultados
+            if exit_status != 0:
+                error_msg = f"Código {exit_status}\nOutput: {output}\nError: {error}"
+                st.error(f"❌ Error en la ejecución: {error_msg}")
+                logging.error(f"Error ejecutando generadorcongresos.sh: {error_msg}")
+                return False
+
+            logging.info("Script ejecutado correctamente")
+            
+            # 4. Verificar que el archivo se creó en la ubicación correcta
+            sftp = ssh.open_sftp()
+            output_path = os.path.join(CONFIG.REMOTE['DIR'], CONFIG.REMOTE_CONGRESOS_FILE)
+            try:
+                sftp.stat(output_path)
+                file_size = sftp.stat(output_path).st_size
+                logging.info(f"Archivo creado en: {output_path} (Tamaño: {file_size} bytes)")
+                st.success("✅ generadorcongresos.sh ejecutado correctamente en el servidor")
+                return True
+                
+            except FileNotFoundError:
+                error_msg = f"No se encontró el archivo de salida en {output_path}"
+                st.error(f"❌ Error: {error_msg}")
+                logging.error(error_msg)
+                return False
+            finally:
+                sftp.close()
+
+    except Exception as e:
+        error_msg = f"Error inesperado: {str(e)}"
+        st.error(f"❌ {error_msg}")
+        logging.error(f"Error en ejecutar_generador_remoto: {error_msg}")
+        return False
+    finally:
+        if ssh:
+            ssh.close()
+
 def sync_congresos_file():
     """Sincroniza el archivo congresos_total.csv desde el servidor remoto"""
     try:
@@ -159,7 +227,11 @@ def main():
 
     st.title("Análisis de Congresos")
 
-    # Sincronizar archivo congresos_total.csv al inicio
+    # Paso 1: Ejecutar generador remoto para actualizar datos
+    if not ejecutar_generador_remoto():
+        st.warning("⚠️ Continuando con datos existentes (pueden no estar actualizados)")
+
+    # Paso 2: Sincronizar archivo congresos_total.csv
     if not sync_congresos_file():
         st.warning("⚠️ Trabajando con copia local de congresos_total.csv debido a problemas de conexión")
 
