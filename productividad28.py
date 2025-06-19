@@ -395,11 +395,11 @@ def parse_nbib_file(content: str) -> dict:
 
         # Interfaz para fecha de publicación
         st.subheader("📅 Fecha de publicación")
+        st.markdown("**Suministre manualmente la fecha de publicación, no siempre PubMed la tiene  registrada**")
         default_date = f"{data['year']}-01-01" if data['year'] else ""
         pub_date = st.text_input("Ingrese la fecha de publicación (YYYY-MM-DD):",
                                value=default_date,
                                help="Formato: Año-Mes-Día (ej. 2023-05-15)")
-
         try:
             datetime.strptime(pub_date, '%Y-%m-%d')
             data['pub_date'] = pub_date
