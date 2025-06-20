@@ -649,7 +649,7 @@ def main():
             if st.form_submit_button("💾 Guardar nuevo registro"):
                 # Generar nombre del archivo PDF con el formato YYYY-MM-DD-HH-MM.economic_number.pdf
                 timestamp = datetime.now().strftime("%Y-%m-%d-%H-%M")
-                pdf_filename = f"{timestamp}.{economic_number}.pdf"
+                pdf_filename = f"{timestamp}.libros.{economic_number}.pdf"
                 pdf_remote_path = os.path.join(CONFIG.REMOTE['DIR'], pdf_filename)
 
                 # Subir el archivo PDF si se proporcionó
