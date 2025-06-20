@@ -12,12 +12,20 @@ from PIL import Image
 
 # Configuración de logging
 logging.basicConfig(
-    filename='capitulos.log',
+    filename='monitoreo_capitulos.log',
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
     datefmt='%Y-%m-%d %H:%M:%S'
 )
 
+# ====================
+# CATEGORÍAS DE KEYWORDS PARA CAPÍTULOS
+# ====================
+KEYWORD_CATEGORIES = {
+    "Accidente Cerebrovascular": ["accidente cerebrovascular", "acv", "ictus", "stroke"],
+    "Alzheimer": ["alzheimer", "demencia", "enfermedad neurodegenerativa"],
+    # ... (resto de categorías de keywords se mantienen igual)
+}
 
 # ====================
 # CONFIGURACIÓN INICIAL
@@ -26,6 +34,7 @@ class Config:
     def __init__(self):
         # Configuración SFTP
         self.REMOTE_CAPITULOS_FILE = "pro_capitulos_total.csv"  # Nombre completo del archivo remoto
+        self.REMOTE_GENERADOR_PATH = f"{st.secrets['sftp']['dir']}/{st.secrets['prefixes']['generadorcapitulos']}"
         self.TIMEOUT_SECONDS = 30
         
         self.REMOTE = {
@@ -39,6 +48,7 @@ class Config:
         # Configuración de estilo
         self.HIGHLIGHT_COLOR = "#90EE90"
         self.LOGO_PATH = "escudo_COLOR.jpg"
+        self.COLUMN_WIDTH = "200px"  # Ancho fijo para todas las columnas
 
 CONFIG = Config()
 
@@ -123,6 +133,73 @@ class SSHManager:
             finally:
                 ssh.close()
 
+def ejecutar_generador_remoto():
+    """Ejecuta el script generadorcapitulos.sh en el servidor remoto"""
+    ssh = None
+    try:
+        with st.spinner("🔄 Ejecutando generadorcapitulos.sh en servidor remoto..."):
+            # Establecer conexión SSH
+            ssh = SSHManager.get_connection()
+            if not ssh:
+                return False
+
+            # 1. Verificar que el script existe
+            sftp = ssh.open_sftp()
+            try:
+                sftp.stat(CONFIG.REMOTE_GENERADOR_PATH)
+                logging.info(f"Script encontrado en: {CONFIG.REMOTE_GENERADOR_PATH}")
+            except FileNotFoundError:
+                st.error(f"❌ Error: No se encontró el script en {CONFIG.REMOTE_GENERADOR_PATH}")
+                logging.error(f"Script no encontrado: {CONFIG.REMOTE_GENERADOR_PATH}")
+                return False
+            finally:
+                sftp.close()
+
+            # 2. Ejecutar el script en el directorio correcto
+            comando = f"cd {CONFIG.REMOTE['DIR']} && bash {CONFIG.REMOTE_GENERADOR_PATH}"
+            logging.info(f"Ejecutando comando: {comando}")
+            
+            stdin, stdout, stderr = ssh.exec_command(comando)
+            exit_status = stdout.channel.recv_exit_status()
+            output = stdout.read().decode('utf-8').strip()
+            error = stderr.read().decode('utf-8').strip()
+
+            # 3. Verificar resultados
+            if exit_status != 0:
+                error_msg = f"Código {exit_status}\nOutput: {output}\nError: {error}"
+                st.error(f"❌ Error en la ejecución: {error_msg}")
+                logging.error(f"Error ejecutando generadorcapitulos.sh: {error_msg}")
+                return False
+
+            logging.info("Script ejecutado correctamente")
+            
+            # 4. Verificar que el archivo se creó en la ubicación correcta
+            sftp = ssh.open_sftp()
+            output_path = os.path.join(CONFIG.REMOTE['DIR'], CONFIG.REMOTE_CAPITULOS_FILE)
+            try:
+                sftp.stat(output_path)
+                file_size = sftp.stat(output_path).st_size
+                logging.info(f"Archivo creado en: {output_path} (Tamaño: {file_size} bytes)")
+                st.success("✅ generadorcapitulos.sh ejecutado correctamente en el servidor")
+                return True
+                
+            except FileNotFoundError:
+                error_msg = f"No se encontró el archivo de salida en {output_path}"
+                st.error(f"❌ Error: {error_msg}")
+                logging.error(error_msg)
+                return False
+            finally:
+                sftp.close()
+
+    except Exception as e:
+        error_msg = f"Error inesperado: {str(e)}"
+        st.error(f"❌ {error_msg}")
+        logging.error(f"Error en ejecutar_generador_remoto: {error_msg}")
+        return False
+    finally:
+        if ssh:
+            ssh.close()
+
 def sync_capitulos_file():
     """Sincroniza el archivo capitulos_total.csv desde el servidor remoto"""
     try:
@@ -147,279 +224,474 @@ def highlight_author(author: str, investigator_name: str) -> str:
         return f"<span style='background-color: {CONFIG.HIGHLIGHT_COLOR};'>{author}</span>"
     return author
 
-def parse_custom_date(date_str):
-    """Función para parsear fechas en formato 'YYYY_MM-DD' o 'YYYY-MM-DD'"""
-    if pd.isna(date_str):
-        return pd.NaT
+def generar_tabla_resumen(unique_capitulos, filtered_df):
+    """Genera una tabla consolidada con todos los totales"""
+    datos_resumen = []
     
+    # 1. Total capítulos únicos (ya calculado)
+    total_capitulos = len(unique_capitulos)
+    datos_resumen.append(("Capítulos únicos", total_capitulos))
+    
+    # 2. Editoriales
+    total_editoriales = unique_capitulos['editorial'].nunique()
+    datos_resumen.append(("Editoriales distintas", total_editoriales))
+    
+    # 3. Tipos de participación
+    total_participaciones = unique_capitulos['tipo_participacion'].nunique()
+    datos_resumen.append(("Tipos de participación distintos", total_participaciones))
+    
+    # 4. Líneas de investigación
     try:
-        # Primero intentamos con el formato que parece estar en tus datos (2025_06-02)
-        if '_' in date_str:
-            year_part, month_day_part = date_str.split('_')
-            month, day = month_day_part.split('-')
-            return datetime(int(year_part), int(month), int(day))
-        else:
-            # Si no tiene '_', probamos con formato estándar
-            return pd.to_datetime(date_str)
+        all_keywords = []
+        for keywords in unique_capitulos['selected_keywords']:
+            if pd.notna(keywords):
+                keywords_str = str(keywords).strip()
+                if keywords_str.startswith('[') and keywords_str.endswith(']'):
+                    keywords_str = keywords_str[1:-1]
+                    import re
+                    keyword_list = re.split(r",\s*(?=(?:[^']*'[^']*')*[^']*$)", keywords_str)
+                    keyword_list = [k.strip().strip("'\"") for k in keyword_list if k.strip()]
+                    all_keywords.extend(keyword_list)
+                else:
+                    keyword_list = [k.strip() for k in keywords_str.split(",") if k.strip()]
+                    all_keywords.extend(keyword_list)
+        total_keywords = len(set(all_keywords)) if all_keywords else 0
+        datos_resumen.append(("Líneas de investigación distintas", total_keywords))
     except:
-        return pd.NaT
+        datos_resumen.append(("Líneas de investigación distintas", "N/D"))
+    
+    # 5. Departamentos (si existe)
+    if 'departamento' in unique_capitulos.columns:
+        total_deptos = unique_capitulos['departamento'].nunique()
+        datos_resumen.append(("Departamentos distintos", total_deptos))
+    
+    # 6. Distribución temporal (meses)
+    total_meses = unique_capitulos['pub_date'].dt.to_period('M').nunique()
+    datos_resumen.append(("Meses con publicaciones", total_meses))
+    
+    # 7. Nivel SNI (si existe)
+    if 'sni' in unique_capitulos.columns:
+        total_sni = unique_capitulos['sni'].nunique()
+        datos_resumen.append(("Niveles SNI distintos", total_sni))
+    
+    # 8. Nivel SII (si existe)
+    if 'sii' in unique_capitulos.columns:
+        total_sii = unique_capitulos['sii'].nunique()
+        datos_resumen.append(("Niveles SII distintos", total_sii))
+    
+    # 9. Nombramientos (si existe)
+    if 'nombramiento' in unique_capitulos.columns:
+        total_nombramientos = unique_capitulos['nombramiento'].nunique()
+        datos_resumen.append(("Tipos de nombramiento distintos", total_nombramientos))
+    
+    # 10. Países de distribución (si existe)
+    if 'paises_distribucion' in unique_capitulos.columns:
+        try:
+            all_countries = []
+            for countries in unique_capitulos['paises_distribucion']:
+                if pd.notna(countries):
+                    cleaned = str(countries).strip().split(", ")
+                    all_countries.extend([c.strip() for c in cleaned if c.strip()])
+            total_paises = len(set(all_countries)) if all_countries else 0
+            datos_resumen.append(("Países de distribución distintos", total_paises))
+        except:
+            datos_resumen.append(("Países de distribución distintos", "N/D"))
+    
+    # 11. Idiomas (si existe)
+    if 'idiomas_disponibles' in unique_capitulos.columns:
+        total_idiomas = unique_capitulos['idiomas_disponibles'].nunique()
+        datos_resumen.append(("Idiomas distintos", total_idiomas))
+    
+    # 12. Formatos (si existe)
+    if 'formatos_disponibles' in unique_capitulos.columns:
+        total_formatos = unique_capitulos['formatos_disponibles'].nunique()
+        datos_resumen.append(("Formatos distintos", total_formatos))
+    
+    # 13. Libros distintos
+    if 'titulo_libro' in unique_capitulos.columns:
+        total_libros = unique_capitulos['titulo_libro'].nunique()
+        datos_resumen.append(("Libros distintos", total_libros))
+    
+    # Crear DataFrame
+    resumen_df = pd.DataFrame(datos_resumen, columns=['Categoría', 'Total'])
+    
+    return resumen_df
+
+def aplicar_estilo_tabla(df):
+    """Aplica estilo CSS para uniformizar el ancho de columnas"""
+    styles = []
+    for col in df.columns:
+        styles.append({
+            'selector': f'th.col_heading.col{df.columns.get_loc(col)}',
+            'props': [('width', CONFIG.COLUMN_WIDTH)]
+        })
+        styles.append({
+            'selector': f'td.col{df.columns.get_loc(col)}',
+            'props': [('width', CONFIG.COLUMN_WIDTH)]
+        })
+    return df.style.set_table_styles(styles)
+
+def mostrar_tabla_uniforme(df, titulo, ayuda=None, max_rows=10):
+    """Muestra una tabla con columnas de ancho uniforme"""
+    st.markdown(f"**{titulo}**")
+    if ayuda:
+        st.caption(ayuda)
+    
+    # Aplicar estilo CSS para uniformizar el ancho de columnas
+    st.markdown(
+        f"""
+        <style>
+            th, td {{
+                width: {CONFIG.COLUMN_WIDTH} !important;
+                min-width: {CONFIG.COLUMN_WIDTH} !important;
+                max-width: {CONFIG.COLUMN_WIDTH} !important;
+            }}
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
+    
+    st.dataframe(df.head(max_rows), hide_index=True)
+
 
 def main():
     st.set_page_config(
-        page_title="Análisis de Capítulos",
-        page_icon="📚",
+        page_title="Análisis de Capítulos de Libros",
+        page_icon="📖",
         layout="wide"
     )
 
-    # Añadir logo
+    # Añadir logo en la parte superior
     if Path(CONFIG.LOGO_PATH).exists():
         st.image(CONFIG.LOGO_PATH, width=200)
 
     st.title("Análisis de Capítulos de Libros")
 
-    # Sincronizar archivo
-    if not sync_capitulos_file():
-        st.warning("⚠️ Trabajando con copia local debido a problemas de conexión")
+    # Paso 1: Ejecutar generador remoto para actualizar datos
+    if not ejecutar_generador_remoto():
+        st.warning("⚠️ Continuando con datos existentes (pueden no estar actualizados)")
 
+    # Paso 2: Sincronizar archivo capitulos_total.csv
+    if not sync_capitulos_file():
+        st.warning("⚠️ Trabajando con copia local de capitulos_total.csv debido a problemas de conexión")
+
+    # Verificar si el archivo local existe
     if not Path("capitulos_total.csv").exists():
-        st.error("Archivo no encontrado")
+        st.error("No se encontró el archivo capitulos_total.csv")
         return
 
     try:
-        # Leer archivo con manejo robusto de valores nulos
-        df = pd.read_csv(
-            "capitulos_total.csv",
-            keep_default_na=True,
-            na_values=['None', 'none', 'NONE', '', 'NA', 'na', 'Na', 'n/a', 'N/A'],
-            dtype={'year': 'object'}
-        )
+        # Leer y procesar el archivo
+        df = pd.read_csv("capitulos_total.csv", header=0, encoding='utf-8')
+        df.columns = df.columns.str.strip()
 
-#        # Mostrar datos crudos para depuración
-#        st.subheader("📝 Datos completos (sin filtros)")
-#        st.dataframe(df)
-
-        # Verificar campos obligatorios
-        required_columns = [
-            'autor_principal', 'titulo_libro', 'titulo_capitulo',
-            'estado', 'tipo_participacion'
-        ]
+        # Verificar campos importantes
+        required_columns = ['autor_principal', 'titulo_libro', 'titulo_capitulo', 'pub_date', 'estado', 'selected_keywords', 'economic_number']
         missing_columns = [col for col in required_columns if col not in df.columns]
 
         if missing_columns:
-            st.error(f"Faltan columnas requeridas: {', '.join(missing_columns)}")
+            st.warning(f"El archivo capitulos_total.csv no contiene los campos requeridos: {', '.join(missing_columns)}")
             return
 
-        # Convertir fechas manteniendo registros sin fecha
-        df['pub_date'] = df['pub_date'].apply(
-            lambda x: parse_custom_date(x) if pd.notna(x) else pd.NaT
-        )
+        # Convertir y validar fechas
+        df['pub_date'] = pd.to_datetime(df['pub_date'], errors='coerce')
+        df = df[(df['estado'] == 'A') & (df['pub_date'].notna())]
 
-        # Filtrar solo registros activos
-        df = df[df['estado'] == 'A'].copy()
+        if df.empty:
+            st.warning("No hay capítulos válidos para analizar")
+            return
 
-        st.success(f"✅ Datos cargados: {len(df)} registros activos")
-#        st.write(f"📌 Tipos de participación encontrados: {df['tipo_participacion'].unique()}")
+        st.success(f"Datos cargados correctamente. Registros activos: {len(df)}")
 
-        # Configurar rangos de fecha
-        valid_dates = df[df['pub_date'].notna()]
-        min_date = valid_dates['pub_date'].min() if not valid_dates.empty else datetime.now()
-        max_date = valid_dates['pub_date'].max() if not valid_dates.empty else datetime.now()
+        # Obtener rangos de fechas disponibles
+        min_date = df['pub_date'].min()
+        max_date = df['pub_date'].max()
 
-        # Selector de periodo
+        # Selector de rango mes-año
         st.header("📅 Selección de Periodo")
         col1, col2 = st.columns(2)
 
         with col1:
-            start_year = st.selectbox(
-                "Año inicio",
-                range(min_date.year, max_date.year+1),
-                index=0
-            )
-            start_month = st.selectbox(
-                "Mes inicio",
-                range(1, 13),
-                index=min_date.month-1,
-                format_func=lambda x: datetime(1900, x, 1).strftime('%B')
-            )
+            start_year = st.selectbox("Año inicio", range(min_date.year, max_date.year+1), index=0)
+            start_month = st.selectbox("Mes inicio", range(1, 13), index=min_date.month-1,
+                                    format_func=lambda x: datetime(1900, x, 1).strftime('%B'))
 
         with col2:
-            end_year = st.selectbox(
-                "Año término",
-                range(min_date.year, max_date.year+1),
-                index=len(range(min_date.year, max_date.year+1))-1
-            )
-            end_month = st.selectbox(
-                "Mes término",
-                range(1, 13),
-                index=max_date.month-1,
-                format_func=lambda x: datetime(1900, x, 1).strftime('%B')
-            )
+            end_year = st.selectbox("Año término", range(min_date.year, max_date.year+1),
+                                 index=len(range(min_date.year, max_date.year+1))-1)
+            end_month = st.selectbox("Mes término", range(1, 13), index=max_date.month-1,
+                                  format_func=lambda x: datetime(1900, x, 1).strftime('%B'))
 
-        # Calcular periodo seleccionado
-        date_start = datetime(start_year, start_month, 1)
-        date_end = datetime(
-            end_year,
-            end_month,
-            calendar.monthrange(end_year, end_month)[1]
-        )
+        # Calcular fechas de inicio y fin
+        start_day = 1
+        end_day = calendar.monthrange(end_year, end_month)[1]
+        date_start = datetime(start_year, start_month, start_day)
+        date_end = datetime(end_year, end_month, end_day)
 
-        # Filtrar incluyendo registros sin fecha
-        filtered_df = df[
-            (df['pub_date'].isna()) |
-            (
-                (df['pub_date'] >= pd.to_datetime(date_start)) &
-                (df['pub_date'] <= pd.to_datetime(date_end))
-            )
-        ].copy()
+        # Filtrar dataframe
+        filtered_df = df[(df['pub_date'] >= pd.to_datetime(date_start)) &
+                       (df['pub_date'] <= pd.to_datetime(date_end))]
+
+        # Obtener capítulos únicos (basados en título de capítulo y libro)
+        unique_capitulos = filtered_df.drop_duplicates(subset=['titulo_capitulo', 'titulo_libro'])
 
         st.markdown(f"**Periodo seleccionado:** {date_start.strftime('%d/%m/%Y')} - {date_end.strftime('%d/%m/%Y')}")
         st.markdown(f"**Registros encontrados:** {len(filtered_df)}")
-
-        # Obtener capítulos únicos
-        unique_capitulos = filtered_df.drop_duplicates(subset=['titulo_capitulo'])
         st.markdown(f"**Capítulos únicos:** {len(unique_capitulos)}")
+        st.markdown(f"**Libros distintos:** {unique_capitulos['titulo_libro'].nunique()}")
 
         if filtered_df.empty:
             st.warning("No hay capítulos en el periodo seleccionado")
             return
 
-        # Análisis consolidado
+        # Análisis consolidado en tablas
         st.header("📊 Estadísticas Consolidadas")
 
-        # 1. Productividad por investigador (versión corregida)
+        # Tabla 1: Productividad por investigador
         st.subheader("🔍 Productividad por investigador")
-
-        # Calcular estadísticas
-        investigator_stats = filtered_df.groupby('autor_principal').agg(
+        investigator_stats = filtered_df.groupby(['autor_principal', 'economic_number']).agg(
             Capítulos_Unicos=('titulo_capitulo', lambda x: len(set(x))),
-            Participaciones=('tipo_participacion', lambda x: ', '.join(sorted(set(x)))),
-            Primer_Capítulo=('pub_date', 'min'),
-            Último_Capítulo=('pub_date', 'max')
+            Libros_Unicos=('titulo_libro', lambda x: len(set(x))),
+            Participaciones=('tipo_participacion', lambda x: ', '.join(sorted(set(x))))
         ).reset_index()
-
         investigator_stats = investigator_stats.sort_values('Capítulos_Unicos', ascending=False)
-        investigator_stats.columns = [
-            'Investigador', 'Capítulos únicos', 'Tipos de participación',
-            'Primer capítulo', 'Último capítulo'
-        ]
+        investigator_stats.columns = ['Investigador', 'Número económico', 'Capítulos únicos', 'Libros distintos', 'Tipo de participación']
 
-        # Preparar fila de totales con tipos de datos consistentes
-        total_row = pd.DataFrame({
-            'Investigador': ['TOTAL'],
-            'Capítulos únicos': [investigator_stats['Capítulos únicos'].sum()],
-            'Tipos de participación': [''],
-            'Primer capítulo': [pd.NaT],  # Usar NaT en lugar de None
-            'Último capítulo': [pd.NaT]
-        })
+        for index, row in investigator_stats.iterrows():
+            with st.expander(f"{row['Investigador']} - {row['Capítulos únicos']} capítulos en {row['Libros distintos']} libros"):
+                investigator_capitulos = filtered_df[filtered_df['autor_principal'] == row['Investigador']]
+                unique_capitulos_investigator = investigator_capitulos.drop_duplicates(subset=['titulo_capitulo', 'titulo_libro'])
 
-        # Asegurar tipos de datos consistentes
-        investigator_stats['Primer capítulo'] = pd.to_datetime(investigator_stats['Primer capítulo'])
-        investigator_stats['Último capítulo'] = pd.to_datetime(investigator_stats['Último capítulo'])
+                display_columns = ['titulo_libro', 'titulo_capitulo', 'editorial', 'pub_date', 'isbn_issn']
+                if 'sni' in unique_capitulos_investigator.columns and 'sii' in unique_capitulos_investigator.columns:
+                    display_columns.extend(['sni', 'sii'])
+                if 'nombramiento' in unique_capitulos_investigator.columns:
+                    display_columns.append('nombramiento')
 
-        # Concatenar con tipos consistentes
-        investigator_stats = pd.concat([
-            investigator_stats,
-            total_row
-        ], ignore_index=True)
+                st.write(f"Capítulos de {row['Investigador']}:")
+                mostrar_tabla_uniforme(unique_capitulos_investigator[display_columns], "")
 
-        # Formatear fechas para visualización
-        investigator_stats['Primer capítulo'] = investigator_stats['Primer capítulo'].apply(
-            lambda x: x.strftime('%d/%m/%Y') if pd.notna(x) else 'N/A'
-        )
-        investigator_stats['Último capítulo'] = investigator_stats['Último capítulo'].apply(
-            lambda x: x.strftime('%d/%m/%Y') if pd.notna(x) else 'N/A'
-        )
+                # SECCIÓN DE PORTADAS PDF
+                st.subheader("📄 Portadas disponibles")
+                economic_number = row['Número económico']
+                remote_pdfs = []
 
-        st.dataframe(investigator_stats, hide_index=True)
+                ssh = SSHManager.get_connection()
+                if ssh:
+                    try:
+                        with ssh.open_sftp() as sftp:
+                            try:
+                                remote_files = sftp.listdir(CONFIG.REMOTE['DIR'])
+                                remote_pdfs = [f for f in remote_files if f.endswith(f".{economic_number}.pdf")]
+                                remote_pdfs.sort(reverse=True)  # Ordenar de más reciente a más antiguo
+                            except Exception as e:
+                                st.warning(f"No se pudieron listar los archivos PDF: {str(e)}")
+                    except Exception as e:
+                        st.warning(f"Error al acceder a SFTP: {str(e)}")
+                    finally:
+                        ssh.close()
 
-        # Detalle por investigador
-        for _, row in investigator_stats.iterrows():
-            if row['Investigador'] != 'TOTAL':
-                with st.expander(f"{row['Investigador']} - {row['Capítulos únicos']} capítulos"):
-                    investigator_data = filtered_df[
-                        filtered_df['autor_principal'] == row['Investigador']
-                    ].drop_duplicates(subset=['titulo_capitulo'])
-
-                    display_cols = [
-                        'titulo_libro', 'titulo_capitulo', 'editorial',
-                        'pub_date', 'isbn_issn', 'tipo_participacion'
-                    ]
-
-                    # Añadir campos opcionales si existen
-                    optional_cols = ['sni', 'sii', 'nombramiento', 'departamento']
-                    for col in optional_cols:
-                        if col in investigator_data.columns:
-                            display_cols.append(col)
-
-                    # Formatear fecha para visualización
-                    temp_df = investigator_data[display_cols].copy()
-                    if 'pub_date' in temp_df.columns:
-                        temp_df['pub_date'] = temp_df['pub_date'].apply(
-                            lambda x: x.strftime('%d/%m/%Y') if pd.notna(x) else 'N/A'
-                        )
-
-                    st.dataframe(temp_df)
-
-                    # Botón de descarga
-                    csv = temp_df.to_csv(index=False).encode('utf-8')
-                    st.download_button(
-                        label=f"Descargar {row['Investigador']}",
-                        data=csv,
-                        file_name=f"capitulos_{row['Investigador'].replace(' ', '_')}.csv",
-                        mime='text/csv'
+                if remote_pdfs:
+                    st.info(f"Se encontraron {len(remote_pdfs)} portadas para este investigador")
+                    selected_pdf = st.selectbox(
+                        "Seleccione una portada para ver:",
+                        remote_pdfs,
+                        key=f"pdf_selector_{economic_number}_{index}"
                     )
 
-        # 2. Estadísticas por editorial
-        st.subheader("🏢 Editoriales")
-        editorial_stats = unique_capitulos['editorial'].value_counts().reset_index()
-        editorial_stats.columns = ['Editorial', 'Capítulos']
-        st.dataframe(editorial_stats, hide_index=True)
+                    if selected_pdf:
+                        temp_pdf_path = f"temp_{selected_pdf}"
+                        remote_pdf_path = os.path.join(CONFIG.REMOTE['DIR'], selected_pdf)
 
-        # 3. Distribución por tipo de participación
-        st.subheader("🎭 Tipos de participación")
+                        if SSHManager.download_remote_file(remote_pdf_path, temp_pdf_path):
+                            with open(temp_pdf_path, "rb") as f:
+                                pdf_bytes = f.read()
+
+                            st.download_button(
+                                label="Descargar esta portada",
+                                data=pdf_bytes,
+                                file_name=selected_pdf,
+                                mime="application/pdf",
+                                key=f"download_pdf_{economic_number}_{index}"
+                            )
+
+                            try:
+                                # Solución para PyPDF2: Mostrar solo el botón de descarga si no está instalado
+                                 st.warning("Seleccione el archivo PDF que quiere revisar y bájelo a su dispositivo.")
+                            except Exception as e:
+                                st.warning(f"No se pudo mostrar vista previa: {str(e)}")
+
+                            try:
+                                os.remove(temp_pdf_path)
+                            except:
+                                pass
+                        else:
+                            st.error("No se pudo descargar el PDF seleccionado")
+                else:
+                    st.warning("No se encontraron portadas PDF para este investigador")
+
+                # Descargar CSV
+                csv = unique_capitulos_investigator.to_csv(index=False).encode('utf-8')
+                st.download_button(
+                    label="Descargar producción de capítulos en CSV",
+                    data=csv,
+                    file_name=f"capitulos_{row['Investigador'].replace(' ', '_')}.csv",
+                    mime='text/csv',
+                    key=f"download_csv_{economic_number}_{index}"
+                )
+
+        # =============================================
+        # TABLAS DE ESTADÍSTICAS (sección restaurada)
+        # =============================================
+
+        # Tabla 2: Editoriales más utilizadas
+        st.subheader("🏢 Editoriales más utilizadas")
+        editorial_stats = unique_capitulos.groupby('editorial').agg(
+            Total_Capitulos=('editorial', 'size'),
+            Total_Libros=('titulo_libro', 'nunique')
+        ).reset_index()
+        editorial_stats = editorial_stats.sort_values('Total_Capitulos', ascending=False)
+        editorial_stats.columns = ['Editorial', 'Capítulos únicos', 'Libros distintos']
+        mostrar_tabla_uniforme(editorial_stats, "")
+
+        # Tabla 3: Tipos de participación
+        st.subheader("🎭 Participación de los autores")
         participacion_stats = unique_capitulos['tipo_participacion'].value_counts().reset_index()
-        participacion_stats.columns = ['Tipo', 'Capítulos']
-        st.dataframe(participacion_stats, hide_index=True)
+        participacion_stats.columns = ['Tipo de participación', 'Capítulos únicos']
+        mostrar_tabla_uniforme(participacion_stats, "")
 
-        # 4. Palabras clave
-        if 'selected_keywords' in unique_capitulos.columns:
-            st.subheader("🧪 Palabras clave")
-            try:
-                keywords = unique_capitulos['selected_keywords'].dropna().apply(
-                    lambda x: [k.strip("[]'\" ") for k in str(x).split(',')]
-                ).explode()
+        # Tabla 4: Líneas de investigación
+        st.subheader("🧪 Líneas de investigación mas frecuentes")
+        try:
+            all_keywords = []
+            for keywords in unique_capitulos['selected_keywords']:
+                if pd.notna(keywords):
+                    keywords_str = str(keywords).strip()
+                    if keywords_str.startswith('[') and keywords_str.endswith(']'):
+                        keywords_str = keywords_str[1:-1]
+                        import re
+                        keyword_list = re.split(r",\s*(?=(?:[^']*'[^']*')*[^']*$)", keywords_str)
+                        keyword_list = [k.strip().strip("'\"") for k in keyword_list if k.strip()]
+                        all_keywords.extend(keyword_list)
+                    else:
+                        keyword_list = [k.strip() for k in keywords_str.split(",") if k.strip()]
+                        all_keywords.extend(keyword_list)
 
-                keyword_stats = keywords.value_counts().reset_index()
-                keyword_stats.columns = ['Palabra clave', 'Frecuencia']
-                st.dataframe(keyword_stats, hide_index=True)
-            except Exception as e:
-                st.warning(f"No se pudieron procesar palabras clave: {str(e)}")
+            keyword_stats = pd.Series(all_keywords).value_counts().reset_index()
+            keyword_stats.columns = ['Enfoque', 'Frecuencia']
+            mostrar_tabla_uniforme(keyword_stats, "")
+        except Exception as e:
+            st.warning(f"No se pudieron procesar las palabras clave: {str(e)}")
 
-        # 5. Distribución temporal
-        st.subheader("🕰️ Distribución por mes")
-        if not unique_capitulos['pub_date'].isna().all():
-            time_stats = unique_capitulos[unique_capitulos['pub_date'].notna()].copy()
-            time_stats['Mes-Año'] = time_stats['pub_date'].dt.to_period('M').astype(str)
-            time_stats = time_stats['Mes-Año'].value_counts().sort_index().reset_index()
-            time_stats.columns = ['Mes-Año', 'Capítulos']
-            st.dataframe(time_stats, hide_index=True)
+        # Tabla 5: Distribución por departamentos
+        if 'departamento' in unique_capitulos.columns:
+            st.subheader("🏛️ Distribución por departamento de adscripción")
+            depto_stats = unique_capitulos['departamento'].value_counts().reset_index()
+            depto_stats.columns = ['Departamento', 'Capítulos únicos']
+            mostrar_tabla_uniforme(depto_stats, "")
         else:
-            st.warning("No hay fechas válidas para mostrar distribución temporal")
+            st.warning("El campo 'departamento' no está disponible en los datos")
 
-        # Descarga completa
-        st.header("📥 Descargar datos completos")
-        if st.button("Exportar todos los datos a CSV"):
-            csv = df.to_csv(index=False).encode('utf-8')
-            st.download_button(
-                label="Descargar CSV completo",
-                data=csv,
-                file_name="capitulos_completos.csv",
-                mime='text/csv'
-            )
+        # Tabla 6: Distribución temporal
+        st.subheader("🕰️ Distribución mensual")
+        time_stats = unique_capitulos['pub_date'].dt.to_period('M').astype(str).value_counts().sort_index().reset_index()
+        time_stats.columns = ['Mes-Año', 'Capítulos únicos']
+        mostrar_tabla_uniforme(time_stats, "")
+
+        # Tabla 7: Distribución por nivel SNI
+        if 'sni' in unique_capitulos.columns:
+            st.subheader("📊 Distribución por nivel SNI")
+            sni_stats = unique_capitulos['sni'].value_counts().reset_index()
+            sni_stats.columns = ['Nivel SNI', 'Capítulos únicos']
+            mostrar_tabla_uniforme(sni_stats, "")
+        else:
+            st.warning("El campo 'sni' no está disponible en los datos")
+
+        # Tabla 8: Distribución por nivel SII
+        if 'sii' in unique_capitulos.columns:
+            st.subheader("📈 Distribución por nivel SII")
+            sii_stats = unique_capitulos['sii'].value_counts().reset_index()
+            sii_stats.columns = ['Nivel SII', 'Capítulos únicos']
+            mostrar_tabla_uniforme(sii_stats, "")
+        else:
+            st.warning("El campo 'sii' no está disponible en los datos")
+
+        # Tabla 9: Distribución por nombramiento
+        if 'nombramiento' in unique_capitulos.columns:
+            st.subheader("👔 Distribución por nombramiento del autor")
+            nombramiento_stats = unique_capitulos['nombramiento'].value_counts().reset_index()
+            nombramiento_stats.columns = ['Tipo de Nombramiento', 'Capítulos únicos']
+            mostrar_tabla_uniforme(nombramiento_stats, "")
+        else:
+            st.warning("El campo 'nombramiento' no está disponible en los datos")
+
+        # Tabla 10: Distribución por países
+        if 'paises_distribucion' in unique_capitulos.columns:
+            st.subheader("🌍 Distribución por países")
+            try:
+                all_countries = []
+                for countries in unique_capitulos['paises_distribucion']:
+                    if pd.notna(countries):
+                        cleaned = str(countries).strip().split(", ")
+                        all_countries.extend([c.strip() for c in cleaned if c.strip()])
+
+                country_stats = pd.Series(all_countries).value_counts().reset_index()
+                country_stats.columns = ['País', 'Frecuencia']
+                mostrar_tabla_uniforme(country_stats, "")
+            except:
+                st.warning("No se pudieron procesar los países de distribución")
+
+        # Tabla 11: Distribución por idioma
+        if 'idiomas_disponibles' in unique_capitulos.columns:
+            st.subheader("🌐 Distribución por idioma")
+            idioma_stats = unique_capitulos['idiomas_disponibles'].value_counts().reset_index()
+            idioma_stats.columns = ['Idioma', 'Capítulos únicos']
+            mostrar_tabla_uniforme(idioma_stats, "")
+        else:
+            st.warning("El campo 'idiomas_disponibles' no está disponible en los datos")
+
+        # Tabla 12: Distribución por formato
+        if 'formatos_disponibles' in unique_capitulos.columns:
+            st.subheader("📖 Distribución por tipo de formato")
+            formato_stats = unique_capitulos['formatos_disponibles'].value_counts().reset_index()
+            formato_stats.columns = ['Formato', 'Capítulos únicos']
+            mostrar_tabla_uniforme(formato_stats, "")
+        else:
+            st.warning("El campo 'formatos_disponibles' no está disponible en los datos")
+
+        # Tabla 13: Libros con más capítulos
+        st.subheader("📚 Libros con más capítulos")
+        libros_stats = unique_capitulos.groupby('titulo_libro').agg(
+            Total_Capitulos=('titulo_libro', 'size'),
+            Autores_Unicos=('autor_principal', 'nunique')
+        ).reset_index()
+        libros_stats = libros_stats.sort_values('Total_Capitulos', ascending=False)
+        libros_stats.columns = ['Título del Libro', 'Capítulos únicos', 'Autores únicos']
+        mostrar_tabla_uniforme(libros_stats, "")
+
+        # Tabla Resumen Consolidada
+        st.header("📋 Resumen Consolidado de Totales")
+        resumen_df = generar_tabla_resumen(unique_capitulos, filtered_df)
+        mostrar_tabla_uniforme(resumen_df, "")
+
+        # Sección de descarga
+        st.header("📥 Descargar Datos Completos")
+        if Path("capitulos_total.csv").exists():
+            with open("capitulos_total.csv", "rb") as file:
+                btn = st.download_button(
+                    label="Descargar archivo pro_capitulos_total.csv completo",
+                    data=file,
+                    file_name="pro_capitulos_total.csv",
+                    mime="text/csv"
+                )
+            if btn:
+                st.success("Descarga iniciada")
+        else:
+            st.warning("El archivo capitulos_total.csv no está disponible para descargar")
 
     except Exception as e:
-        st.error(f"Error crítico: {str(e)}")
-        logging.exception("Error en main:")
+        st.error(f"Error al procesar el archivo: {str(e)}")
+        logging.error(f"Error en main: {str(e)}")
 
 if __name__ == "__main__":
     main()

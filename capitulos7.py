@@ -443,7 +443,6 @@ def main():
         index=0
     )
 
-
     # Capturar SNI y SII
     col1, col2 = st.columns(2)
     with col1:
@@ -638,7 +637,40 @@ def main():
                 max_selections=CONFIG.MAX_KEYWORDS
             )
 
+            # Sección para subir PDF del capítulo
+            st.subheader("📄 PDF del capítulo")
+            capitulo_pdf = st.file_uploader(
+                "Suba el capítulo en formato PDF:",
+                type=["pdf"],
+                accept_multiple_files=False
+            )
+            st.caption("Nota: El nombre del archivo se generará automáticamente con el formato CAP.YYYY-MM-DD-HH-MM.economic_number.pdf")
+
             if st.form_submit_button("💾 Guardar nuevo registro"):
+                # Generar nombre del archivo PDF con el formato CAP.YYYY-MM-DD-HH-MM.economic_number.pdf
+                timestamp = datetime.now().strftime("%Y-%m-%d-%H-%M")
+                pdf_filename = f"CAP.{timestamp}.{economic_number}.pdf"
+                pdf_remote_path = os.path.join(CONFIG.REMOTE['DIR'], pdf_filename)
+
+                # Subir el archivo PDF si se proporcionó
+                if capitulo_pdf is not None:
+                    try:
+                        # Guardar temporalmente el archivo localmente
+                        with open(pdf_filename, "wb") as f:
+                            f.write(capitulo_pdf.getbuffer())
+
+                        # Subir al servidor remoto
+                        with st.spinner("Subiendo PDF del capítulo..."):
+                            upload_success = SSHManager.upload_remote_file(pdf_filename, pdf_remote_path)
+
+                        if not upload_success:
+                            st.error("Error al subir el PDF del capítulo. El registro se guardará sin el PDF.")
+                    except Exception as e:
+                        st.error(f"Error al procesar el PDF: {str(e)}")
+                        logging.error(f"Error al subir PDF: {str(e)}")
+                else:
+                    st.warning("No se subió ningún PDF para este capítulo")
+
                 nuevo_registro = {
                     'economic_number': economic_number,
                     'nombramiento': nombramiento,
@@ -671,3 +703,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
