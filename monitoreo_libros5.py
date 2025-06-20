@@ -48,6 +48,7 @@ class Config:
         # Configuración de estilo
         self.HIGHLIGHT_COLOR = "#90EE90"
         self.LOGO_PATH = "escudo_COLOR.jpg"
+        self.COLUMN_WIDTH = "200px"  # Ancho fijo para todas las columnas
 
 CONFIG = Config()
 
@@ -223,6 +224,130 @@ def highlight_author(author: str, investigator_name: str) -> str:
         return f"<span style='background-color: {CONFIG.HIGHLIGHT_COLOR};'>{author}</span>"
     return author
 
+def generar_tabla_resumen(unique_libros, filtered_df):
+    """Genera una tabla consolidada con todos los totales"""
+    datos_resumen = []
+    
+    # 1. Total libros únicos (ya calculado)
+    total_libros = len(unique_libros)
+    datos_resumen.append(("Libros únicos", total_libros))
+    
+    # 2. Editoriales
+    total_editoriales = unique_libros['editorial'].nunique()
+    datos_resumen.append(("Editoriales distintas", total_editoriales))
+    
+    # 3. Tipos de participación
+    total_participaciones = unique_libros['tipo_participacion'].nunique()
+    datos_resumen.append(("Tipos de participación distintos", total_participaciones))
+    
+    # 4. Líneas de investigación
+    try:
+        all_keywords = []
+        for keywords in unique_libros['selected_keywords']:
+            if pd.notna(keywords):
+                keywords_str = str(keywords).strip()
+                if keywords_str.startswith('[') and keywords_str.endswith(']'):
+                    keywords_str = keywords_str[1:-1]
+                    import re
+                    keyword_list = re.split(r",\s*(?=(?:[^']*'[^']*')*[^']*$)", keywords_str)
+                    keyword_list = [k.strip().strip("'\"") for k in keyword_list if k.strip()]
+                    all_keywords.extend(keyword_list)
+                else:
+                    keyword_list = [k.strip() for k in keywords_str.split(",") if k.strip()]
+                    all_keywords.extend(keyword_list)
+        total_keywords = len(set(all_keywords)) if all_keywords else 0
+        datos_resumen.append(("Líneas de investigación distintas", total_keywords))
+    except:
+        datos_resumen.append(("Líneas de investigación distintas", "N/D"))
+    
+    # 5. Departamentos (si existe)
+    if 'departamento' in unique_libros.columns:
+        total_deptos = unique_libros['departamento'].nunique()
+        datos_resumen.append(("Departamentos distintos", total_deptos))
+    
+    # 6. Distribución temporal (meses)
+    total_meses = unique_libros['pub_date'].dt.to_period('M').nunique()
+    datos_resumen.append(("Meses con publicaciones", total_meses))
+    
+    # 7. Nivel SNI (si existe)
+    if 'sni' in unique_libros.columns:
+        total_sni = unique_libros['sni'].nunique()
+        datos_resumen.append(("Niveles SNI distintos", total_sni))
+    
+    # 8. Nivel SII (si existe)
+    if 'sii' in unique_libros.columns:
+        total_sii = unique_libros['sii'].nunique()
+        datos_resumen.append(("Niveles SII distintos", total_sii))
+    
+    # 9. Nombramientos (si existe)
+    if 'nombramiento' in unique_libros.columns:
+        total_nombramientos = unique_libros['nombramiento'].nunique()
+        datos_resumen.append(("Tipos de nombramiento distintos", total_nombramientos))
+    
+    # 10. Países de distribución (si existe)
+    if 'paises_distribucion' in unique_libros.columns:
+        try:
+            all_countries = []
+            for countries in unique_libros['paises_distribucion']:
+                if pd.notna(countries):
+                    cleaned = str(countries).strip().split(", ")
+                    all_countries.extend([c.strip() for c in cleaned if c.strip()])
+            total_paises = len(set(all_countries)) if all_countries else 0
+            datos_resumen.append(("Países de distribución distintos", total_paises))
+        except:
+            datos_resumen.append(("Países de distribución distintos", "N/D"))
+    
+    # 11. Idiomas (si existe)
+    if 'idiomas_disponibles' in unique_libros.columns:
+        total_idiomas = unique_libros['idiomas_disponibles'].nunique()
+        datos_resumen.append(("Idiomas distintos", total_idiomas))
+    
+    # 12. Formatos (si existe)
+    if 'formatos_disponibles' in unique_libros.columns:
+        total_formatos = unique_libros['formatos_disponibles'].nunique()
+        datos_resumen.append(("Formatos distintos", total_formatos))
+    
+    # Crear DataFrame
+    resumen_df = pd.DataFrame(datos_resumen, columns=['Categoría', 'Total'])
+    
+    return resumen_df
+
+def aplicar_estilo_tabla(df):
+    """Aplica estilo CSS para uniformizar el ancho de columnas"""
+    styles = []
+    for col in df.columns:
+        styles.append({
+            'selector': f'th.col_heading.col{df.columns.get_loc(col)}',
+            'props': [('width', CONFIG.COLUMN_WIDTH)]
+        })
+        styles.append({
+            'selector': f'td.col{df.columns.get_loc(col)}',
+            'props': [('width', CONFIG.COLUMN_WIDTH)]
+        })
+    return df.style.set_table_styles(styles)
+
+def mostrar_tabla_uniforme(df, titulo, ayuda=None, max_rows=10):
+    """Muestra una tabla con columnas de ancho uniforme"""
+    st.markdown(f"**{titulo}**")
+    if ayuda:
+        st.caption(ayuda)
+    
+    # Aplicar estilo CSS para uniformizar el ancho de columnas
+    st.markdown(
+        f"""
+        <style>
+            th, td {{
+                width: {CONFIG.COLUMN_WIDTH} !important;
+                min-width: {CONFIG.COLUMN_WIDTH} !important;
+                max-width: {CONFIG.COLUMN_WIDTH} !important;
+            }}
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
+    
+    st.dataframe(df.head(max_rows), hide_index=True)
+
 def main():
     st.set_page_config(
         page_title="Análisis de Libros",
@@ -350,77 +475,56 @@ def main():
         investigator_stats = investigator_stats.sort_values('Libros_Unicos', ascending=False)
         investigator_stats.columns = ['Investigador', 'Libros únicos', 'Tipo de participación']
 
-        # Añadir fila de totales
-        total_row = pd.DataFrame({
-            'Investigador': ['TOTAL'],
-            'Libros únicos': [investigator_stats['Libros únicos'].sum()],
-            'Tipo de participación': ['']
-        })
-        investigator_stats = pd.concat([investigator_stats.head(10), total_row], ignore_index=True)
-
         # Mostrar tabla con enlaces clickeables
         for index, row in investigator_stats.iterrows():
-            if row['Investigador'] != 'TOTAL':
-                # Crear un expander para cada investigador
-                with st.expander(f"{row['Investigador']} - {row['Libros únicos']} libros"):
-                    # Filtrar los libros del investigador
-                    investigator_libros = filtered_df[filtered_df['autor_principal'] == row['Investigador']]
-                    unique_libros_investigator = investigator_libros.drop_duplicates(subset=['titulo_libro'])
+            # Crear un expander para cada investigador
+            with st.expander(f"{row['Investigador']} - {row['Libros únicos']} libros"):
+                # Filtrar los libros del investigador
+                investigator_libros = filtered_df[filtered_df['autor_principal'] == row['Investigador']]
+                unique_libros_investigator = investigator_libros.drop_duplicates(subset=['titulo_libro'])
 
-                    # Mostrar los libros (incluyendo los nuevos campos si existen)
-                    display_columns = ['titulo_libro', 'editorial', 'pub_date', 'isbn_issn']
-                    if 'sni' in unique_libros_investigator.columns and 'sii' in unique_libros_investigator.columns:
-                        display_columns.extend(['sni', 'sii'])
-                    if 'nombramiento' in unique_libros_investigator.columns:
-                        display_columns.append('nombramiento')
+                # Mostrar los libros (incluyendo los nuevos campos si existen)
+                display_columns = ['titulo_libro', 'editorial', 'pub_date', 'isbn_issn']
+                if 'sni' in unique_libros_investigator.columns and 'sii' in unique_libros_investigator.columns:
+                    display_columns.extend(['sni', 'sii'])
+                if 'nombramiento' in unique_libros_investigator.columns:
+                    display_columns.append('nombramiento')
 
-                    st.write(f"Libros de {row['Investigador']}:")
-                    st.dataframe(unique_libros_investigator[display_columns])
+                st.write(f"Libros de {row['Investigador']}:")
+                mostrar_tabla_uniforme(unique_libros_investigator[display_columns], "")
 
-                    # Opción para descargar en CSV
-                    csv = unique_libros_investigator.to_csv(index=False).encode('utf-8')
-                    st.download_button(
-                        label="Descargar producción de libros en CSV",
-                        data=csv,
-                        file_name=f"libros_{row['Investigador'].replace(' ', '_')}.csv",
-                        mime='text/csv',
-                        key=f"download_{index}"
-                    )
+                # Opción para descargar en CSV
+                csv = unique_libros_investigator.to_csv(index=False).encode('utf-8')
+                st.download_button(
+                    label="Descargar producción de libros en CSV",
+                    data=csv,
+                    file_name=f"libros_{row['Investigador'].replace(' ', '_')}.csv",
+                    mime='text/csv',
+                    key=f"download_{index}"
+                )
 
         # Tabla 2: Editoriales más utilizadas (LIBROS ÚNICOS)
-        st.subheader("🏢 Editoriales más utilizadas",
-                   help="Listado de editoriales ordenadas por cantidad de libros publicados.")
         editorial_stats = unique_libros.groupby('editorial').agg(
             Total_Libros=('editorial', 'size')
         ).reset_index()
         editorial_stats = editorial_stats.sort_values('Total_Libros', ascending=False)
         editorial_stats.columns = ['Editorial', 'Libros únicos']
-
-        # Añadir fila de totales
-        total_row = pd.DataFrame({
-            'Editorial': ['TOTAL'],
-            'Libros únicos': [editorial_stats['Libros únicos'].sum()]
-        })
-        editorial_stats = pd.concat([editorial_stats.head(10), total_row], ignore_index=True)
-        st.dataframe(editorial_stats, hide_index=True)
+        mostrar_tabla_uniforme(
+            editorial_stats,
+            "🏢 Editoriales más utilizadas",
+            "Listado de editoriales ordenadas por cantidad de libros publicados"
+        )
 
         # Tabla 3: Tipos de participación más comunes (LIBROS ÚNICOS)
-        st.subheader("🎭 Participación de los autores",
-                   help="Distribución de los tipos de participación en los libros.")
         participacion_stats = unique_libros['tipo_participacion'].value_counts().reset_index()
         participacion_stats.columns = ['Tipo de participación', 'Libros únicos']
-
-        # Añadir fila de totales
-        total_row = pd.DataFrame({
-            'Tipo de participación': ['TOTAL'],
-            'Libros únicos': [participacion_stats['Libros únicos'].sum()]
-        })
-        participacion_stats = pd.concat([participacion_stats, total_row], ignore_index=True)
-        st.dataframe(participacion_stats, hide_index=True)
+        mostrar_tabla_uniforme(
+            participacion_stats,
+            "🎭 Participación de los autores",
+            "Distribución de los tipos de participación en los libros"
+        )
 
         # Tabla 4: Enfoques más frecuentes (LIBROS ÚNICOS)
-        st.subheader("🧪 Líneas de investigación mas frecuentes",
-                   help="Líneas de investigación más utilizadas en los libros, indicando las áreas de investigación predominantes.")
         try:
             all_keywords = []
             for keywords in unique_libros['selected_keywords']:
@@ -442,107 +546,74 @@ def main():
 
             keyword_stats = pd.Series(all_keywords).value_counts().reset_index()
             keyword_stats.columns = ['Enfoque', 'Frecuencia']
-
-            # Añadir fila de totales
-            total_row = pd.DataFrame({
-                'Enfoque': ['TOTAL'],
-                'Frecuencia': [keyword_stats['Frecuencia'].sum()]
-            })
-            keyword_stats = pd.concat([keyword_stats.head(10), total_row], ignore_index=True)
-            st.dataframe(keyword_stats, hide_index=True)
+            mostrar_tabla_uniforme(
+                keyword_stats,
+                "🧪 Líneas de investigación mas frecuentes",
+                "Líneas de investigación más utilizadas en los libros, indicando las áreas de investigación predominantes"
+            )
         except Exception as e:
             st.warning(f"No se pudieron procesar las palabras clave: {str(e)}")
             logging.error(f"Error procesando palabras clave: {str(e)}")
 
         # Tabla 5: Distribución por departamentos (LIBROS ÚNICOS)
         if 'departamento' in unique_libros.columns:
-            st.subheader("🏛️ Distribución por departamento  de adscripción",
-                       help="Clasificación de libros según el departamento de adscripción del autor principal.")
             depto_stats = unique_libros['departamento'].value_counts().reset_index()
             depto_stats.columns = ['Departamento', 'Libros únicos']
-
-            # Añadir fila de totales
-            total_row = pd.DataFrame({
-                'Departamento': ['TOTAL'],
-                'Libros únicos': [depto_stats['Libros únicos'].sum()]
-            })
-            depto_stats = pd.concat([depto_stats, total_row], ignore_index=True)
-            st.dataframe(depto_stats, hide_index=True)
+            mostrar_tabla_uniforme(
+                depto_stats,
+                "🏛️ Distribución por departamento de adscripción",
+                "Clasificación de libros según el departamento de adscripción del autor principal"
+            )
         else:
             st.warning("El campo 'departamento' no está disponible en los datos")
 
         # Tabla 6: Distribución temporal (LIBROS ÚNICOS)
-        st.subheader("🕰️ Distribución mensual",
-                    help="Evolución mensual de la producción de libros en el periodo seleccionado.")
-
-        # Convertir a formato "YYYY-MM"
         time_stats = unique_libros['pub_date'].dt.to_period('M').astype(str).value_counts().sort_index().reset_index()
         time_stats.columns = ['Mes-Año', 'Libros únicos']
-
-        # Añadir fila de totales
-        total_row = pd.DataFrame({
-            'Mes-Año': ['TOTAL'],
-            'Libros únicos': [time_stats['Libros únicos'].sum()]
-        })
-        time_stats = pd.concat([time_stats, total_row], ignore_index=True)
-        st.dataframe(time_stats, hide_index=True)
+        mostrar_tabla_uniforme(
+            time_stats,
+            "🕰️ Distribución mensual",
+            "Evolución mensual de la producción de libros en el periodo seleccionado"
+        )
 
         # Tabla 7: Distribución por nivel SNI (LIBROS ÚNICOS)
         if 'sni' in unique_libros.columns:
-            st.subheader("📊 Distribución por nivel SNI",
-                        help="Clasificación de libros según el nivel del Sistema Nacional de Investigadores (SNI) de los autores.")
             sni_stats = unique_libros['sni'].value_counts().reset_index()
             sni_stats.columns = ['Nivel SNI', 'Libros únicos']
-
-            # Añadir fila de totales
-            total_row = pd.DataFrame({
-                'Nivel SNI': ['TOTAL'],
-                'Libros únicos': [sni_stats['Libros únicos'].sum()]
-            })
-            sni_stats = pd.concat([sni_stats, total_row], ignore_index=True)
-            st.dataframe(sni_stats, hide_index=True)
+            mostrar_tabla_uniforme(
+                sni_stats,
+                "📊 Distribución por nivel SNI",
+                "Clasificación de libros según el nivel del Sistema Nacional de Investigadores (SNI) de los autores"
+            )
         else:
             st.warning("El campo 'sni' no está disponible en los datos")
 
         # Tabla 8: Distribución por nivel SII (LIBROS ÚNICOS)
         if 'sii' in unique_libros.columns:
-            st.subheader("📈 Distribución por nivel SII",
-                        help="Clasificación de libros según el nivel del Sistema Institucional de Investigación (SII) de los autores.")
             sii_stats = unique_libros['sii'].value_counts().reset_index()
             sii_stats.columns = ['Nivel SII', 'Libros únicos']
-
-            # Añadir fila de totales
-            total_row = pd.DataFrame({
-                'Nivel SII': ['TOTAL'],
-                'Libros únicos': [sii_stats['Libros únicos'].sum()]
-            })
-            sii_stats = pd.concat([sii_stats, total_row], ignore_index=True)
-            st.dataframe(sii_stats, hide_index=True)
+            mostrar_tabla_uniforme(
+                sii_stats,
+                "📈 Distribución por nivel SII",
+                "Clasificación de libros según el nivel del Sistema Institucional de Investigación (SII) de los autores"
+            )
         else:
             st.warning("El campo 'sii' no está disponible en los datos")
 
         # Tabla 9: Distribución por nombramiento (NUEVA TABLA)
         if 'nombramiento' in unique_libros.columns:
-            st.subheader("👔 Distribución por nombramiento del autor",
-                        help="Clasificación de libros según el tipo de nombramiento del autor principal.")
             nombramiento_stats = unique_libros['nombramiento'].value_counts().reset_index()
             nombramiento_stats.columns = ['Tipo de Nombramiento', 'Libros únicos']
-
-            # Añadir fila de totales
-            total_row = pd.DataFrame({
-                'Tipo de Nombramiento': ['TOTAL'],
-                'Libros únicos': [nombramiento_stats['Libros únicos'].sum()]
-            })
-            nombramiento_stats = pd.concat([nombramiento_stats, total_row], ignore_index=True)
-            st.dataframe(nombramiento_stats, hide_index=True)
+            mostrar_tabla_uniforme(
+                nombramiento_stats,
+                "👔 Distribución por nombramiento del autor",
+                "Clasificación de libros según el tipo de nombramiento del autor principal"
+            )
         else:
             st.warning("El campo 'nombramiento' no está disponible en los datos")
 
         # Tabla 10: Distribución por países de distribución (LIBROS ÚNICOS)
         if 'paises_distribucion' in unique_libros.columns:
-            st.subheader("🌍 Distribución por países",
-                        help="Países donde se distribuyen los libros publicados.")
-
             try:
                 all_countries = []
                 for countries in unique_libros['paises_distribucion']:
@@ -552,50 +623,44 @@ def main():
 
                 country_stats = pd.Series(all_countries).value_counts().reset_index()
                 country_stats.columns = ['País', 'Frecuencia']
-
-                # Añadir fila de totales
-                total_row = pd.DataFrame({
-                    'País': ['TOTAL'],
-                    'Frecuencia': [country_stats['Frecuencia'].sum()]
-                })
-                country_stats = pd.concat([country_stats.head(10), total_row], ignore_index=True)
-                st.dataframe(country_stats, hide_index=True)
+                mostrar_tabla_uniforme(
+                    country_stats,
+                    "🌍 Distribución por países",
+                    "Países donde se distribuyen los libros publicados"
+                )
             except:
                 st.warning("No se pudieron procesar los países de distribución")
 
         # Tabla 11: Distribución por idioma (LIBROS ÚNICOS)
         if 'idiomas_disponibles' in unique_libros.columns:
-            st.subheader("🌐 Distribución por idioma",
-                        help="Idiomas en los que están publicados los libros.")
             idioma_stats = unique_libros['idiomas_disponibles'].value_counts().reset_index()
             idioma_stats.columns = ['Idioma', 'Libros únicos']
-
-            # Añadir fila de totales
-            total_row = pd.DataFrame({
-                'Idioma': ['TOTAL'],
-                'Libros únicos': [idioma_stats['Libros únicos'].sum()]
-            })
-            idioma_stats = pd.concat([idioma_stats, total_row], ignore_index=True)
-            st.dataframe(idioma_stats, hide_index=True)
+            mostrar_tabla_uniforme(
+                idioma_stats,
+                "🌐 Distribución por idioma",
+                "Idiomas en los que están publicados los libros"
+            )
         else:
             st.warning("El campo 'idiomas_disponibles' no está disponible en los datos")
 
         # Tabla 12: Distribución por formato (LIBROS ÚNICOS)
         if 'formatos_disponibles' in unique_libros.columns:
-            st.subheader("📖 Distribución por tipo  de formato",
-                        help="Formatos disponibles para los libros publicados.")
             formato_stats = unique_libros['formatos_disponibles'].value_counts().reset_index()
             formato_stats.columns = ['Formato', 'Libros únicos']
-
-            # Añadir fila de totales
-            total_row = pd.DataFrame({
-                'Formato': ['TOTAL'],
-                'Libros únicos': [formato_stats['Libros únicos'].sum()]
-            })
-            formato_stats = pd.concat([formato_stats, total_row], ignore_index=True)
-            st.dataframe(formato_stats, hide_index=True)
+            mostrar_tabla_uniforme(
+                formato_stats,
+                "📖 Distribución por tipo de formato",
+                "Formatos disponibles para los libros publicados"
+            )
         else:
             st.warning("El campo 'formatos_disponibles' no está disponible en los datos")
+
+        # ==========================================
+        # TABLA RESUMEN CONSOLIDADA
+        # ==========================================
+        st.header("📋 Resumen Consolidado de Totales")
+        resumen_df = generar_tabla_resumen(unique_libros, filtered_df)
+        mostrar_tabla_uniforme(resumen_df, "Resumen General")
 
         # ==========================================
         # SECCIÓN: DESCARGAR ARCHIVO COMPLETO
