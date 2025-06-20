@@ -637,7 +637,40 @@ def main():
                 max_selections=CONFIG.MAX_KEYWORDS
             )
 
+            # Sección para subir portada del libro
+            st.subheader("📄 Portada del libro")
+            portada_pdf = st.file_uploader(
+                "Suba la portada del libro en formato PDF (solo la portada):",
+                type=["pdf"],
+                accept_multiple_files=False
+            )
+            st.caption("Nota: Solo se acepta el archivo PDF de la portada del libro. El nombre del archivo se generará automáticamente.")
+
             if st.form_submit_button("💾 Guardar nuevo registro"):
+                # Generar nombre del archivo PDF con el formato YYYY-MM-DD-HH-MM.economic_number.pdf
+                timestamp = datetime.now().strftime("%Y-%m-%d-%H-%M")
+                pdf_filename = f"{timestamp}.{economic_number}.pdf"
+                pdf_remote_path = os.path.join(CONFIG.REMOTE['DIR'], pdf_filename)
+
+                # Subir el archivo PDF si se proporcionó
+                if portada_pdf is not None:
+                    try:
+                        # Guardar temporalmente el archivo localmente
+                        with open(pdf_filename, "wb") as f:
+                            f.write(portada_pdf.getbuffer())
+
+                        # Subir al servidor remoto
+                        with st.spinner("Subiendo portada del libro..."):
+                            upload_success = SSHManager.upload_remote_file(pdf_filename, pdf_remote_path)
+
+                        if not upload_success:
+                            st.error("Error al subir la portada del libro. El registro se guardará sin la portada.")
+                    except Exception as e:
+                        st.error(f"Error al procesar la portada: {str(e)}")
+                        logging.error(f"Error al subir portada: {str(e)}")
+                else:
+                    st.warning("No se subió ninguna portada para este libro")
+
                 nuevo_registro = {
                     'economic_number': economic_number,
                     'nombramiento': nombramiento,

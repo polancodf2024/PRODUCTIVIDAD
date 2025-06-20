@@ -348,6 +348,7 @@ def mostrar_tabla_uniforme(df, titulo, ayuda=None, max_rows=10):
     
     st.dataframe(df.head(max_rows), hide_index=True)
 
+
 def main():
     st.set_page_config(
         page_title="Análisis de Libros",
@@ -375,15 +376,12 @@ def main():
         return
 
     try:
-        # Leer y procesar el archivo con los nuevos campos sni y sii (VERSIÓN CORREGIDA)
+        # Leer y procesar el archivo
         df = pd.read_csv("libros_total.csv", header=0, encoding='utf-8')
-        df.columns = df.columns.str.strip()  # Limpiar espacios en nombres de columnas
+        df.columns = df.columns.str.strip()
 
-        # Verificación de columnas (para diagnóstico)
-        logging.info(f"Columnas detectadas: {df.columns.tolist()}")
-
-        # Verificar que los campos importantes existen
-        required_columns = ['autor_principal', 'titulo_libro', 'pub_date', 'estado', 'selected_keywords']
+        # Verificar campos importantes
+        required_columns = ['autor_principal', 'titulo_libro', 'pub_date', 'estado', 'selected_keywords', 'economic_number']
         missing_columns = [col for col in required_columns if col not in df.columns]
 
         if missing_columns:
@@ -404,36 +402,24 @@ def main():
         min_date = df['pub_date'].min()
         max_date = df['pub_date'].max()
 
-        # Selector de rango mes-año con ayuda
+        # Selector de rango mes-año
         st.header("📅 Selección de Periodo")
         col1, col2 = st.columns(2)
 
         with col1:
-            start_year = st.selectbox("Año inicio",
-                                   range(min_date.year, max_date.year+1),
-                                   index=0,
-                                   help="Selecciona el año inicial para el análisis.")
-            start_month = st.selectbox("Mes inicio",
-                                    range(1, 13),
-                                    index=min_date.month-1,
-                                    format_func=lambda x: datetime(1900, x, 1).strftime('%B'),
-                                    help="Selecciona el mes inicial para el análisis.")
+            start_year = st.selectbox("Año inicio", range(min_date.year, max_date.year+1), index=0)
+            start_month = st.selectbox("Mes inicio", range(1, 13), index=min_date.month-1,
+                                    format_func=lambda x: datetime(1900, x, 1).strftime('%B'))
 
         with col2:
-            end_year = st.selectbox("Año término",
-                                  range(min_date.year, max_date.year+1),
-                                  index=len(range(min_date.year, max_date.year+1))-1,
-                                  help="Selecciona el año final para el análisis.")
-            end_month = st.selectbox("Mes término",
-                                   range(1, 13),
-                                   index=max_date.month-1,
-                                   format_func=lambda x: datetime(1900, x, 1).strftime('%B'),
-                                   help="Selecciona el mes final para el análisis.")
+            end_year = st.selectbox("Año término", range(min_date.year, max_date.year+1),
+                                 index=len(range(min_date.year, max_date.year+1))-1)
+            end_month = st.selectbox("Mes término", range(1, 13), index=max_date.month-1,
+                                  format_func=lambda x: datetime(1900, x, 1).strftime('%B'))
 
         # Calcular fechas de inicio y fin
         start_day = 1
         end_day = calendar.monthrange(end_year, end_month)[1]
-
         date_start = datetime(start_year, start_month, start_day)
         date_end = datetime(end_year, end_month, end_day)
 
@@ -441,15 +427,12 @@ def main():
         filtered_df = df[(df['pub_date'] >= pd.to_datetime(date_start)) &
                        (df['pub_date'] <= pd.to_datetime(date_end))]
 
-        # Obtener libros únicos para estadísticas precisas
+        # Obtener libros únicos
         unique_libros = filtered_df.drop_duplicates(subset=['titulo_libro'])
 
-        st.markdown(f"**Periodo seleccionado:** {date_start.strftime('%d/%m/%Y')} - {date_end.strftime('%d/%m/%Y')}",
-                   help="Rango de fechas seleccionado para el análisis.")
-        st.markdown(f"**Registros encontrados:** {len(filtered_df)}",
-                   help="Total de registros en el periodo, incluyendo posibles duplicados del mismo libro.")
-        st.markdown(f"**Libros únicos:** {len(unique_libros)}",
-                   help="Cantidad de libros distintos, eliminando duplicados.")
+        st.markdown(f"**Periodo seleccionado:** {date_start.strftime('%d/%m/%Y')} - {date_end.strftime('%d/%m/%Y')}")
+        st.markdown(f"**Registros encontrados:** {len(filtered_df)}")
+        st.markdown(f"**Libros únicos:** {len(unique_libros)}")
 
         if len(filtered_df) != len(unique_libros):
             st.warning(f"⚠️ **Nota:** Se detectaron {len(filtered_df) - len(unique_libros)} registros duplicados del mismo libro.")
@@ -459,31 +442,22 @@ def main():
             return
 
         # Análisis consolidado en tablas
-        st.header("📊 Estadísticas Consolidadas",
-                help="Métricas generales basadas en los filtros aplicados.")
+        st.header("📊 Estadísticas Consolidadas")
 
-        # Tabla 1: Productividad por investigador (LIBROS ÚNICOS) con participación
-        st.subheader("🔍 Productividad por investigador",
-                   help="Muestra cuántos libros únicos tiene cada investigador y su tipo de participación.")
-
-        # Crear dataframe con información de participación
-        investigator_stats = filtered_df.groupby('autor_principal').agg(
+        # Tabla 1: Productividad por investigador
+        st.subheader("🔍 Productividad por investigador")
+        investigator_stats = filtered_df.groupby(['autor_principal', 'economic_number']).agg(
             Libros_Unicos=('titulo_libro', lambda x: len(set(x))),
             Participaciones=('tipo_participacion', lambda x: ', '.join(sorted(set(x))))
         ).reset_index()
-
         investigator_stats = investigator_stats.sort_values('Libros_Unicos', ascending=False)
-        investigator_stats.columns = ['Investigador', 'Libros únicos', 'Tipo de participación']
+        investigator_stats.columns = ['Investigador', 'Número económico', 'Libros únicos', 'Tipo de participación']
 
-        # Mostrar tabla con enlaces clickeables
         for index, row in investigator_stats.iterrows():
-            # Crear un expander para cada investigador
             with st.expander(f"{row['Investigador']} - {row['Libros únicos']} libros"):
-                # Filtrar los libros del investigador
                 investigator_libros = filtered_df[filtered_df['autor_principal'] == row['Investigador']]
                 unique_libros_investigator = investigator_libros.drop_duplicates(subset=['titulo_libro'])
 
-                # Mostrar los libros (incluyendo los nuevos campos si existen)
                 display_columns = ['titulo_libro', 'editorial', 'pub_date', 'isbn_issn']
                 if 'sni' in unique_libros_investigator.columns and 'sii' in unique_libros_investigator.columns:
                     display_columns.extend(['sni', 'sii'])
@@ -493,7 +467,71 @@ def main():
                 st.write(f"Libros de {row['Investigador']}:")
                 mostrar_tabla_uniforme(unique_libros_investigator[display_columns], "")
 
-                # Opción para descargar en CSV
+                # SECCIÓN DE PORTADAS PDF
+                st.subheader("📄 Portadas disponibles")
+                economic_number = row['Número económico']
+                pdf_pattern = f"*.{economic_number}.pdf"
+                remote_pdfs = []
+
+                ssh = SSHManager.get_connection()
+                if ssh:
+                    try:
+                        with ssh.open_sftp() as sftp:
+                            try:
+                                remote_files = sftp.listdir(CONFIG.REMOTE['DIR'])
+                                remote_pdfs = [f for f in remote_files if f.endswith(f".{economic_number}.pdf")]
+                                remote_pdfs.sort(reverse=True)  # Ordenar de más reciente a más antiguo
+                            except Exception as e:
+                                st.warning(f"No se pudieron listar los archivos PDF: {str(e)}")
+                    except Exception as e:
+                        st.warning(f"Error al acceder a SFTP: {str(e)}")
+                    finally:
+                        ssh.close()
+
+                if remote_pdfs:
+                    st.info(f"Se encontraron {len(remote_pdfs)} portadas para este investigador")
+                    selected_pdf = st.selectbox(
+                        "Seleccione una portada para ver:",
+                        remote_pdfs,
+                        key=f"pdf_selector_{index}"
+                    )
+
+                    if selected_pdf:
+                        temp_pdf_path = f"temp_{selected_pdf}"
+                        remote_pdf_path = os.path.join(CONFIG.REMOTE['DIR'], selected_pdf)
+
+                        if SSHManager.download_remote_file(remote_pdf_path, temp_pdf_path):
+                            with open(temp_pdf_path, "rb") as f:
+                                pdf_bytes = f.read()
+
+                            st.download_button(
+                                label="Descargar esta portada",
+                                data=pdf_bytes,
+                                file_name=selected_pdf,
+                                mime="application/pdf"
+                            )
+
+                            try:
+                                import PyPDF2
+                                pdf_reader = PyPDF2.PdfReader(temp_pdf_path)
+                                if len(pdf_reader.pages) > 0:
+                                    page = pdf_reader.pages[0]
+                                    st.image(page.images[0].data if page.images else None,
+                                           caption="Vista previa de la portada",
+                                           use_column_width=True)
+                            except Exception as e:
+                                st.warning(f"No se pudo mostrar vista previa: {str(e)}")
+
+                            try:
+                                os.remove(temp_pdf_path)
+                            except:
+                                pass
+                        else:
+                            st.error("No se pudo descargar el PDF seleccionado")
+                else:
+                    st.warning("No se encontraron portadas PDF para este investigador")
+
+                # Descargar CSV
                 csv = unique_libros_investigator.to_csv(index=False).encode('utf-8')
                 st.download_button(
                     label="Descargar producción de libros en CSV",
@@ -503,117 +541,89 @@ def main():
                     key=f"download_{index}"
                 )
 
-        # Tabla 2: Editoriales más utilizadas (LIBROS ÚNICOS)
+        # Tabla 2: Editoriales más utilizadas
+        st.subheader("🏢 Editoriales más utilizadas")
         editorial_stats = unique_libros.groupby('editorial').agg(
             Total_Libros=('editorial', 'size')
         ).reset_index()
         editorial_stats = editorial_stats.sort_values('Total_Libros', ascending=False)
         editorial_stats.columns = ['Editorial', 'Libros únicos']
-        mostrar_tabla_uniforme(
-            editorial_stats,
-            "🏢 Editoriales más utilizadas",
-            "Listado de editoriales ordenadas por cantidad de libros publicados"
-        )
+        mostrar_tabla_uniforme(editorial_stats, "")
 
-        # Tabla 3: Tipos de participación más comunes (LIBROS ÚNICOS)
+        # Tabla 3: Tipos de participación
+        st.subheader("🎭 Participación de los autores")
         participacion_stats = unique_libros['tipo_participacion'].value_counts().reset_index()
         participacion_stats.columns = ['Tipo de participación', 'Libros únicos']
-        mostrar_tabla_uniforme(
-            participacion_stats,
-            "🎭 Participación de los autores",
-            "Distribución de los tipos de participación en los libros"
-        )
+        mostrar_tabla_uniforme(participacion_stats, "")
 
-        # Tabla 4: Enfoques más frecuentes (LIBROS ÚNICOS)
+        # Tabla 4: Líneas de investigación
+        st.subheader("🧪 Líneas de investigación mas frecuentes")
         try:
             all_keywords = []
             for keywords in unique_libros['selected_keywords']:
                 if pd.notna(keywords):
-                    # Procesamiento mejorado de palabras clave
                     keywords_str = str(keywords).strip()
                     if keywords_str.startswith('[') and keywords_str.endswith(']'):
-                        # Es una lista en formato de cadena
-                        keywords_str = keywords_str[1:-1]  # Eliminar corchetes
-                        # Dividir por comas que no estén dentro de comillas
+                        keywords_str = keywords_str[1:-1]
                         import re
                         keyword_list = re.split(r",\s*(?=(?:[^']*'[^']*')*[^']*$)", keywords_str)
                         keyword_list = [k.strip().strip("'\"") for k in keyword_list if k.strip()]
                         all_keywords.extend(keyword_list)
                     else:
-                        # Es una cadena simple, dividir por comas
                         keyword_list = [k.strip() for k in keywords_str.split(",") if k.strip()]
                         all_keywords.extend(keyword_list)
 
             keyword_stats = pd.Series(all_keywords).value_counts().reset_index()
             keyword_stats.columns = ['Enfoque', 'Frecuencia']
-            mostrar_tabla_uniforme(
-                keyword_stats,
-                "🧪 Líneas de investigación mas frecuentes",
-                "Líneas de investigación más utilizadas en los libros, indicando las áreas de investigación predominantes"
-            )
+            mostrar_tabla_uniforme(keyword_stats, "")
         except Exception as e:
             st.warning(f"No se pudieron procesar las palabras clave: {str(e)}")
-            logging.error(f"Error procesando palabras clave: {str(e)}")
 
-        # Tabla 5: Distribución por departamentos (LIBROS ÚNICOS)
+        # Tabla 5: Distribución por departamentos
         if 'departamento' in unique_libros.columns:
+            st.subheader("🏛️ Distribución por departamento de adscripción")
             depto_stats = unique_libros['departamento'].value_counts().reset_index()
             depto_stats.columns = ['Departamento', 'Libros únicos']
-            mostrar_tabla_uniforme(
-                depto_stats,
-                "🏛️ Distribución por departamento de adscripción",
-                "Clasificación de libros según el departamento de adscripción del autor principal"
-            )
+            mostrar_tabla_uniforme(depto_stats, "")
         else:
             st.warning("El campo 'departamento' no está disponible en los datos")
 
-        # Tabla 6: Distribución temporal (LIBROS ÚNICOS)
+        # Tabla 6: Distribución temporal
+        st.subheader("🕰️ Distribución mensual")
         time_stats = unique_libros['pub_date'].dt.to_period('M').astype(str).value_counts().sort_index().reset_index()
         time_stats.columns = ['Mes-Año', 'Libros únicos']
-        mostrar_tabla_uniforme(
-            time_stats,
-            "🕰️ Distribución mensual",
-            "Evolución mensual de la producción de libros en el periodo seleccionado"
-        )
+        mostrar_tabla_uniforme(time_stats, "")
 
-        # Tabla 7: Distribución por nivel SNI (LIBROS ÚNICOS)
+        # Tabla 7: Distribución por nivel SNI
         if 'sni' in unique_libros.columns:
+            st.subheader("📊 Distribución por nivel SNI")
             sni_stats = unique_libros['sni'].value_counts().reset_index()
             sni_stats.columns = ['Nivel SNI', 'Libros únicos']
-            mostrar_tabla_uniforme(
-                sni_stats,
-                "📊 Distribución por nivel SNI",
-                "Clasificación de libros según el nivel del Sistema Nacional de Investigadores (SNI) de los autores"
-            )
+            mostrar_tabla_uniforme(sni_stats, "")
         else:
             st.warning("El campo 'sni' no está disponible en los datos")
 
-        # Tabla 8: Distribución por nivel SII (LIBROS ÚNICOS)
+        # Tabla 8: Distribución por nivel SII
         if 'sii' in unique_libros.columns:
+            st.subheader("📈 Distribución por nivel SII")
             sii_stats = unique_libros['sii'].value_counts().reset_index()
             sii_stats.columns = ['Nivel SII', 'Libros únicos']
-            mostrar_tabla_uniforme(
-                sii_stats,
-                "📈 Distribución por nivel SII",
-                "Clasificación de libros según el nivel del Sistema Institucional de Investigación (SII) de los autores"
-            )
+            mostrar_tabla_uniforme(sii_stats, "")
         else:
             st.warning("El campo 'sii' no está disponible en los datos")
 
-        # Tabla 9: Distribución por nombramiento (NUEVA TABLA)
+        # Tabla 9: Distribución por nombramiento
         if 'nombramiento' in unique_libros.columns:
+            st.subheader("👔 Distribución por nombramiento del autor")
             nombramiento_stats = unique_libros['nombramiento'].value_counts().reset_index()
             nombramiento_stats.columns = ['Tipo de Nombramiento', 'Libros únicos']
-            mostrar_tabla_uniforme(
-                nombramiento_stats,
-                "👔 Distribución por nombramiento del autor",
-                "Clasificación de libros según el tipo de nombramiento del autor principal"
-            )
+            mostrar_tabla_uniforme(nombramiento_stats, "")
         else:
             st.warning("El campo 'nombramiento' no está disponible en los datos")
 
-        # Tabla 10: Distribución por países de distribución (LIBROS ÚNICOS)
+        # Tabla 10: Distribución por países
         if 'paises_distribucion' in unique_libros.columns:
+            st.subheader("🌍 Distribución por países")
             try:
                 all_countries = []
                 for countries in unique_libros['paises_distribucion']:
@@ -623,59 +633,42 @@ def main():
 
                 country_stats = pd.Series(all_countries).value_counts().reset_index()
                 country_stats.columns = ['País', 'Frecuencia']
-                mostrar_tabla_uniforme(
-                    country_stats,
-                    "🌍 Distribución por países",
-                    "Países donde se distribuyen los libros publicados"
-                )
+                mostrar_tabla_uniforme(country_stats, "")
             except:
                 st.warning("No se pudieron procesar los países de distribución")
 
-        # Tabla 11: Distribución por idioma (LIBROS ÚNICOS)
+        # Tabla 11: Distribución por idioma
         if 'idiomas_disponibles' in unique_libros.columns:
+            st.subheader("🌐 Distribución por idioma")
             idioma_stats = unique_libros['idiomas_disponibles'].value_counts().reset_index()
             idioma_stats.columns = ['Idioma', 'Libros únicos']
-            mostrar_tabla_uniforme(
-                idioma_stats,
-                "🌐 Distribución por idioma",
-                "Idiomas en los que están publicados los libros"
-            )
+            mostrar_tabla_uniforme(idioma_stats, "")
         else:
             st.warning("El campo 'idiomas_disponibles' no está disponible en los datos")
 
-        # Tabla 12: Distribución por formato (LIBROS ÚNICOS)
+        # Tabla 12: Distribución por formato
         if 'formatos_disponibles' in unique_libros.columns:
+            st.subheader("📖 Distribución por tipo de formato")
             formato_stats = unique_libros['formatos_disponibles'].value_counts().reset_index()
             formato_stats.columns = ['Formato', 'Libros únicos']
-            mostrar_tabla_uniforme(
-                formato_stats,
-                "📖 Distribución por tipo de formato",
-                "Formatos disponibles para los libros publicados"
-            )
+            mostrar_tabla_uniforme(formato_stats, "")
         else:
             st.warning("El campo 'formatos_disponibles' no está disponible en los datos")
 
-        # ==========================================
-        # TABLA RESUMEN CONSOLIDADA
-        # ==========================================
+        # Tabla Resumen Consolidada
         st.header("📋 Resumen Consolidado de Totales")
         resumen_df = generar_tabla_resumen(unique_libros, filtered_df)
-        mostrar_tabla_uniforme(resumen_df, "Resumen General")
+        mostrar_tabla_uniforme(resumen_df, "")
 
-        # ==========================================
-        # SECCIÓN: DESCARGAR ARCHIVO COMPLETO
-        # ==========================================
+        # Sección de descarga
         st.header("📥 Descargar Datos Completos")
-
-        # Opción para descargar el archivo pro_libros_total.csv
         if Path("libros_total.csv").exists():
             with open("libros_total.csv", "rb") as file:
                 btn = st.download_button(
                     label="Descargar archivo pro_libros_total.csv completo",
                     data=file,
                     file_name="pro_libros_total.csv",
-                    mime="text/csv",
-                    help="Descarga el archivo CSV completo con todos los datos de libros"
+                    mime="text/csv"
                 )
             if btn:
                 st.success("Descarga iniciada")
