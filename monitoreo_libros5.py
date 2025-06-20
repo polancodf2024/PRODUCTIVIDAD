@@ -470,7 +470,6 @@ def main():
                 # SECCIÓN DE PORTADAS PDF
                 st.subheader("📄 Portadas disponibles")
                 economic_number = row['Número económico']
-                pdf_pattern = f"*.{economic_number}.pdf"
                 remote_pdfs = []
 
                 ssh = SSHManager.get_connection()
@@ -493,7 +492,7 @@ def main():
                     selected_pdf = st.selectbox(
                         "Seleccione una portada para ver:",
                         remote_pdfs,
-                        key=f"pdf_selector_{index}"
+                        key=f"pdf_selector_{economic_number}_{index}"
                     )
 
                     if selected_pdf:
@@ -508,17 +507,13 @@ def main():
                                 label="Descargar esta portada",
                                 data=pdf_bytes,
                                 file_name=selected_pdf,
-                                mime="application/pdf"
+                                mime="application/pdf",
+                                key=f"download_pdf_{economic_number}_{index}"
                             )
 
                             try:
-                                import PyPDF2
-                                pdf_reader = PyPDF2.PdfReader(temp_pdf_path)
-                                if len(pdf_reader.pages) > 0:
-                                    page = pdf_reader.pages[0]
-                                    st.image(page.images[0].data if page.images else None,
-                                           caption="Vista previa de la portada",
-                                           use_column_width=True)
+                                # Solución para PyPDF2: Mostrar solo el botón de descarga si no está instalado
+                                 st.warning("Seleccione el archivo PDF que quiere revisar y bájelo a su dispositivo.")
                             except Exception as e:
                                 st.warning(f"No se pudo mostrar vista previa: {str(e)}")
 
@@ -538,8 +533,12 @@ def main():
                     data=csv,
                     file_name=f"libros_{row['Investigador'].replace(' ', '_')}.csv",
                     mime='text/csv',
-                    key=f"download_{index}"
+                    key=f"download_csv_{economic_number}_{index}"
                 )
+
+        # =============================================
+        # TABLAS DE ESTADÍSTICAS (sección restaurada)
+        # =============================================
 
         # Tabla 2: Editoriales más utilizadas
         st.subheader("🏢 Editoriales más utilizadas")
