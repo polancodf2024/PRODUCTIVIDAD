@@ -463,7 +463,7 @@ def main():
 
         # Convertir y validar fechas
         df['pub_date'] = pd.to_datetime(df['pub_date'], errors='coerce')
-        df = df[(df['estado'] == 'A') & (df['pub_date'].notna())]
+        df = df[(df['estado'] == 'A') & (df['pub_date'].notna())].copy()
 
         if df.empty:
             st.warning("No hay libros válidos para analizar")
@@ -498,10 +498,10 @@ def main():
 
         # Filtrar dataframe
         filtered_df = df[(df['pub_date'] >= pd.to_datetime(date_start)) &
-                       (df['pub_date'] <= pd.to_datetime(date_end))]
+                       (df['pub_date'] <= pd.to_datetime(date_end))].copy()
 
         # Obtener libros únicos
-        unique_libros = filtered_df.drop_duplicates(subset=['titulo_libro'])
+        unique_libros = filtered_df.drop_duplicates(subset=['titulo_libro']).copy()
 
         st.markdown(f"**Periodo seleccionado:** {date_start.strftime('%d/%m/%Y')} - {date_end.strftime('%d/%m/%Y')}")
         st.markdown(f"**Registros encontrados:** {len(filtered_df)}")
@@ -515,7 +515,7 @@ def main():
             return
 
         # =============================================
-        # TABLA DE PRODUCTIVIDAD POR INVESTIGADOR (MANTENIDA SIN CAMBIOS)
+        # TABLA DE PRODUCTIVIDAD POR INVESTIGADOR
         # =============================================
         st.header("🔍 Productividad por investigador")
         investigator_stats = filtered_df.groupby(['autor_principal', 'economic_number']).agg(
@@ -525,16 +525,14 @@ def main():
         investigator_stats = investigator_stats.sort_values('Libros_Unicos', ascending=False)
         investigator_stats.columns = ['Investigador', 'Número económico', 'Libros únicos', 'Tipo de participación']
 
-        # Mostrar tabla principal
         mostrar_tabla_uniforme(investigator_stats, "Productividad por investigador")
 
-        # Detalle expandible por investigador (CON DESCARGAS DE PDF)
+        # Detalle expandible por investigador
         for index, row in investigator_stats.iterrows():
             with st.expander(f"{row['Investigador']} - {row['Libros únicos']} libros"):
                 investigator_libros = filtered_df[filtered_df['autor_principal'] == row['Investigador']]
                 unique_libros_investigator = investigator_libros.drop_duplicates(subset=['titulo_libro'])
 
-                # Mostrar tabla de libros
                 display_columns = ['titulo_libro', 'editorial', 'pub_date', 'isbn_issn']
                 if 'sni' in unique_libros_investigator.columns and 'sii' in unique_libros_investigator.columns:
                     display_columns.extend(['sni', 'sii'])
@@ -544,12 +542,11 @@ def main():
                 st.write(f"Libros de {row['Investigador']}:")
                 mostrar_tabla_uniforme(unique_libros_investigator[display_columns], "")
 
-                # SECCIÓN DE PORTADAS PDF (MANTENIDA)
+                # Sección de portadas PDF
                 st.subheader("📄 Portadas disponibles")
                 economic_number = row['Número económico']
                 remote_pdfs = []
 
-                # Buscar PDFs en el servidor
                 ssh = SSHManager.get_connection()
                 if ssh:
                     try:
@@ -565,7 +562,6 @@ def main():
                     finally:
                         ssh.close()
 
-                # Mostrar opciones de descarga
                 if remote_pdfs:
                     st.info(f"Se encontraron {len(remote_pdfs)} portadas para este investigador")
                     selected_pdf = st.selectbox(
@@ -599,7 +595,6 @@ def main():
                 else:
                     st.warning("No se encontraron portadas PDF para este investigador")
 
-                # Descargar CSV (MANTENIDO)
                 csv = unique_libros_investigator.to_csv(index=False).encode('utf-8')
                 st.download_button(
                     label="Descargar producción de libros en CSV",
@@ -610,81 +605,26 @@ def main():
                 )
 
         # =============================================
-        # SECCIÓN DE MÉTRICAS DE CALIDAD EDITORIAL (MEJORADA)
+        # SECCIÓN DE MÉTRICAS DE CALIDAD EDITORIAL
         # =============================================
         st.header("📊 Métricas de Calidad Editorial")
 
-        # Explicación detallada de cada métrica
-        with st.expander("🔍 Explicación Detallada de las Métricas", expanded=True):
-            st.markdown("""
-            ### Índice de Calidad Editorial (ICE)
-            **Fórmula:**
-            Clasificación de editoriales en 4 niveles con valores de 0.3 a 1.0
-
-            **Criterios:**
-            - **1.0**: Editoriales líderes (Springer, Elsevier, Wiley, Oxford University Press)
-            - **0.7**: Editoriales especializadas reconocidas (Taylor & Francis, Cambridge University Press)
-            - **0.5**: Editoriales académicas (Bentham Science, Acta Biochimica Polonica)
-            - **0.3**: Otras editoriales no clasificadas
-
-            **Propósito:**
-            Evaluar el prestigio y reconocimiento de la editorial donde se publicó el libro.
-            """)
-
-            st.markdown("""
-            ### Coeficiente de Internacionalización (CI)
-            **Fórmula:**
-            CI = (0.6 × [n° países/3]) + (0.4 × [n° idiomas/2])
-
-            **Donde:**
-            - **Países:** Número de países de distribución (máximo 3 para normalización)
-            - **Idiomas:** Número de idiomas disponibles (máximo 2 para normalización)
-
-            **Propósito:**
-            Medir el alcance geográfico y lingüístico de la publicación.
-            """)
-
-            st.markdown("""
-            ### Índice de Relevancia Temática (IRT)
-            **Fórmula:**
-            IRT = (N° palabras clave de cardiología) / (Total palabras clave)
-
-            **Términos considerados como cardiología:**
-            cardíaco, miocardio, arritmia, isquemia, hipertensión, ECG, insuficiencia cardíaca, coronario, válvula, aterosclerosis, angina
-
-            **Propósito:**
-            Evaluar qué tan relacionado está el contenido del libro con el área de cardiología.
-            """)
-
-            st.markdown("""
-            ### Puntaje Integrado (PI)
-            **Fórmula:**
-            PI = (0.4 × ICE) + (0.3 × CI) + (0.3 × IRT)
-
-            **Interpretación:**
-            - **0.8-1.0**: Excelente calidad e impacto
-            - **0.6-0.79**: Buena calidad
-            - **0.4-0.59**: Calidad aceptable
-            - **<0.4**: Baja calidad relativa
-
-            **Propósito:**
-            Proporcionar una evaluación integral combinando los tres aspectos clave.
-            """)
-
         # Calcular métricas para cada libro único
         with st.spinner("Calculando métricas de calidad..."):
-            unique_libros['ICE'] = unique_libros['editorial'].apply(indice_calidad_editorial)
-            unique_libros['CI'] = unique_libros.apply(
-                lambda x: coeficiente_internacionalizacion(x['paises_distribucion'], x['idiomas_disponibles']),
-                axis=1
+            unique_libros = unique_libros.assign(
+                ICE=unique_libros['editorial'].apply(indice_calidad_editorial),
+                CI=unique_libros.apply(
+                    lambda x: coeficiente_internacionalizacion(x['paises_distribucion'], x['idiomas_disponibles']),
+                    axis=1
+                ),
+                IRT=unique_libros['selected_keywords'].apply(indice_relevancia_tematica)
             )
-            unique_libros['IRT'] = unique_libros['selected_keywords'].apply(indice_relevancia_tematica)
-            unique_libros['PI'] = 0.4 * unique_libros['ICE'] + 0.3 * unique_libros['CI'] + 0.3 * unique_libros['IRT']
+            unique_libros = unique_libros.assign(
+                PI=0.4 * unique_libros['ICE'] + 0.3 * unique_libros['CI'] + 0.3 * unique_libros['IRT']
+            )
 
         # Mostrar tabla de resultados por investigador
         st.subheader("Métricas por Investigador")
-
-        # Agrupar por investigador y calcular promedios
         metrics_by_investigator = unique_libros.groupby('autor_principal').agg({
             'ICE': 'mean',
             'CI': 'mean',
@@ -702,14 +642,49 @@ def main():
             'Libros Evaluados'
         ]
 
-        # Ordenar por PI descendente y formatear
         metrics_by_investigator = metrics_by_investigator.sort_values('PI Promedio', ascending=False)
-        metrics_by_investigator['ICE Promedio'] = metrics_by_investigator['ICE Promedio'].round(2)
-        metrics_by_investigator['CI Promedio'] = metrics_by_investigator['CI Promedio'].round(2)
-        metrics_by_investigator['IRT Promedio'] = metrics_by_investigator['IRT Promedio'].round(2)
-        metrics_by_investigator['PI Promedio'] = metrics_by_investigator['PI Promedio'].round(2)
+        metrics_by_investigator = metrics_by_investigator.round(2)
 
         mostrar_tabla_uniforme(metrics_by_investigator, "Resumen de Métricas por Investigador")
+
+        # Botón para explicación de métricas
+        with st.expander("ℹ️ Explicación de las Métricas", expanded=False):
+            st.markdown("""
+            ### Índice de Calidad Editorial (ICE)
+            **Fórmula:**
+            Clasificación de editoriales en 4 niveles con valores de 0.3 a 1.0
+            - **1.0**: Editoriales líderes (Springer, Elsevier, Wiley)
+            - **0.7**: Editoriales especializadas reconocidas
+            - **0.5**: Editoriales académicas
+            - **0.3**: Otras editoriales
+
+            **Propósito:** Evaluar el prestigio de la editorial.
+            """)
+
+            st.markdown("""
+            ### Coeficiente de Internacionalización (CI)
+            **Fórmula:**
+            CI = (0.6 × [n° países/3]) + (0.4 × [n° idiomas/2])
+
+            **Propósito:** Medir alcance geográfico y lingüístico.
+            """)
+
+            st.markdown("""
+            ### Índice de Relevancia Temática (IRT)
+            **Fórmula:**
+            IRT = (N° palabras clave de cardiología) / (Total palabras clave)
+
+            **Propósito:** Evaluar relación con área de cardiología.
+            """)
+
+            st.markdown("""
+            ### Puntaje Integrado (PI)
+            **Fórmula:**
+            PI = (0.4 × ICE) + (0.3 × CI) + (0.3 × IRT)
+
+            **Interpretación:**
+            0.8-1.0: Excelente | 0.6-0.79: Bueno | 0.4-0.59: Aceptable | <0.4: Bajo
+            """)
 
         # Mostrar tabla completa de libros con métricas
         st.subheader("Resultados Detallados por Libro")
@@ -724,7 +699,6 @@ def main():
             'Relevancia Temática (IRT)', 'Puntaje Integrado (PI)'
         ]
 
-        # Formatear valores numéricos
         metricas_df = metricas_df.round(2)
         mostrar_tabla_uniforme(metricas_df, "")
 
@@ -732,7 +706,6 @@ def main():
         # TOP 5 LIBROS POR CALIDAD
         # =============================================
         st.header("🏆 Libros Destacados")
-
         top_libros = unique_libros.nlargest(5, 'PI')[[
             'titulo_libro', 'autor_principal', 'editorial', 'PI', 'ICE', 'CI', 'IRT'
         ]]
@@ -742,26 +715,26 @@ def main():
             'Internacionalización', 'Relevancia Temática'
         ]
 
-        # Mostrar tabla con explicación
-        st.markdown("""
-        **Criterios de selección:**
-        Los libros destacados son aquellos con mayor Puntaje Integrado (PI), que combina:
-        - Calidad editorial (40%)
-        - Internacionalización (30%)
-        - Relevancia temática (30%)
-        """)
-
         mostrar_tabla_uniforme(top_libros.round(2), "Top 5 libros por Calidad Integral")
 
+        # Botón para criterios de selección
+        with st.expander("ℹ️ Criterios de Selección", expanded=False):
+            st.markdown("""
+            **Libros destacados** se seleccionan por mayor Puntaje Integrado (PI) que combina:
+            - 40% Calidad editorial (ICE)
+            - 30% Internacionalización (CI)
+            - 30% Relevancia temática (IRT)
+
+            Los libros con PI ≥ 0.8 tienen calidad excepcional en los tres aspectos evaluados.
+            """)
+
         # =============================================
-        # SECCIÓN DE DESCARGAS GLOBALES (MANTENIDA)
+        # SECCIÓN DE DESCARGAS GLOBALES
         # =============================================
         st.header("📥 Exportar Resultados")
-
         col1, col2 = st.columns(2)
 
         with col1:
-            # Descargar métricas completas
             csv_metricas = metricas_df.to_csv(index=False).encode('utf-8')
             st.download_button(
                 label="Descargar métricas de calidad (CSV)",
@@ -771,7 +744,6 @@ def main():
             )
 
         with col2:
-            # Descargar datos completos
             if Path("libros_total.csv").exists():
                 with open("libros_total.csv", "rb") as file:
                     st.download_button(
@@ -786,5 +758,5 @@ def main():
         logging.error(f"Error en main: {str(e)}")
 
 if __name__ == "__main__":
-    main()
+    main()        
 
