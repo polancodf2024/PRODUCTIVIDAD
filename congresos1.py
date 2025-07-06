@@ -41,100 +41,22 @@ LINEAS_INVESTIGACION = {
 TIPOS_CONGRESO = ["Nacional", "Internacional"]
 ROLES_PARTICIPACION = ["Asistente", "Ponente", "Moderador", "Expositor"]
 PAISES_PRINCIPALES = [
-    "Afganistán",
-    "Albania",
-    "Alemania",
-    "Arabia Saudita",
-    "Argentina",
-    "Armenia",
-    "Australia",
-    "Austria",
-    "Azerbaiyán",
-    "Bangladés",
-    "Bélgica",
-    "Bielorrusia",
-    "Bosnia y Herzegovina",
-    "Brasil",
-    "Bulgaria",
-    "Camboya",
-    "Canadá",
-    "Chile",
-    "China",
-    "Colombia",
-    "Corea del Norte",
-    "Corea del Sur",
-    "Croacia",
-    "Dinamarca",
-    "Egipto",
-    "Emiratos Árabes Unidos",
-    "Escocia",
-    "Eslovaquia",
-    "Eslovenia",
-    "España",
-    "Estados Unidos",
-    "Estonia",
-    "Filipinas",
-    "Finlandia",
-    "Francia",
-    "Georgia",
-    "Grecia",
-    "Hungría",
-    "India",
-    "Indonesia",
-    "Irak",
-    "Irán",
-    "Irlanda",
-    "Islandia",
-    "Israel",
-    "Italia",
-    "Japón",
-    "Jordania",
-    "Kazajistán",
-    "Kuwait",
-    "Laos",
-    "Letonia",
-    "Líbano",
-    "Lituania",
-    "Luxemburgo",
-    "Macedonia del Norte",
-    "Malasia",
-    "Malta",
-    "México",
-    "Moldavia",
-    "Mongolia",
-    "Montenegro",
-    "Myanmar (Birmania)",
-    "Nepal",
-    "Nigeria",
-    "Noruega",
-    "Omán",
-    "Países Bajos",
-    "Pakistán",
-    "Perú",
-    "Polonia",
-    "Portugal",
-    "Qatar",
-    "Reino Unido",
-    "República Checa",
-    "Rumanía",
-    "Rusia",
-    "Serbia",
-    "Singapur",
-    "Siria",
-    "Sri Lanka",
-    "Sudáfrica",
-    "Suecia",
-    "Suiza",
-    "Tailandia",
-    "Taiwán",
-    "Tayikistán",
-    "Turkmenistán",
-    "Turquía",
-    "Ucrania",
-    "Uzbekistán",
-    "Vietnam",
-    "Yemen",
-    "Otro",
+    "Afganistán", "Albania", "Alemania", "Arabia Saudita", "Argentina", "Armenia", 
+    "Australia", "Austria", "Azerbaiyán", "Bangladés", "Bélgica", "Bielorrusia", 
+    "Bosnia y Herzegovina", "Brasil", "Bulgaria", "Camboya", "Canadá", "Chile", 
+    "China", "Colombia", "Corea del Norte", "Corea del Sur", "Croacia", "Dinamarca", 
+    "Egipto", "Emiratos Árabes Unidos", "Escocia", "Eslovaquia", "Eslovenia", 
+    "España", "Estados Unidos", "Estonia", "Filipinas", "Finlandia", "Francia", 
+    "Georgia", "Grecia", "Hungría", "India", "Indonesia", "Irak", "Irán", "Irlanda", 
+    "Islandia", "Israel", "Italia", "Japón", "Jordania", "Kazajistán", "Kuwait", 
+    "Laos", "Letonia", "Líbano", "Lituania", "Luxemburgo", "Macedonia del Norte", 
+    "Malasia", "Malta", "México", "Moldavia", "Mongolia", "Montenegro", 
+    "Myanmar (Birmania)", "Nepal", "Nigeria", "Noruega", "Omán", "Países Bajos", 
+    "Pakistán", "Perú", "Polonia", "Portugal", "Qatar", "Reino Unido", 
+    "República Checa", "Rumanía", "Rusia", "Serbia", "Singapur", "Siria", 
+    "Sri Lanka", "Sudáfrica", "Suecia", "Suiza", "Tailandia", "Taiwán", 
+    "Tayikistán", "Turkmenistán", "Turquía", "Ucrania", "Uzbekistán", "Vietnam", 
+    "Yemen", "Otro"
 ]
 
 DEPARTAMENTOS_INCICH = [
@@ -142,18 +64,17 @@ DEPARTAMENTOS_INCICH = [
     "Biología Molecular",
     "Biomedicina Cardiovascular",
     "Consulta Externa",
-    "Departamento de Enseñanza de Enfermería (DEE)",
     "Endocrinología",
     "Farmacología",
     "Fisiología",
     "Fisiopatología Cardio-Renal",
     "Inmunología",
     "Instrumentación Electromecánica",
-    "Oficina de Apoyo Sistemático para la Investigación (OASIS)",
-    "Unidad de Investigación UNAM-INC"
+    "Unidad de Investigación UNAM-INC",
+    "Otro (especifique abajo)"
 ]
 
-NOMBRAMIENTO_OPCIONES = ["Ayudante de investigador", "Investigador", "Mando medio", "Médico", "Médico especialista", "Otro", "Técnico"]
+NOMBRAMIENTO_OPCIONES = ["Ayudante de investigador", "Investigador", "Mando medio", "Médico", "Médico especialista", "Técnico", "Otro"]
 
 # ====================
 # OPCIONES SNI Y SII
@@ -253,9 +174,9 @@ class SSHManager:
                         # Crear archivo local con estructura correcta
                         columns = [
                             'economic_number', 'nombramiento', 'sni', 'sii', 'departamento',
-                            'titulo_congreso', 'institucion', 'tipo_congreso', 'pais',
+                            'titulo_presentacion', 'titulo_congreso', 'tipo_congreso', 'pais',
                             'año_congreso', 'fecha_exacta_congreso', 'rol', 
-                            'titulo_ponencia', 'linea_investigacion', 'estado'
+                            'titulo_ponencia', 'linea_investigacion', 'coautores_secundarios', 'estado'
                         ]
                         pd.DataFrame(columns=columns).to_csv(local_path, index=False)
                         logging.info(f"Archivo remoto no encontrado, creado local con estructura: {local_path}")
@@ -327,6 +248,16 @@ def highlight_participant(name: str, investigator_name: str) -> str:
         return f"<span style='background-color: {CONFIG.HIGHLIGHT_COLOR};'>{name}</span>"
     return name
 
+def display_author_info(data, investigator_name):
+    """Muestra información de autores con formato"""
+    st.markdown("**Participantes**")
+    if data['rol']:
+        st.markdown(f"🎭 Rol principal: {highlight_participant(data['rol'], investigator_name)}", unsafe_allow_html=True)
+    if data['coautores_secundarios']:
+        st.markdown("👥 Coautores secundarios:")
+        for author in data['coautores_secundarios'].split("; "):
+            st.markdown(f"- {highlight_participant(author, investigator_name)}", unsafe_allow_html=True)
+
 def sync_with_remote(economic_number):
     """Sincroniza el archivo local con el remoto para un número económico específico"""
     try:
@@ -342,9 +273,9 @@ def sync_with_remote(economic_number):
             # Si no existe el archivo remoto, crea uno local con estructura correcta
             columns = [
                 'economic_number', 'nombramiento', 'sni', 'sii', 'departamento',
-                'titulo_congreso', 'institucion', 'tipo_congreso', 'pais',
+                'titulo_presentacion', 'titulo_congreso', 'tipo_congreso', 'pais',
                 'año_congreso', 'fecha_exacta_congreso', 'rol', 
-                'titulo_ponencia', 'linea_investigacion', 'estado'
+                'titulo_ponencia', 'linea_investigacion', 'coautores_secundarios', 'estado'
             ]
 
             # Verifica si el archivo local ya existe
@@ -371,9 +302,9 @@ def sync_with_remote(economic_number):
             st.warning("El archivo remoto está vacío o corrupto")
             columns = [
                 'economic_number', 'nombramiento', 'sni', 'sii', 'departamento',
-                'titulo_congreso', 'institucion', 'tipo_congreso', 'pais',
+                'titulo_presentacion', 'titulo_congreso', 'tipo_congreso', 'pais',
                 'año_congreso', 'fecha_exacta_congreso', 'rol', 
-                'titulo_ponencia', 'linea_investigacion', 'estado'
+                'titulo_ponencia', 'linea_investigacion', 'coautores_secundarios', 'estado'
             ]
             pd.DataFrame(columns=columns).to_csv(csv_filename, index=False)
             return False
@@ -398,9 +329,9 @@ def save_to_csv(data: dict):
 
         columns = [
             'economic_number', 'nombramiento', 'sni', 'sii', 'departamento',
-            'titulo_congreso', 'institucion', 'tipo_congreso', 'pais',
+            'titulo_presentacion', 'titulo_congreso', 'tipo_congreso', 'pais',
             'año_congreso', 'fecha_exacta_congreso', 'rol', 
-            'titulo_ponencia', 'linea_investigacion', 'estado'
+            'titulo_ponencia', 'linea_investigacion', 'coautores_secundarios', 'estado'
         ]
 
         # Verificar si el archivo existe y tiene contenido válido
@@ -469,14 +400,15 @@ def save_to_csv(data: dict):
 def display_congreso_info(data, investigator_name):
     """Muestra información del congreso con formato"""
     st.markdown("**Información del Congreso**")
-    st.markdown(f"📌 Título: {data['titulo_congreso']}")
-    st.markdown(f"🏛️ Institución: {data['institucion']}")
+    st.markdown(f"📌 Título: {data['titulo_presentacion']}")
+    st.markdown(f"🏛️ Institución: {data['titulo_congreso']}")
     st.markdown(f"🌍 Tipo: {data['tipo_congreso']} ({data['pais']})")
     st.markdown(f"📅 Año: {data['año_congreso']}")
     st.markdown(f"🗓️ Fecha exacta: {data['fecha_exacta_congreso']}")
     
-    st.markdown("**Participación**")
-    st.markdown(f"🎭 Rol: {highlight_participant(data['rol'], investigator_name)}", unsafe_allow_html=True)
+    # Mostrar información de participantes (coautores)
+    display_author_info(data, investigator_name)
+    
     if data['rol'] in ["Ponente", "Expositor"]:
         st.markdown(f"📢 Título ponencia: {data['titulo_ponencia']}")
     
@@ -498,10 +430,10 @@ def main():
     st.title("🎤 Captura de Congresos")
 
     # Validación del número económico
-    economic_number = st.text_input("🔢 Número económico del investigador (solo dígitos):").strip()
+    economic_number = st.text_input("🔢 Número económico del investigador (solo números, sin guiones o letras).").strip()
 
     if not economic_number:
-        st.warning("Por favor ingrese un número económico")
+        st.warning("Por favor ingrese un número económico. Si no cuenta con uno, ingrese: 123456")
         return
 
     if not economic_number.isdigit():
@@ -526,6 +458,25 @@ def main():
     if not sni or not sii:
         st.warning("Por favor seleccione tanto SNI como SII")
         return
+
+    # Campo de departamento con opción "Otro"
+    departamento_seleccionado = st.selectbox(
+        "🏢 Departamento de adscripción:",
+        options=DEPARTAMENTOS_INCICH,
+        index=0
+    )
+
+    # Inicializar la variable departamento
+    departamento = ""
+
+    # Mostrar campo de texto si se selecciona "Otro"
+    if departamento_seleccionado == "Otro (especifique abajo)":
+        departamento = st.text_input("Por favor, escriba el nombre completo de su departamento:")
+        if not departamento:
+            st.warning("Por favor ingrese el nombre del departamento")
+            st.stop()
+    else:
+        departamento = departamento_seleccionado
 
     # Sincronización inicial para el número económico específico
     with st.spinner("Conectando con el servidor remoto..."):
@@ -565,16 +516,16 @@ def main():
             st.error(f"Error al leer el archivo: {str(e)}")
             congresos_df = pd.DataFrame(columns=[
                 'economic_number', 'nombramiento', 'sni', 'sii', 'departamento',
-                'titulo_congreso', 'institucion', 'tipo_congreso', 'pais',
-                'año_congreso', 'fecha_exacta_congreso', 'rol', 
-                'titulo_ponencia', 'linea_investigacion', 'estado'
+                'titulo_presentacion', 'titulo_congreso', 'tipo_congreso', 'pais',
+                'año_congreso', 'fecha_exacta_congreso', 'rol',
+                'titulo_ponencia', 'linea_investigacion', 'coautores_secundarios', 'estado'
             ])
     else:
         congresos_df = pd.DataFrame(columns=[
             'economic_number', 'nombramiento', 'sni', 'sii', 'departamento',
-            'titulo_congreso', 'institucion', 'tipo_congreso', 'pais',
-            'año_congreso', 'fecha_exacta_congreso', 'rol', 
-            'titulo_ponencia', 'linea_investigacion', 'estado'
+            'titulo_presentacion', 'titulo_congreso', 'tipo_congreso', 'pais',
+            'año_congreso', 'fecha_exacta_congreso', 'rol',
+            'titulo_ponencia', 'linea_investigacion', 'coautores_secundarios', 'estado'
         ])
 
     # Mostrar registros existentes si los hay
@@ -595,9 +546,9 @@ def main():
 
         # Crear copia editable con todos los campos excepto economic_number
         columnas_mostrar = [
-            'titulo_congreso', 'institucion', 'tipo_congreso', 'pais',
-            'año_congreso', 'fecha_exacta_congreso', 'rol', 
-            'titulo_ponencia', 'linea_investigacion', 'estado'
+            'titulo_presentacion', 'titulo_congreso', 'tipo_congreso', 'pais',
+            'año_congreso', 'fecha_exacta_congreso', 'rol',
+            'titulo_ponencia', 'linea_investigacion', 'coautores_secundarios', 'estado'
         ]
 
         # Mostrar expander con detalles completos
@@ -661,16 +612,10 @@ def main():
         st.subheader("📝 Nuevo registro de congreso")
 
         with st.form("nuevo_congreso", clear_on_submit=True):
-            departamento = st.selectbox(
-                "🏢 Departamento de adscripción:",
-                options=DEPARTAMENTOS_INCICH,
-                index=0
-            )
-            
             # Campos principales del congreso
-            titulo_congreso = st.text_input("🏛️ Título del congreso:")
-            institucion = st.text_input("🏫 Institución organizadora:")
-            
+            titulo_presentacion = st.text_input("🏛️ Título de la presentación:")
+            titulo_congreso = st.text_input("🏫 Institución organizadora:")
+
             col1, col2 = st.columns(2)
             with col1:
                 tipo_congreso = st.selectbox(
@@ -684,25 +629,28 @@ def main():
                     options=PAISES_PRINCIPALES,
                     index=0
                 )
-            
+
             # Campos de fecha y año
             col3, col4 = st.columns(2)
             with col3:
                 año_congreso = st.text_input("📅 Año del congreso (ej. 2025):")
             with col4:
                 fecha_exacta_congreso = st.text_input("🗓️ Fecha exacta (AAAA-MM-DD):", placeholder="AAAA-MM-DD")
-            
+
             rol = st.selectbox(
                 "🎭 Rol en el congreso:",
                 options=ROLES_PARTICIPACION,
                 index=0
             )
-            
+
+            # Nuevo campo para coautores secundarios
+            coautores_secundarios = st.text_area("👥 Coautores secundarios (si aplica, separados por ';'):")
+
             # Mostrar campo de título de ponencia solo si es relevante
             titulo_ponencia = ""
             if rol in ["Ponente", "Expositor"]:
                 titulo_ponencia = st.text_input("📢 Título de la ponencia/exposición:")
-            
+
             # Línea de investigación
             linea_investigacion = st.multiselect(
                 "🔍 Línea(s) de investigación relacionada(s):",
@@ -710,15 +658,48 @@ def main():
                 max_selections=CONFIG.MAX_KEYWORDS
             )
 
+            # Sección para subir PDF del congreso (certificado o presentación)
+            st.subheader("📄 Documento del congreso")
+            congreso_pdf = st.file_uploader(
+                "Suba el documento del congreso en formato PDF (certificado o presentación):",
+                type=["pdf"],
+                accept_multiple_files=False
+            )
+            st.caption("Nota: El nombre del archivo se generará automáticamente con el formato CON.YYYY-MM-DD-HH-MM.economic_number.pdf")
+
             if st.form_submit_button("💾 Guardar nuevo registro"):
+                # Generar nombre del archivo PDF con el formato CON.YYYY-MM-DD-HH-MM.economic_number.pdf
+                timestamp = datetime.now().strftime("%Y-%m-%d-%H-%M")
+                pdf_filename = f"CON.{timestamp}.{economic_number}.pdf"
+                pdf_remote_path = os.path.join(CONFIG.REMOTE['DIR'], pdf_filename)
+
+                # Subir el archivo PDF si se proporcionó
+                if congreso_pdf is not None:
+                    try:
+                        # Guardar temporalmente el archivo localmente
+                        with open(pdf_filename, "wb") as f:
+                            f.write(congreso_pdf.getbuffer())
+
+                        # Subir al servidor remoto
+                        with st.spinner("Subiendo documento del congreso..."):
+                            upload_success = SSHManager.upload_remote_file(pdf_filename, pdf_remote_path)
+
+                        if not upload_success:
+                            st.error("Error al subir el documento del congreso. El registro se guardará sin el documento.")
+                    except Exception as e:
+                        st.error(f"Error al procesar el documento: {str(e)}")
+                        logging.error(f"Error al subir documento: {str(e)}")
+                else:
+                    st.warning("No se subió ningún documento para este congreso")
+
                 nuevo_registro = {
                     'economic_number': economic_number,
                     'nombramiento': nombramiento,
                     'sni': sni,
                     'sii': sii,
                     'departamento': departamento,
+                    'titulo_presentacion': titulo_presentacion,
                     'titulo_congreso': titulo_congreso,
-                    'institucion': institucion,
                     'tipo_congreso': tipo_congreso,
                     'pais': pais,
                     'año_congreso': año_congreso,
@@ -726,6 +707,7 @@ def main():
                     'rol': rol,
                     'titulo_ponencia': titulo_ponencia if rol in ["Ponente", "Expositor"] else "N/A",
                     'linea_investigacion': ', '.join(linea_investigacion) if linea_investigacion else "Otra",
+                    'coautores_secundarios': coautores_secundarios,
                     'estado': 'A'
                 }
 
@@ -737,3 +719,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

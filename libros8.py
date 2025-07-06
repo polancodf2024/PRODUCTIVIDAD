@@ -56,7 +56,6 @@ DEPARTAMENTOS_INCICH = [
     "Biología Molecular",
     "Biomedicina Cardiovascular",
     "Consulta Externa (Dermatología, Endocrinología, etc.)",
-    "Departamento de Enseñanza de Enfermería (DEE)",
     "Endocrinología",
     "Farmacología",
     "Fisiología",
@@ -64,11 +63,11 @@ DEPARTAMENTOS_INCICH = [
     "Fisiotepatología Cardiorenal",
     "Inmunología",
     "Instrumentación Electromecánica",
-    "Oficina de Apoyo Sistemático para la Investigación Superior (OASIS)",
-    "Unidad de Investigación UNAM-INC"
+    "Unidad de Investigación UNAM-INC",
+    "Otro (especifique abajo)"
 ]
 
-NOMBRAMIENTO_OPCIONES = ["Ayudante de investigador", "Investigador", "Mando medio", "Médico", "Médico especialista", "Otro", "Técnico"]
+NOMBRAMIENTO_OPCIONES = ["Ayudante de investigador", "Investigador", "Mando medio", "Médico", "Médico especialista", "Técnico", "Otro"]
 
 # ====================
 # OPCIONES SNI Y SII
@@ -169,8 +168,8 @@ class SSHManager:
                         columns = [
                             'economic_number', 'nombramiento', 'sni', 'sii', 'departamento', 'autor_principal', 'tipo_participacion', 'titulo_libro',
                             'editorial', 'coautores_secundarios', 'year', 'pub_date', 'isbn_issn',
-                            'numero_edicion', 'paginas', 'paises_distribucion', 'idiomas_disponibles',
-                            'formatos_disponibles', 'selected_keywords', 'estado'
+                            'numero_edicion', 'paginas', 'idiomas_disponibles',
+                            'selected_keywords', 'estado'
                         ]
                         pd.DataFrame(columns=columns).to_csv(local_path, index=False)
                         logging.info(f"Archivo remoto no encontrado, creado local con estructura: {local_path}")
@@ -258,8 +257,8 @@ def sync_with_remote(economic_number):
             columns = [
                 'economic_number', 'nombramiento', 'sni', 'sii', 'departamento', 'autor_principal', 'tipo_participacion', 'titulo_libro',
                 'editorial', 'coautores_secundarios', 'year', 'pub_date', 'isbn_issn',
-                'numero_edicion', 'paginas', 'paises_distribucion', 'idiomas_disponibles',
-                'formatos_disponibles', 'selected_keywords', 'estado'
+                'numero_edicion', 'paginas', 'idiomas_disponibles',
+                'selected_keywords', 'estado'
             ]
 
             # Verifica si el archivo local ya existe
@@ -287,8 +286,8 @@ def sync_with_remote(economic_number):
             columns = [
                 'economic_number', 'nombramiento', 'sni', 'sii', 'departamento', 'autor_principal', 'tipo_participacion', 'titulo_libro',
                 'editorial', 'coautores_secundarios', 'year', 'pub_date', 'isbn_issn',
-                'numero_edicion', 'paginas', 'paises_distribucion', 'idiomas_disponibles',
-                'formatos_disponibles', 'selected_keywords', 'estado'
+                'numero_edicion', 'paginas', 'idiomas_disponibles',
+                'selected_keywords', 'estado'
             ]
             pd.DataFrame(columns=columns).to_csv(csv_filename, index=False)
             return False
@@ -314,8 +313,8 @@ def save_to_csv(data: dict):
         columns = [
             'economic_number', 'nombramiento', 'sni', 'sii', 'departamento', 'autor_principal', 'tipo_participacion', 'titulo_libro',
             'editorial', 'coautores_secundarios', 'year', 'pub_date', 'isbn_issn',
-            'numero_edicion', 'paginas', 'paises_distribucion', 'idiomas_disponibles',
-            'formatos_disponibles', 'selected_keywords', 'estado'
+            'numero_edicion', 'paginas', 'idiomas_disponibles',
+            'selected_keywords', 'estado'
         ]
 
         # Verificar si el archivo existe y tiene contenido válido
@@ -401,9 +400,7 @@ def display_publication_info(data):
     st.write(f"#️⃣ Edición: {data['numero_edicion']}")
     
     st.markdown("**Distribución**")
-    st.write(f"🌍 Países: {data['paises_distribucion']}")
     st.write(f"🌐 Idiomas: {data['idiomas_disponibles']}")
-    st.write(f"📖 Formatos: {data['formatos_disponibles']}")
 
 def main():
     st.set_page_config(
@@ -420,10 +417,10 @@ def main():
     st.title("📚 Captura de Libros")
 
     # Validación del número económico
-    economic_number = st.text_input("🔢 Número económico del investigador (solo dígitos):").strip()
+    economic_number = st.text_input("🔢 Número económico del investigador (solo números, sin guiones o letras).").strip()
 
     if not economic_number:
-        st.warning("Por favor ingrese un número económico")
+        st.warning("Por favor ingrese un número económico. Si no cuenta con uno, ingrese: 123456")
         return
 
     if not economic_number.isdigit():
@@ -448,6 +445,25 @@ def main():
     if not sni or not sii:
         st.warning("Por favor seleccione tanto SNI como SII")
         return
+
+    # Campo de departamento con opción "Otro"
+    departamento_seleccionado = st.selectbox(
+        "🏢 Departamento de adscripción:",
+        options=DEPARTAMENTOS_INCICH,
+        index=0
+    )
+
+    # Inicializar la variable departamento
+    departamento = ""
+
+    # Mostrar campo de texto si se selecciona "Otro"
+    if departamento_seleccionado == "Otro (especifique abajo)":
+        departamento = st.text_input("Por favor, escriba el nombre completo de su departamento:")
+        if not departamento:
+            st.warning("Por favor ingrese el nombre del departamento")
+            st.stop()
+    else:
+        departamento = departamento_seleccionado
 
     # Sincronización inicial para el número económico específico
     with st.spinner("Conectando con el servidor remoto..."):
@@ -488,15 +504,15 @@ def main():
             libros_df = pd.DataFrame(columns=[
                 'economic_number', 'nombramiento', 'sni', 'sii', 'departamento', 'autor_principal', 'tipo_participacion', 'titulo_libro',
                 'editorial', 'coautores_secundarios', 'year', 'pub_date', 'isbn_issn',
-                'numero_edicion', 'paginas', 'paises_distribucion', 'idiomas_disponibles',
-                'formatos_disponibles', 'selected_keywords', 'estado'
+                'numero_edicion', 'paginas', 'idiomas_disponibles',
+                'selected_keywords', 'estado'
             ])
     else:
         libros_df = pd.DataFrame(columns=[
             'economic_number', 'nombramiento', 'sni', 'sii', 'departamento', 'autor_principal', 'tipo_participacion', 'titulo_libro',
             'editorial', 'coautores_secundarios', 'year', 'pub_date', 'isbn_issn',
-            'numero_edicion', 'paginas', 'paises_distribucion', 'idiomas_disponibles',
-            'formatos_disponibles', 'selected_keywords', 'estado'
+            'numero_edicion', 'paginas', 'idiomas_disponibles',
+            'selected_keywords', 'estado'
         ])
 
     # Mostrar registros existentes si los hay
@@ -518,8 +534,8 @@ def main():
         # Crear copia editable con todos los campos excepto economic_number
         columnas_mostrar = [
             'titulo_libro', 'tipo_participacion', 'autor_principal', 'editorial',
-            'year', 'isbn_issn', 'numero_edicion', 'paginas', 'paises_distribucion',
-            'idiomas_disponibles', 'formatos_disponibles', 'selected_keywords', 'estado'
+            'year', 'isbn_issn', 'numero_edicion', 'paginas',
+            'idiomas_disponibles', 'selected_keywords', 'estado'
         ]
 
         # Mostrar expander con detalles completos
@@ -583,11 +599,6 @@ def main():
         st.subheader("📝 Nuevo registro de libro")
 
         with st.form("nuevo_libro", clear_on_submit=True):
-            departamento = st.selectbox(
-                "🏢 Departamento de adscripción:",
-                options=DEPARTAMENTOS_INCICH,
-                index=0
-            )
             autor_principal = st.text_input("👤 Nombre completo del autor principal:")
             tipo_participacion = st.selectbox(
                 "🎭 Tipo de participación:",
@@ -616,17 +627,9 @@ def main():
 
             # Distribución
             st.subheader("🌍 Distribución")
-            paises_distribucion = st.multiselect(
-                "Países de distribución principales:",
-                options=PAISES_PRINCIPALES
-            )
             idiomas_disponibles = st.multiselect(
                 "Idiomas disponibles:",
                 options=IDIOMAS_PRINCIPALES
-            )
-            formatos_disponibles = st.multiselect(
-                "Formatos disponibles:",
-                options=FORMATOS_LIBRO
             )
 
             # Sección de palabras clave
@@ -637,22 +640,22 @@ def main():
                 max_selections=CONFIG.MAX_KEYWORDS
             )
 
-            # Sección para subir portada del libro
+            # Sección para subir portada del libro (con la rutina de capitulos7.py)
             st.subheader("📄 Portada del libro")
             portada_pdf = st.file_uploader(
-                "Suba la portada del libro en formato PDF (solo la portada):",
+                "Suba la portada del libro en formato PDF:",
                 type=["pdf"],
                 accept_multiple_files=False
             )
-            st.caption("Nota: Solo se acepta el archivo PDF de la portada del libro. El nombre del archivo se generará automáticamente.")
+            st.caption("Nota: El nombre del archivo se generará automáticamente con el formato LIB.YYYY-MM-DD-HH-MM.economic_number.pdf")
 
             if st.form_submit_button("💾 Guardar nuevo registro"):
-                # Generar nombre del archivo PDF con el formato YYYY-MM-DD-HH-MM.economic_number.pdf
+                # Generar nombre del archivo PDF con el formato LIB.YYYY-MM-DD-HH-MM.economic_number.pdf
                 timestamp = datetime.now().strftime("%Y-%m-%d-%H-%M")
                 pdf_filename = f"LIB.{timestamp}.{economic_number}.pdf"
                 pdf_remote_path = os.path.join(CONFIG.REMOTE['DIR'], pdf_filename)
 
-                # Subir el archivo PDF si se proporcionó
+                # Subir el archivo PDF si se proporcionó (rutina de capitulos7.py)
                 if portada_pdf is not None:
                     try:
                         # Guardar temporalmente el archivo localmente
@@ -687,9 +690,7 @@ def main():
                     'isbn_issn': isbn_issn,
                     'numero_edicion': numero_edicion,
                     'paginas': paginas,
-                    'paises_distribucion': ', '.join(paises_distribucion),
                     'idiomas_disponibles': ', '.join(idiomas_disponibles),
-                    'formatos_disponibles': ', '.join(formatos_disponibles),
                     'selected_keywords': str(selected_categories),
                     'estado': 'A'
                 }

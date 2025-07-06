@@ -73,7 +73,6 @@ DEPARTAMENTOS_INCICH = [
     "Biología Molecular",
     "Biomedicina Cardiovascular",
     "Consulta Externa (Dermatología, Endocrinología, etc.)",
-    "Departamento de Enseñanza de Enfermería (DEE)",
     "Endocrinología",
     "Farmacología",
     "Fisiología",
@@ -81,13 +80,13 @@ DEPARTAMENTOS_INCICH = [
     "Fisiotepatologíay  Cardiorenal",
     "Inmunología",
     "Instrumentación Electromecánica",
-    "Oficina de Apoyo Sistemático para la Investigación Superior (OASIS)",
-    "Unidad de Investigación UNAM-INC"
+    "Unidad de Investigación UNAM-INC",
+    "Otro (especifique abajo)"
 ]
 
 SNI_OPCIONES = ["C", "I", "II", "III", "Emérito"]
 SII_OPCIONES = ["A", "B", "C", "D", "E", "F", "Emérito"]
-NOMBRAMIENTO_OPCIONES = ["Ayudante de investigador", "Investigador", "Mando medio", "Médico", "Médico especialista", "Otro", "Técnico"]
+NOMBRAMIENTO_OPCIONES = ["Ayudante de investigador", "Investigador", "Mando medio", "Médico", "Médico especialista", "Técnico", "Otro"]
 
 # ==================
 # CLASE SSH MEJORADA
@@ -636,10 +635,10 @@ def main():
         _ = JournalCache()
 
     # Validación mejorada del número económico
-    economic_number = st.text_input("🔢 Número económico del investigador (solo dígitos):").strip()
+    economic_number = st.text_input("🔢 Número económico del investigador (solo números, sin guiones o letras).").strip()
 
     if not economic_number:
-        st.warning("Por favor ingrese un número económico")
+        st.warning("Por favor ingrese un número económico. Si no cuenta con uno, ingrese: 123456")
         return
 
     if not economic_number.isdigit():
@@ -666,13 +665,31 @@ def main():
         st.warning("Por favor seleccione tanto SNI como SII")
         return
 
-    # Sincronización inicial para el número económico específico
-    with st.spinner("Conectando con el servidor remoto..."):
-        if not sync_with_remote(economic_number):
-            st.warning("""
-            ⚠️ No se pudo conectar con el servidor remoto.
-            Trabajando en modo local. Los datos se sincronizarán cuando se restablezca la conexión.
-            """)
+    # Departamento en su propia línea
+    departamento_seleccionado = st.selectbox(
+        "🏢 Departamento de adscripción:",
+        options=DEPARTAMENTOS_INCICH,
+        index=0
+    )
+
+    # Inicializar la variable departamento
+    departamento = ""
+
+    # Mostrar campo de texto si se selecciona "Otro"
+    if departamento_seleccionado == "Otro (especifique abajo)":
+        departamento = st.text_input("Por favor, escriba el nombre completo de su departamento:")
+        if not departamento:
+            st.warning("Por favor ingrese el nombre del departamento")
+            st.stop()
+    else:
+        departamento = departamento_seleccionado
+
+    # Botón para sincronización manual
+    if st.button("🔄 Sincronizar con servidor", key="sync_button"):
+        with st.spinner("Conectando con el servidor remoto..."):
+            if sync_with_remote(economic_number):
+                st.session_state.synced = True
+                st.rerun()
 
     # Sincronizar archivo remoto de productos
     remote_productos_filename = f"{CONFIG.REMOTE_PRODUCTOS_PREFIX}{economic_number}.csv"
@@ -802,6 +819,15 @@ def main():
         """)
         uploaded_file = st.file_uploader("Seleccione el archivo .nbib", type=".nbib")
 
+        # Sección para subir PDF del artículo
+        st.subheader("📄 Documento completo del artículo")
+        articulo_pdf = st.file_uploader(
+            "Suba el documento completo del artículo en formato PDF:",
+            type=["pdf"],
+            accept_multiple_files=False
+        )
+        st.caption("Nota: El nombre del archivo se generará automáticamente con el formato ART.YYYY-MM-DD-HH-MM.economic_number.pdf")
+
         if uploaded_file:
             try:
                 content = uploaded_file.read().decode("utf-8")
@@ -815,14 +841,6 @@ def main():
                     data['nombramiento'] = nombramiento
                     data['sni'] = sni
                     data['sii'] = sii
-
-                    # Añadir campo departamento
-                    departamento = st.selectbox(
-                        "🏢 Departamento de adscripción:",
-                        options=DEPARTAMENTOS_INCICH,
-                        index=0,
-                        key="departamento"
-                    )
                     data['departamento'] = departamento
 
                     selected_categories = st.multiselect(
@@ -849,6 +867,30 @@ def main():
                         data['investigator_name'] = investigator_name
                         data['economic_number'] = economic_number
                         data['participation_key'] = "CA" if investigator_name == data['corresponding_author'] else f"{authors_list.index(investigator_name)}C"
+
+                        # Procesar el PDF si se subió
+                        pdf_filename = None
+                        if articulo_pdf is not None:
+                            try:
+                                timestamp = datetime.now().strftime("%Y-%m-%d-%H-%M")
+                                pdf_filename = f"ART.{timestamp}.{economic_number}.pdf"
+                                pdf_remote_path = os.path.join(CONFIG.REMOTE['DIR'], pdf_filename)
+
+                                # Guardar temporalmente el archivo localmente
+                                with open(pdf_filename, "wb") as f:
+                                    f.write(articulo_pdf.getbuffer())
+
+                                # Subir al servidor remoto
+                                with st.spinner("Subiendo documento del artículo..."):
+                                    upload_success = SSHManager.upload_remote_file(pdf_filename, pdf_remote_path)
+
+                                if not upload_success:
+                                    st.error("Error al subir el documento del artículo. El registro se guardará sin el documento.")
+                            except Exception as e:
+                                st.error(f"Error al procesar el documento: {str(e)}")
+                                logging.error(f"Error al subir documento del artículo: {str(e)}")
+                        else:
+                            st.warning("No se subió ningún documento para este artículo")
 
                         if st.button("💾 Guardar registro", type="primary"):
                             with st.spinner("Guardando datos..."):

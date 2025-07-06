@@ -284,28 +284,10 @@ def generar_tabla_resumen(unique_libros, filtered_df):
         total_nombramientos = unique_libros['nombramiento'].nunique()
         datos_resumen.append(("Tipos de nombramiento distintos", total_nombramientos))
     
-    # 10. Países de distribución (si existe)
-    if 'paises_distribucion' in unique_libros.columns:
-        try:
-            all_countries = []
-            for countries in unique_libros['paises_distribucion']:
-                if pd.notna(countries):
-                    cleaned = str(countries).strip().split(", ")
-                    all_countries.extend([c.strip() for c in cleaned if c.strip()])
-            total_paises = len(set(all_countries)) if all_countries else 0
-            datos_resumen.append(("Países de distribución distintos", total_paises))
-        except:
-            datos_resumen.append(("Países de distribución distintos", "N/D"))
-    
-    # 11. Idiomas (si existe)
+    # 10. Idiomas (si existe)
     if 'idiomas_disponibles' in unique_libros.columns:
         total_idiomas = unique_libros['idiomas_disponibles'].nunique()
         datos_resumen.append(("Idiomas distintos", total_idiomas))
-    
-    # 12. Formatos (si existe)
-    if 'formatos_disponibles' in unique_libros.columns:
-        total_formatos = unique_libros['formatos_disponibles'].nunique()
-        datos_resumen.append(("Formatos distintos", total_formatos))
     
     # Crear DataFrame
     resumen_df = pd.DataFrame(datos_resumen, columns=['Categoría', 'Total'])
@@ -348,6 +330,73 @@ def mostrar_tabla_uniforme(df, titulo, ayuda=None, max_rows=10):
     
     st.dataframe(df.head(max_rows), hide_index=True)
 
+# ====================
+# FUNCIONES DE MÉTRICAS PARA LIBROS (AGREGAR AL INICIO DEL ARCHIVO)
+# ====================
+def indice_calidad_editorial(editorial):
+    """Calcula el Índice de Calidad Editorial (ICE) basado en el prestigio de la editorial"""
+    if pd.isna(editorial):
+        return 0.3
+
+    editorial = str(editorial).strip()
+
+    # Definición de categorías de editoriales
+    editoriales_tier1 = ['Springer', 'Elsevier', 'Wiley', 'Nature', 'Oxford University Press']
+    editoriales_tier2 = ['Taylor & Francis', 'Cambridge University Press', 'Academic Press', 'Bentham Science Publishers']
+    editoriales_tier3 = ['Acta Biochimica Polonica', 'CRC Press']
+
+    if editorial in editoriales_tier1:
+        return 1.0
+    elif editorial in editoriales_tier2:
+        return 0.7
+    elif editorial in editoriales_tier3:
+        return 0.5
+    else:
+        return 0.3  # Editoriales no clasificadas
+
+def coeficiente_internacionalizacion(idiomas):
+    """Calcula el Coeficiente de Internacionalización (CI) basado solo en idiomas"""
+    if pd.isna(idiomas):
+        return 0.0
+
+    try:
+        # Procesar idiomas (eliminar valores vacíos)
+        idiomas_list = [i.strip() for i in str(idiomas).split(",") if i.strip()]
+        return min(len(idiomas_list), 2) / 2  # Normalizado a 0-1 (máx. 2 idiomas)
+    except:
+        return 0.0
+
+def indice_relevancia_tematica(keywords):
+    """Calcula el Índice de Relevancia Temática (IRT) para cardiología"""
+    if pd.isna(keywords):
+        return 0.0
+
+    keywords_cardio = [
+        "cardíaco", "miocardio", "arritmia", "isquemia",
+        "hipertensión", "ECG", "insuficiencia cardíaca",
+        "coronario", "válvula", "aterosclerosis", "angina"
+    ]
+
+    try:
+        if isinstance(keywords, str):
+            # Limpiar y separar keywords
+            keywords_str = keywords.strip()
+            if keywords_str.startswith('[') and keywords_str.endswith(']'):
+                keywords_str = keywords_str[1:-1]
+                kw_list = [k.strip().strip("'\"") for k in keywords_str.split(",") if k.strip()]
+            else:
+                kw_list = [k.strip() for k in keywords_str.split(",") if k.strip()]
+
+            # Calcular matches con términos de cardiología
+            matches = sum(1 for kw in kw_list if any(cardio_kw in kw.lower() for cardio_kw in keywords_cardio))
+            return matches / len(kw_list) if kw_list else 0.0
+        return 0.0
+    except:
+        return 0.0
+
+# ====================
+# FUNCIÓN MAIN COMPLETA (CON LAS CORRECCIONES)
+# ====================
 
 def main():
     st.set_page_config(
@@ -381,7 +430,8 @@ def main():
         df.columns = df.columns.str.strip()
 
         # Verificar campos importantes
-        required_columns = ['autor_principal', 'titulo_libro', 'pub_date', 'estado', 'selected_keywords', 'economic_number']
+        required_columns = ['autor_principal', 'titulo_libro', 'pub_date', 'estado',
+                          'editorial', 'idiomas_disponibles', 'selected_keywords']
         missing_columns = [col for col in required_columns if col not in df.columns]
 
         if missing_columns:
@@ -390,7 +440,7 @@ def main():
 
         # Convertir y validar fechas
         df['pub_date'] = pd.to_datetime(df['pub_date'], errors='coerce')
-        df = df[(df['estado'] == 'A') & (df['pub_date'].notna())]
+        df = df[(df['estado'] == 'A') & (df['pub_date'].notna())].copy()
 
         if df.empty:
             st.warning("No hay libros válidos para analizar")
@@ -425,10 +475,10 @@ def main():
 
         # Filtrar dataframe
         filtered_df = df[(df['pub_date'] >= pd.to_datetime(date_start)) &
-                       (df['pub_date'] <= pd.to_datetime(date_end))]
+                       (df['pub_date'] <= pd.to_datetime(date_end))].copy()
 
         # Obtener libros únicos
-        unique_libros = filtered_df.drop_duplicates(subset=['titulo_libro'])
+        unique_libros = filtered_df.drop_duplicates(subset=['titulo_libro']).copy()
 
         st.markdown(f"**Periodo seleccionado:** {date_start.strftime('%d/%m/%Y')} - {date_end.strftime('%d/%m/%Y')}")
         st.markdown(f"**Registros encontrados:** {len(filtered_df)}")
@@ -441,11 +491,10 @@ def main():
             st.warning("No hay libros en el periodo seleccionado")
             return
 
-        # Análisis consolidado en tablas
-        st.header("📊 Estadísticas Consolidadas")
-
-        # Tabla 1: Productividad por investigador
-        st.subheader("🔍 Productividad por investigador")
+        # =============================================
+        # TABLA DE PRODUCTIVIDAD POR INVESTIGADOR
+        # =============================================
+        st.header("🔍 Productividad por investigador")
         investigator_stats = filtered_df.groupby(['autor_principal', 'economic_number']).agg(
             Libros_Unicos=('titulo_libro', lambda x: len(set(x))),
             Participaciones=('tipo_participacion', lambda x: ', '.join(sorted(set(x))))
@@ -453,6 +502,9 @@ def main():
         investigator_stats = investigator_stats.sort_values('Libros_Unicos', ascending=False)
         investigator_stats.columns = ['Investigador', 'Número económico', 'Libros únicos', 'Tipo de participación']
 
+        mostrar_tabla_uniforme(investigator_stats, "Productividad por investigador")
+
+        # Detalle expandible por investigador
         for index, row in investigator_stats.iterrows():
             with st.expander(f"{row['Investigador']} - {row['Libros únicos']} libros"):
                 investigator_libros = filtered_df[filtered_df['autor_principal'] == row['Investigador']]
@@ -467,7 +519,7 @@ def main():
                 st.write(f"Libros de {row['Investigador']}:")
                 mostrar_tabla_uniforme(unique_libros_investigator[display_columns], "")
 
-                # SECCIÓN DE PORTADAS PDF
+                # Sección de portadas PDF
                 st.subheader("📄 Portadas disponibles")
                 economic_number = row['Número económico']
                 remote_pdfs = []
@@ -479,7 +531,7 @@ def main():
                             try:
                                 remote_files = sftp.listdir(CONFIG.REMOTE['DIR'])
                                 remote_pdfs = [f for f in remote_files if f.endswith(f".{economic_number}.pdf")]
-                                remote_pdfs.sort(reverse=True)  # Ordenar de más reciente a más antiguo
+                                remote_pdfs.sort(reverse=True)
                             except Exception as e:
                                 st.warning(f"No se pudieron listar los archivos PDF: {str(e)}")
                     except Exception as e:
@@ -512,12 +564,6 @@ def main():
                             )
 
                             try:
-                                # Solución para PyPDF2: Mostrar solo el botón de descarga si no está instalado
-                                 st.warning("Seleccione el archivo PDF que quiere revisar y bájelo a su dispositivo.")
-                            except Exception as e:
-                                st.warning(f"No se pudo mostrar vista previa: {str(e)}")
-
-                            try:
                                 os.remove(temp_pdf_path)
                             except:
                                 pass
@@ -526,7 +572,6 @@ def main():
                 else:
                     st.warning("No se encontraron portadas PDF para este investigador")
 
-                # Descargar CSV
                 csv = unique_libros_investigator.to_csv(index=False).encode('utf-8')
                 st.download_button(
                     label="Descargar producción de libros en CSV",
@@ -537,142 +582,150 @@ def main():
                 )
 
         # =============================================
-        # TABLAS DE ESTADÍSTICAS (sección restaurada)
+        # SECCIÓN DE MÉTRICAS DE CALIDAD EDITORIAL
         # =============================================
+        st.header("📊 Métricas de Calidad Editorial")
 
-        # Tabla 2: Editoriales más utilizadas
-        st.subheader("🏢 Editoriales más utilizadas")
-        editorial_stats = unique_libros.groupby('editorial').agg(
-            Total_Libros=('editorial', 'size')
-        ).reset_index()
-        editorial_stats = editorial_stats.sort_values('Total_Libros', ascending=False)
-        editorial_stats.columns = ['Editorial', 'Libros únicos']
-        mostrar_tabla_uniforme(editorial_stats, "")
+        # Calcular métricas para cada libro único
+        with st.spinner("Calculando métricas de calidad..."):
+            unique_libros = unique_libros.assign(
+                ICE=unique_libros['editorial'].apply(indice_calidad_editorial),
+                CI=unique_libros['idiomas_disponibles'].apply(coeficiente_internacionalizacion),
+                IRT=unique_libros['selected_keywords'].apply(indice_relevancia_tematica)
+            )
+            unique_libros = unique_libros.assign(
+                PI=0.4 * unique_libros['ICE'] + 0.3 * unique_libros['CI'] + 0.3 * unique_libros['IRT']
+            )
 
-        # Tabla 3: Tipos de participación
-        st.subheader("🎭 Participación de los autores")
-        participacion_stats = unique_libros['tipo_participacion'].value_counts().reset_index()
-        participacion_stats.columns = ['Tipo de participación', 'Libros únicos']
-        mostrar_tabla_uniforme(participacion_stats, "")
+        # Mostrar tabla de resultados por investigador
+        st.subheader("Métricas por Investigador")
+        metrics_by_investigator = unique_libros.groupby('autor_principal').agg({
+            'ICE': 'mean',
+            'CI': 'mean',
+            'IRT': 'mean',
+            'PI': 'mean',
+            'titulo_libro': 'count'
+        }).reset_index()
 
-        # Tabla 4: Líneas de investigación
-        st.subheader("🧪 Líneas de investigación mas frecuentes")
-        try:
-            all_keywords = []
-            for keywords in unique_libros['selected_keywords']:
-                if pd.notna(keywords):
-                    keywords_str = str(keywords).strip()
-                    if keywords_str.startswith('[') and keywords_str.endswith(']'):
-                        keywords_str = keywords_str[1:-1]
-                        import re
-                        keyword_list = re.split(r",\s*(?=(?:[^']*'[^']*')*[^']*$)", keywords_str)
-                        keyword_list = [k.strip().strip("'\"") for k in keyword_list if k.strip()]
-                        all_keywords.extend(keyword_list)
-                    else:
-                        keyword_list = [k.strip() for k in keywords_str.split(",") if k.strip()]
-                        all_keywords.extend(keyword_list)
+        metrics_by_investigator.columns = [
+            'Investigador',
+            'ICE Promedio',
+            'CI Promedio',
+            'IRT Promedio',
+            'PI Promedio',
+            'Libros Evaluados'
+        ]
 
-            keyword_stats = pd.Series(all_keywords).value_counts().reset_index()
-            keyword_stats.columns = ['Enfoque', 'Frecuencia']
-            mostrar_tabla_uniforme(keyword_stats, "")
-        except Exception as e:
-            st.warning(f"No se pudieron procesar las palabras clave: {str(e)}")
+        metrics_by_investigator = metrics_by_investigator.sort_values('PI Promedio', ascending=False)
+        metrics_by_investigator = metrics_by_investigator.round(2)
 
-        # Tabla 5: Distribución por departamentos
-        if 'departamento' in unique_libros.columns:
-            st.subheader("🏛️ Distribución por departamento de adscripción")
-            depto_stats = unique_libros['departamento'].value_counts().reset_index()
-            depto_stats.columns = ['Departamento', 'Libros únicos']
-            mostrar_tabla_uniforme(depto_stats, "")
-        else:
-            st.warning("El campo 'departamento' no está disponible en los datos")
+        mostrar_tabla_uniforme(metrics_by_investigator, "Resumen de Métricas por Investigador")
 
-        # Tabla 6: Distribución temporal
-        st.subheader("🕰️ Distribución mensual")
-        time_stats = unique_libros['pub_date'].dt.to_period('M').astype(str).value_counts().sort_index().reset_index()
-        time_stats.columns = ['Mes-Año', 'Libros únicos']
-        mostrar_tabla_uniforme(time_stats, "")
+        # Botón para explicación de métricas
+        with st.expander("ℹ️ Explicación de las Métricas", expanded=False):
+            st.markdown("""
+            ### Índice de Calidad Editorial (ICE)
+            **Fórmula:**
+            Clasificación de editoriales en 4 niveles con valores de 0.3 a 1.0
+            - **1.0**: Editoriales líderes (Springer, Elsevier, Wiley)
+            - **0.7**: Editoriales especializadas reconocidas
+            - **0.5**: Editoriales académicas
+            - **0.3**: Otras editoriales
 
-        # Tabla 7: Distribución por nivel SNI
-        if 'sni' in unique_libros.columns:
-            st.subheader("📊 Distribución por nivel SNI")
-            sni_stats = unique_libros['sni'].value_counts().reset_index()
-            sni_stats.columns = ['Nivel SNI', 'Libros únicos']
-            mostrar_tabla_uniforme(sni_stats, "")
-        else:
-            st.warning("El campo 'sni' no está disponible en los datos")
+            **Propósito:** Evaluar el prestigio de la editorial.
+            """)
 
-        # Tabla 8: Distribución por nivel SII
-        if 'sii' in unique_libros.columns:
-            st.subheader("📈 Distribución por nivel SII")
-            sii_stats = unique_libros['sii'].value_counts().reset_index()
-            sii_stats.columns = ['Nivel SII', 'Libros únicos']
-            mostrar_tabla_uniforme(sii_stats, "")
-        else:
-            st.warning("El campo 'sii' no está disponible en los datos")
+            st.markdown("""
+            ### Coeficiente de Internacionalización (CI)
+            **Fórmula:**
+            CI = [n° idiomas/2] (normalizado a 0-1, máximo 2 idiomas)
 
-        # Tabla 9: Distribución por nombramiento
-        if 'nombramiento' in unique_libros.columns:
-            st.subheader("👔 Distribución por nombramiento del autor")
-            nombramiento_stats = unique_libros['nombramiento'].value_counts().reset_index()
-            nombramiento_stats.columns = ['Tipo de Nombramiento', 'Libros únicos']
-            mostrar_tabla_uniforme(nombramiento_stats, "")
-        else:
-            st.warning("El campo 'nombramiento' no está disponible en los datos")
+            **Propósito:** Medir alcance lingüístico.
+            """)
 
-        # Tabla 10: Distribución por países
-        if 'paises_distribucion' in unique_libros.columns:
-            st.subheader("🌍 Distribución por países")
-            try:
-                all_countries = []
-                for countries in unique_libros['paises_distribucion']:
-                    if pd.notna(countries):
-                        cleaned = str(countries).strip().split(", ")
-                        all_countries.extend([c.strip() for c in cleaned if c.strip()])
+            st.markdown("""
+            ### Índice de Relevancia Temática (IRT)
+            **Fórmula:**
+            IRT = (N° palabras clave de cardiología) / (Total palabras clave)
 
-                country_stats = pd.Series(all_countries).value_counts().reset_index()
-                country_stats.columns = ['País', 'Frecuencia']
-                mostrar_tabla_uniforme(country_stats, "")
-            except:
-                st.warning("No se pudieron procesar los países de distribución")
+            **Propósito:** Evaluar relación con área de cardiología.
+            """)
 
-        # Tabla 11: Distribución por idioma
-        if 'idiomas_disponibles' in unique_libros.columns:
-            st.subheader("🌐 Distribución por idioma")
-            idioma_stats = unique_libros['idiomas_disponibles'].value_counts().reset_index()
-            idioma_stats.columns = ['Idioma', 'Libros únicos']
-            mostrar_tabla_uniforme(idioma_stats, "")
-        else:
-            st.warning("El campo 'idiomas_disponibles' no está disponible en los datos")
+            st.markdown("""
+            ### Puntaje Integrado (PI)
+            **Fórmula:**
+            PI = (0.4 × ICE) + (0.3 × CI) + (0.3 × IRT)
 
-        # Tabla 12: Distribución por formato
-        if 'formatos_disponibles' in unique_libros.columns:
-            st.subheader("📖 Distribución por tipo de formato")
-            formato_stats = unique_libros['formatos_disponibles'].value_counts().reset_index()
-            formato_stats.columns = ['Formato', 'Libros únicos']
-            mostrar_tabla_uniforme(formato_stats, "")
-        else:
-            st.warning("El campo 'formatos_disponibles' no está disponible en los datos")
+            **Interpretación:**
+            0.8-1.0: Excelente | 0.6-0.79: Bueno | 0.4-0.59: Aceptable | <0.4: Bajo
+            """)
 
-        # Tabla Resumen Consolidada
-        st.header("📋 Resumen Consolidado de Totales")
-        resumen_df = generar_tabla_resumen(unique_libros, filtered_df)
-        mostrar_tabla_uniforme(resumen_df, "")
+        # Mostrar tabla completa de libros con métricas
+        st.subheader("Resultados Detallados por Libro")
+        metricas_df = unique_libros[[
+            'titulo_libro', 'autor_principal', 'editorial',
+            'ICE', 'CI', 'IRT', 'PI'
+        ]].sort_values('PI', ascending=False)
 
-        # Sección de descarga
-        st.header("📥 Descargar Datos Completos")
-        if Path("libros_total.csv").exists():
-            with open("libros_total.csv", "rb") as file:
-                btn = st.download_button(
-                    label="Descargar archivo pro_libros_total.csv completo",
-                    data=file,
-                    file_name="pro_libros_total.csv",
-                    mime="text/csv"
-                )
-            if btn:
-                st.success("Descarga iniciada")
-        else:
-            st.warning("El archivo libros_total.csv no está disponible para descargar")
+        metricas_df.columns = [
+            'Título', 'Autor Principal', 'Editorial',
+            'Calidad Editorial (ICE)', 'Internacionalización (CI)',
+            'Relevancia Temática (IRT)', 'Puntaje Integrado (PI)'
+        ]
+
+        metricas_df = metricas_df.round(2)
+        mostrar_tabla_uniforme(metricas_df, "")
+
+        # =============================================
+        # TOP 5 LIBROS POR CALIDAD
+        # =============================================
+        st.header("🏆 Libros Destacados")
+        top_libros = unique_libros.nlargest(5, 'PI')[[
+            'titulo_libro', 'autor_principal', 'editorial', 'PI', 'ICE', 'CI', 'IRT'
+        ]]
+        top_libros.columns = [
+            'Título', 'Autor', 'Editorial',
+            'Puntaje Integrado', 'Calidad Editorial',
+            'Internacionalización', 'Relevancia Temática'
+        ]
+
+        mostrar_tabla_uniforme(top_libros.round(2), "Top 5 libros por Calidad Integral")
+
+        # Botón para criterios de selección
+        with st.expander("ℹ️ Criterios de Selección", expanded=False):
+            st.markdown("""
+            **Libros destacados** se seleccionan por mayor Puntaje Integrado (PI) que combina:
+            - 40% Calidad editorial (ICE)
+            - 30% Internacionalización (CI)
+            - 30% Relevancia temática (IRT)
+
+            Los libros con PI ≥ 0.8 tienen calidad excepcional en los tres aspectos evaluados.
+            """)
+
+        # =============================================
+        # SECCIÓN DE DESCARGAS GLOBALES
+        # =============================================
+        st.header("📥 Exportar Resultados")
+        col1, col2 = st.columns(2)
+
+        with col1:
+            csv_metricas = metricas_df.to_csv(index=False).encode('utf-8')
+            st.download_button(
+                label="Descargar métricas de calidad (CSV)",
+                data=csv_metricas,
+                file_name="metricas_calidad_libros.csv",
+                mime='text/csv'
+            )
+
+        with col2:
+            if Path("libros_total.csv").exists():
+                with open("libros_total.csv", "rb") as file:
+                    st.download_button(
+                        label="Descargar dataset completo",
+                        data=file,
+                        file_name="libros_total.csv",
+                        mime="text/csv"
+                    )
 
     except Exception as e:
         st.error(f"Error al procesar el archivo: {str(e)}")

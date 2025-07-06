@@ -51,7 +51,6 @@ DEPARTAMENTOS_INCICH = [
     "Biología Molecular",
     "Biomedicina Cardiovascular",
     "Consulta Externa (Dermatología, Endocrinología, etc.)",
-    "Departamento de Enseñanza de Enfermería (DEE)",
     "Endocrinología",
     "Farmacología",
     "Fisiología",
@@ -59,8 +58,8 @@ DEPARTAMENTOS_INCICH = [
     "Fisiotepatología Cardiorenal",
     "Inmunología",
     "Instrumentación Electromecánica",
-    "Oficina de Apoyo Sistemático para la Investigación Superior (OASIS)",
-    "Unidad de Investigación UNAM-INC"
+    "Unidad de Investigación UNAM-INC",
+    "Otro (especifique abajo)"
 ]
 
 # ====================
@@ -72,7 +71,7 @@ SII_OPCIONES = ["A", "B", "C", "D", "E", "F", "Emérito"]
 # ====================
 # OPCIONES DE NOMBRAMIENTO
 # ====================
-NOMBRAMIENTO_OPCIONES = ["Ayudante de investigador", "Investigador", "Mando medio", "Médico", "Médico especialista", "Otro", "Técnico"]
+NOMBRAMIENTO_OPCIONES = ["Ayudante de investigador", "Investigador", "Mando medio", "Médico", "Médico especialista", "Técnico", "Otro"]
 
 # ====================
 # CONFIGURACIÓN INICIAL
@@ -411,17 +410,17 @@ def main():
     st.title("📚 Captura Tesis")
 
     # Validación del número económico
-    economic_number = st.text_input("🔢 Número económico del investigador (solo dígitos):").strip()
+    economic_number = st.text_input("🔢 Número económico del investigador (solo números, sin guiones o letras).").strip()
 
     if not economic_number:
-        st.warning("Por favor ingrese un número económico")
+        st.warning("Por favor ingrese un número económico. Si no cuenta con uno, ingrese: 123456")
         return
 
     if not economic_number.isdigit():
         st.error("El número económico debe contener solo dígitos (0-9)")
         return
 
-    # Selección de nombramiento
+    # Campo de nombramiento
     nombramiento = st.selectbox(
         "👔 Nombramiento:",
         options=NOMBRAMIENTO_OPCIONES,
@@ -439,6 +438,25 @@ def main():
     if not sni or not sii:
         st.warning("Por favor seleccione tanto SNI como SII")
         return
+
+    # Campo de departamento con opción "Otro"
+    departamento_seleccionado = st.selectbox(
+        "🏢 Departamento de adscripción:",
+        options=DEPARTAMENTOS_INCICH,
+        index=0
+    )
+
+    # Inicializar la variable departamento
+    departamento = ""
+
+    # Mostrar campo de texto si se selecciona "Otro"
+    if departamento_seleccionado == "Otro (especifique abajo)":
+        departamento = st.text_input("Por favor, escriba el nombre completo de su departamento:")
+        if not departamento:
+            st.warning("Por favor ingrese el nombre del departamento")
+            st.stop()
+    else:
+        departamento = departamento_seleccionado
 
     # Sincronización inicial para el número económico específico
     with st.spinner("Conectando con el servidor remoto..."):
@@ -573,11 +591,6 @@ def main():
             )
             year = st.text_input("📅 Año de publicación:")
             pub_date = st.text_input("🗓️ Fecha completa de publicación (YYYY-MM-DD):", placeholder="AAAA-MM-DD")
-            departamento = st.selectbox(
-                "🏛️ Departamento (INCICh):",
-                options=DEPARTAMENTOS_INCICH,
-                index=0
-            )
             directores = st.text_input("👨‍🏫 Director(es) de tesis (separados por ';'):")
             paginas = st.text_input("🔖 Número de páginas ej. 230:")
             idioma = st.selectbox(
@@ -596,7 +609,40 @@ def main():
                 max_selections=CONFIG.MAX_KEYWORDS
             )
 
+            # Sección para subir PDF de la tesis
+            st.subheader("📄 Documento de la tesis")
+            tesis_pdf = st.file_uploader(
+                "Suba el documento de la tesis en formato PDF:",
+                type=["pdf"],
+                accept_multiple_files=False
+            )
+            st.caption("Nota: El nombre del archivo se generará automáticamente con el formato TES.YYYY-MM-DD-HH-MM.economic_number.pdf")
+
             if st.form_submit_button("💾 Guardar nueva tesis"):
+                # Generar nombre del archivo PDF con el formato TES.YYYY-MM-DD-HH-MM.economic_number.pdf
+                timestamp = datetime.now().strftime("%Y-%m-%d-%H-%M")
+                pdf_filename = f"TES.{timestamp}.{economic_number}.pdf"
+                pdf_remote_path = os.path.join(CONFIG.REMOTE['DIR'], pdf_filename)
+
+                # Subir el archivo PDF si se proporcionó
+                if tesis_pdf is not None:
+                    try:
+                        # Guardar temporalmente el archivo localmente
+                        with open(pdf_filename, "wb") as f:
+                            f.write(tesis_pdf.getbuffer())
+
+                        # Subir al servidor remoto
+                        with st.spinner("Subiendo documento de tesis..."):
+                            upload_success = SSHManager.upload_remote_file(pdf_filename, pdf_remote_path)
+
+                        if not upload_success:
+                            st.error("Error al subir el documento de tesis. El registro se guardará sin el documento.")
+                    except Exception as e:
+                        st.error(f"Error al procesar el documento: {str(e)}")
+                        logging.error(f"Error al subir documento de tesis: {str(e)}")
+                else:
+                    st.warning("No se subió ningún documento para esta tesis")
+
                 nuevo_registro = {
                     'economic_number': economic_number,
                     'nombramiento': nombramiento,

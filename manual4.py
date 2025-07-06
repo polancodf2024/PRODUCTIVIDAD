@@ -25,7 +25,6 @@ DEPARTAMENTOS_INCICH = [
     "Biología Molecular",
     "Biomedicina Cardiovascular",
     "Consulta Externa (Dermatología, Endocrinología, etc.)",
-    "Departamento de Enseñanza de Enfermería (DEE)",
     "Endocrinología",
     "Farmacología",
     "Fisiología",
@@ -33,8 +32,8 @@ DEPARTAMENTOS_INCICH = [
     "Fisiotepatologíay  Cardiorenal",
     "Inmunología",
     "Instrumentación Electromecánica",
-    "Oficina de Apoyo Sistemático para la Investigación Superior (OASIS)",
-    "Unidad de Investigación UNAM-INC"
+    "Unidad de Investigación UNAM-INC",
+    "Otro (especifique abajo)"
 ]
 
 # ====================
@@ -436,10 +435,10 @@ def main():
     st.title("📝 Artículos no en PubMed")
 
     # Validación del número económico
-    economic_number = st.text_input("🔢 Número económico del investigador (solo dígitos):").strip()
+    economic_number = st.text_input("🔢 Número económico del investigador (solo números, sin guiones o letras).").strip()
 
     if not economic_number:
-        st.warning("Por favor ingrese un número económico")
+        st.warning("Por favor ingrese un número económico. Si no cuenta con uno ingrese: 123456")
         return
 
     if not economic_number.isdigit():
@@ -464,6 +463,32 @@ def main():
     if not sni or not sii:
         st.warning("Por favor seleccione tanto SNI como SII")
         return
+
+    # Departamento en su propia línea
+    departamento_seleccionado = st.selectbox(
+        "🏢 Departamento de adscripción:",
+        options=DEPARTAMENTOS_INCICH,
+        index=0
+    )
+
+    # Inicializar la variable departamento
+    departamento = ""
+
+    # Mostrar campo de texto si se selecciona "Otro"
+    if departamento_seleccionado == "Otro (especifique abajo)":
+        departamento = st.text_input("Por favor, escriba el nombre completo de su departamento:")
+        if not departamento:
+            st.warning("Por favor ingrese el nombre del departamento")
+            st.stop()
+    else:
+        departamento = departamento_seleccionado
+
+    # Botón para sincronización manual
+    if st.button("🔄 Sincronizar con servidor", key="sync_button"):
+        with st.spinner("Conectando con el servidor remoto..."):
+            if sync_with_remote(economic_number):
+                st.session_state.synced = True
+                st.rerun()
 
     # Sincronización inicial con el servidor remoto
     with st.spinner("Conectando con el servidor remoto..."):
@@ -601,11 +626,6 @@ def main():
             article_title = st.text_area("📄 Título del artículo:", height=100)
             corresponding_author = st.text_input("📌 Autor para correspondencia:")
             coauthors = st.text_area("👥 Coautores (separados por punto y coma ';'):", help="Ejemplo: Autor1; Autor2; Autor3")
-            departamento = st.selectbox(
-                "🏢 Departamento de adscripción:",
-                options=DEPARTAMENTOS_INCICH,
-                index=0
-            )
 
             # Detalles de publicación
             st.subheader("📅 Detalles de publicación")
@@ -617,7 +637,7 @@ def main():
 
             col3, col4 = st.columns(2)
             with col3:
-                volume = st.text_input("📚 Volumen (ej 79(3), el volumen es 79")
+                volume = st.text_input("📚 Volumen (ej 79(3), el volumen es 79)")
             with col4:
                 number = st.text_input("# Número (ej 79(3), el número es 3)")
 
@@ -651,8 +671,17 @@ def main():
                 max_selections=CONFIG.MAX_KEYWORDS
             )
 
+            # Sección para subir PDF del artículo
+            st.subheader("📄 Documento del artículo")
+            articulo_pdf = st.file_uploader(
+                "Suba el documento del artículo en formato PDF:",
+                type=["pdf"],
+                accept_multiple_files=False
+            )
+            st.caption("Nota: El nombre del archivo se generará automáticamente con el formato MAN.YYYY-MM-DD-HH-MM.economic_number.pdf")
+
             # Botón de submit para avanzar a confirmación
-            submitted = st.form_submit_button("De clic si ha  respondido todo lo  anterior.")
+            submitted = st.form_submit_button("De clic si ha respondido todo lo anterior.")
 
             if submitted:
                 # Validación de campos obligatorios
@@ -663,6 +692,30 @@ def main():
                 if not selected_categories:
                     st.error("Por favor seleccione al menos una línea de investigación")
                     st.stop()
+
+                # Procesar el PDF si se subió
+                pdf_filename = None
+                if articulo_pdf is not None:
+                    try:
+                        timestamp = datetime.now().strftime("%Y-%m-%d-%H-%M")
+                        pdf_filename = f"MAN.{timestamp}.{economic_number}.pdf"
+                        pdf_remote_path = os.path.join(CONFIG.REMOTE['DIR'], pdf_filename)
+
+                        # Guardar temporalmente el archivo localmente
+                        with open(pdf_filename, "wb") as f:
+                            f.write(articulo_pdf.getbuffer())
+
+                        # Subir al servidor remoto
+                        with st.spinner("Subiendo documento del artículo..."):
+                            upload_success = SSHManager.upload_remote_file(pdf_filename, pdf_remote_path)
+
+                        if not upload_success:
+                            st.error("Error al subir el documento del artículo. El registro se guardará sin el documento.")
+                    except Exception as e:
+                        st.error(f"Error al procesar el documento: {str(e)}")
+                        logging.error(f"Error al subir documento del artículo: {str(e)}")
+                else:
+                    st.warning("No se subió ningún documento para este artículo")
 
                 st.session_state.form_data = {
                     'economic_number': economic_number,
@@ -683,7 +736,8 @@ def main():
                     'doi': doi,
                     'jcr_group': jcr_group,
                     'pmid': pmid,
-                    'selected_keywords': str(selected_categories)
+                    'selected_keywords': str(selected_categories),
+                    'pdf_filename': pdf_filename if articulo_pdf is not None else None
                 }
                 st.session_state.show_confirmation = True
                 st.rerun()
@@ -714,10 +768,11 @@ def main():
             if st.button("✅ Guardar registro definitivo", type="primary"):
                 # Crear registro completo
                 nuevo_registro = {
-                    **st.session_state.form_data,
+                    **{k: v for k, v in st.session_state.form_data.items() if k != 'pdf_filename'},
                     'participation_key': participation_key,
                     'investigator_name': investigator_name,
-                    'estado': 'A'
+                    'estado': 'A',
+                    'departamento': departamento
                 }
 
                 if save_to_csv(nuevo_registro):
@@ -735,7 +790,6 @@ def main():
             if st.button("↩️ Volver a editar", key="volver_editar"):
                 st.session_state.show_confirmation = False
                 st.rerun()
-
 
 if __name__ == "__main__":
     main()
