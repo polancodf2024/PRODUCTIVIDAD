@@ -167,7 +167,7 @@ class SSHManager:
                             'corresponding_author', 'coauthors', 'article_title', 'year',
                             'pub_date', 'volume', 'number', 'pages', 'journal_full',
                             'journal_abbrev', 'doi', 'jcr_group', 'pmid', 'selected_keywords',
-                            'estado'
+                            'pdf_filename', 'estado'
                         ]
                         pd.DataFrame(columns=columns).to_csv(local_path, index=False)
                         logging.info(f"Archivo remoto no encontrado, creado local con estructura: {local_path}")
@@ -278,7 +278,7 @@ def sync_with_remote(economic_number):
                 'corresponding_author', 'coauthors', 'article_title', 'year',
                 'pub_date', 'volume', 'number', 'pages', 'journal_full',
                 'journal_abbrev', 'doi', 'jcr_group', 'pmid', 'selected_keywords',
-                'estado'
+                'pdf_filename', 'estado'
             ]
 
             # Verifica si el archivo local ya existe
@@ -308,7 +308,7 @@ def sync_with_remote(economic_number):
                 'corresponding_author', 'coauthors', 'article_title', 'year',
                 'pub_date', 'volume', 'number', 'pages', 'journal_full',
                 'journal_abbrev', 'doi', 'jcr_group', 'pmid', 'selected_keywords',
-                'estado'
+                'pdf_filename', 'estado'
             ]
             pd.DataFrame(columns=columns).to_csv(csv_filename, index=False)
             return False
@@ -336,7 +336,7 @@ def save_to_csv(data: dict):
             'corresponding_author', 'coauthors', 'article_title', 'year',
             'pub_date', 'volume', 'number', 'pages', 'journal_full',
             'journal_abbrev', 'doi', 'jcr_group', 'pmid', 'selected_keywords',
-            'estado'
+            'pdf_filename', 'estado'
         ]
 
         # Verificar si el archivo existe y tiene contenido válido
@@ -531,7 +531,7 @@ def main():
                 'corresponding_author', 'coauthors', 'article_title', 'year',
                 'pub_date', 'volume', 'number', 'pages', 'journal_full',
                 'journal_abbrev', 'doi', 'jcr_group', 'pmid', 'selected_keywords',
-                'estado'
+                'pdf_filename', 'estado'
             ])
     else:
         manual_df = pd.DataFrame(columns=[
@@ -539,7 +539,7 @@ def main():
             'corresponding_author', 'coauthors', 'article_title', 'year',
             'pub_date', 'volume', 'number', 'pages', 'journal_full',
             'journal_abbrev', 'doi', 'jcr_group', 'pmid', 'selected_keywords',
-            'estado'
+            'pdf_filename', 'estado'
         ])
 
     # Mostrar registros existentes si los hay
@@ -559,7 +559,7 @@ def main():
         """)
 
         # Crear copia editable solo con las columnas necesarias
-        columnas_mostrar = ['article_title', 'journal_full', 'estado']
+        columnas_mostrar = ['article_title', 'journal_full', 'pdf_filename', 'estado']
         edited_df = manual_df[columnas_mostrar].copy()
 
         # Mostrar editor de tabla
@@ -737,7 +737,7 @@ def main():
                     'jcr_group': jcr_group,
                     'pmid': pmid,
                     'selected_keywords': str(selected_categories),
-                    'pdf_filename': pdf_filename if articulo_pdf is not None else None
+                    'pdf_filename': pdf_filename
                 }
                 st.session_state.show_confirmation = True
                 st.rerun()
@@ -764,15 +764,15 @@ def main():
                 author_position = authors_list.index(investigator_name) + 1
                 participation_key = f"{author_position}C"
 
-            # Botón de acción final (sin col2)
+            # Botón de acción final
             if st.button("✅ Guardar registro definitivo", type="primary"):
-                # Crear registro completo
+                # Crear registro completo usando todos los datos del form_data
                 nuevo_registro = {
-                    **{k: v for k, v in st.session_state.form_data.items() if k != 'pdf_filename'},
+                    **st.session_state.form_data,
                     'participation_key': participation_key,
                     'investigator_name': investigator_name,
-                    'estado': 'A',
-                    'departamento': departamento
+                    'departamento': departamento,
+                    'estado': 'A'
                 }
 
                 if save_to_csv(nuevo_registro):
@@ -786,11 +786,13 @@ def main():
                 else:
                     st.error("❌ Error al guardar el registro")
 
-            # Opción para volver a editar debajo del botón principal
+            # Opción para volver a editar
             if st.button("↩️ Volver a editar", key="volver_editar"):
                 st.session_state.show_confirmation = False
                 st.rerun()
 
+
 if __name__ == "__main__":
     main()
+
 
