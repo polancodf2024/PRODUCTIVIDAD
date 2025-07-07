@@ -167,7 +167,7 @@ class SSHManager:
                             'economic_number', 'nombramiento', 'sni', 'sii', 'departamento', 'titulo_tesis', 'tipo_tesis', 'year',
                             'pub_date', 'directores', 'paginas',
                             'idioma', 'estudiante', 'coautores', 'selected_keywords',
-                            'estado'
+                            'pdf_filename', 'estado'
                         ]
                         pd.DataFrame(columns=columns).to_csv(local_path, index=False)
                         logging.info(f"Archivo remoto no encontrado, creado local con estructura: {local_path}")
@@ -256,7 +256,7 @@ def sync_with_remote(economic_number):
                 'economic_number', 'nombramiento', 'sni', 'sii', 'departamento', 'titulo_tesis', 'tipo_tesis', 'year',
                 'pub_date', 'directores', 'paginas',
                 'idioma', 'estudiante', 'coautores', 'selected_keywords',
-                'estado'
+                'pdf_filename', 'estado'
             ]
 
             # Verifica si el archivo local ya existe
@@ -285,7 +285,7 @@ def sync_with_remote(economic_number):
                 'economic_number', 'nombramiento', 'sni', 'sii', 'departamento', 'titulo_tesis', 'tipo_tesis', 'year',
                 'pub_date', 'directores', 'paginas',
                 'idioma', 'estudiante', 'coautores', 'selected_keywords',
-                'estado'
+                'pdf_filename', 'estado'
             ]
             pd.DataFrame(columns=columns).to_csv(csv_filename, index=False)
             return False
@@ -312,7 +312,7 @@ def save_to_csv(data: dict):
             'economic_number', 'nombramiento', 'sni', 'sii', 'departamento', 'titulo_tesis', 'tipo_tesis', 'year',
             'pub_date', 'directores', 'paginas',
             'idioma', 'estudiante', 'coautores', 'selected_keywords',
-            'estado'
+            'pdf_filename', 'estado'
         ]
 
         # Verificar si el archivo existe y tiene contenido válido
@@ -498,14 +498,14 @@ def main():
                 'economic_number', 'nombramiento', 'sni', 'sii', 'departamento', 'titulo_tesis', 'tipo_tesis', 'year',
                 'pub_date', 'directores', 'paginas',
                 'idioma', 'estudiante', 'coautores', 'selected_keywords',
-                'estado'
+                'pdf_filename', 'estado'
             ])
     else:
         tesis_df = pd.DataFrame(columns=[
             'economic_number', 'nombramiento', 'sni', 'sii', 'departamento', 'titulo_tesis', 'tipo_tesis', 'year',
             'pub_date', 'directores', 'paginas',
             'idioma', 'estudiante', 'coautores', 'selected_keywords',
-            'estado'
+            'pdf_filename', 'estado'
         ])
 
     # Mostrar registros existentes si los hay
@@ -525,7 +525,7 @@ def main():
         """)
 
         # Crear copia editable solo con las columnas necesarias
-        columnas_mostrar = ['titulo_tesis', 'tipo_tesis', 'year', 'estado']
+        columnas_mostrar = ['titulo_tesis', 'tipo_tesis', 'year', 'pdf_filename', 'estado']
         edited_df = tesis_df[columnas_mostrar].copy()
 
         # Mostrar editor de tabla
@@ -619,13 +619,15 @@ def main():
             st.caption("Nota: El nombre del archivo se generará automáticamente con el formato TES.YYYY-MM-DD-HH-MM.economic_number.pdf")
 
             if st.form_submit_button("💾 Guardar nueva tesis"):
-                # Generar nombre del archivo PDF con el formato TES.YYYY-MM-DD-HH-MM.economic_number.pdf
-                timestamp = datetime.now().strftime("%Y-%m-%d-%H-%M")
-                pdf_filename = f"TES.{timestamp}.{economic_number}.pdf"
-                pdf_remote_path = os.path.join(CONFIG.REMOTE['DIR'], pdf_filename)
+                # Inicializar variable para el nombre del PDF
+                pdf_filename = ""
 
-                # Subir el archivo PDF si se proporcionó
+                # Generar nombre del archivo PDF con el formato TES.YYYY-MM-DD-HH-MM.economic_number.pdf
                 if tesis_pdf is not None:
+                    timestamp = datetime.now().strftime("%Y-%m-%d-%H-%M")
+                    pdf_filename = f"TES.{timestamp}.{economic_number}.pdf"
+                    pdf_remote_path = os.path.join(CONFIG.REMOTE['DIR'], pdf_filename)
+
                     try:
                         # Guardar temporalmente el archivo localmente
                         with open(pdf_filename, "wb") as f:
@@ -637,9 +639,11 @@ def main():
 
                         if not upload_success:
                             st.error("Error al subir el documento de tesis. El registro se guardará sin el documento.")
+                            pdf_filename = ""
                     except Exception as e:
                         st.error(f"Error al procesar el documento: {str(e)}")
                         logging.error(f"Error al subir documento de tesis: {str(e)}")
+                        pdf_filename = ""
                 else:
                     st.warning("No se subió ningún documento para esta tesis")
 
@@ -659,6 +663,7 @@ def main():
                     'estudiante': estudiante,
                     'coautores': coautores,
                     'selected_keywords': str(selected_categories),
+                    'pdf_filename': pdf_filename,
                     'estado': 'A'
                 }
 
