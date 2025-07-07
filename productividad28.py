@@ -151,7 +151,7 @@ class SSHManager:
                             'corresponding_author', 'coauthors', 'article_title', 'year',
                             'pub_date', 'volume', 'number', 'pages', 'journal_full',
                             'journal_abbrev', 'doi', 'jcr_group', 'pmid', 'selected_keywords',
-                            'estado', 'sni', 'sii'  # Nuevos campos añadidos
+                            'sni', 'sii', 'pdf_filename', 'estado'  # Nuevos campos añadidos
                         ]
                         pd.DataFrame(columns=columns).to_csv(local_path, index=False)
                         logging.info(f"Archivo remoto no encontrado, creado local con estructura: {local_path}")
@@ -354,9 +354,10 @@ def parse_nbib_file(content: str) -> dict:
         'departamento': '',  # Nuevo campo añadido
         'participation_key': '',
         'selected_keywords': [],
-        'estado': 'A',  # 'A' para activo, 'X' para marcado para borrar
         'sni': '',  # Nuevo campo SNI
-        'sii': ''   # Nuevo campo SII
+        'sii': '',   # Nuevo campo SII
+        'pdf_filename': '',
+        'estado': 'A'
     }
 
     def extract_field(pattern, multi_line=False):
@@ -451,7 +452,7 @@ def sync_with_remote(economic_number):
                 'corresponding_author', 'coauthors', 'article_title', 'year',
                 'pub_date', 'volume', 'number', 'pages', 'journal_full',
                 'journal_abbrev', 'doi', 'jcr_group', 'pmid', 'selected_keywords',
-                'estado', 'sni', 'sii'  # Nuevos campos añadidos
+                'sni', 'sii', 'pdf_filename', 'estado'  # Nuevos campos añadidos
             ]
 
             # Verifica si el archivo local ya existe
@@ -481,7 +482,7 @@ def sync_with_remote(economic_number):
                 'corresponding_author', 'coauthors', 'article_title', 'year',
                 'pub_date', 'volume', 'number', 'pages', 'journal_full',
                 'journal_abbrev', 'doi', 'jcr_group', 'pmid', 'selected_keywords',
-                'estado', 'sni', 'sii'  # Nuevos campos añadidos
+                'sni', 'sii', 'pdf_filename', 'estado'  # Nuevos campos añadidos
             ]
             pd.DataFrame(columns=columns).to_csv(csv_filename, index=False)
             return False
@@ -509,7 +510,7 @@ def save_to_csv(data: dict, sni: str, sii: str):
             'corresponding_author', 'coauthors', 'article_title', 'year',
             'pub_date', 'volume', 'number', 'pages', 'journal_full',
             'journal_abbrev', 'doi', 'jcr_group', 'pmid', 'selected_keywords',
-            'estado'
+            'pdf_filename', 'estado'
         ]
 
         # Verificar si el archivo existe y tiene contenido válido
@@ -635,7 +636,7 @@ def main():
         _ = JournalCache()
 
     # Validación mejorada del número económico
-    economic_number = st.text_input("🔢 Número económico del investigador (solo números, sin guiones o letras).").strip()
+    economic_number = st.text_input("🔢 Número económico del investigador (solo números, sin guiones o letras):").strip()
 
     if not economic_number:
         st.warning("Por favor ingrese un número económico. Si no cuenta con uno, ingrese: 123456")
@@ -648,8 +649,7 @@ def main():
     # Nuevo campo: nombramiento
     nombramiento = st.selectbox(
         "📋 Tipo de nombramiento:",
-        options=["Ayudante de investigador","Investigador","Mando medio","Médico", "Médico especialista",
-                "Técnico"],
+        options=["Ayudante de investigador", "Investigador", "Mando medio", "Médico", "Médico especialista", "Técnico"],
         index=0
     )
 
@@ -721,6 +721,10 @@ def main():
                 productos_df['estado'] = 'A'
             else:
                 productos_df['estado'] = productos_df['estado'].fillna('A').str.strip().replace('', 'A')
+
+            # Asegurar que el campo 'pdf_filename' exista
+            if 'pdf_filename' not in productos_df.columns:
+                productos_df['pdf_filename'] = ''
         except Exception as e:
             st.error(f"Error al leer el archivo: {str(e)}")
             productos_df = pd.DataFrame(columns=[
@@ -728,7 +732,7 @@ def main():
                 'corresponding_author', 'coauthors', 'article_title', 'year',
                 'pub_date', 'volume', 'number', 'pages', 'journal_full',
                 'journal_abbrev', 'doi', 'jcr_group', 'pmid', 'selected_keywords',
-                'estado'
+                'pdf_filename', 'estado'
             ])
     else:
         productos_df = pd.DataFrame(columns=[
@@ -736,7 +740,7 @@ def main():
             'corresponding_author', 'coauthors', 'article_title', 'year',
             'pub_date', 'volume', 'number', 'pages', 'journal_full',
             'journal_abbrev', 'doi', 'jcr_group', 'pmid', 'selected_keywords',
-            'estado'
+            'pdf_filename', 'estado'
         ])
 
     # Mostrar registros existentes si los hay
@@ -756,7 +760,7 @@ def main():
         """)
 
         # Crear copia editable solo con las columnas necesarias
-        columnas_mostrar = ['article_title', 'journal_full', 'estado']
+        columnas_mostrar = ['article_title', 'journal_full', 'pdf_filename', 'estado']
         edited_df = st.data_editor(
             productos_df[columnas_mostrar],
             column_config={
@@ -802,6 +806,8 @@ def main():
                     st.rerun()
                 else:
                     st.error("❌ Error al sincronizar con el servidor remoto")
+    else:
+        st.info("No se encontraron registros existentes para este número económico")
 
     # Preguntar si desea añadir nuevo registro
     st.divider()
@@ -853,59 +859,82 @@ def main():
                     # Validación de palabras clave
                     if len(selected_categories) < 1:
                         st.error("Debe seleccionar al menos 1 línea de investigación")
-                    else:
-                        data['selected_keywords'] = selected_categories
+                        st.stop()
 
-                        # Selección del investigador principal
-                        authors_list = []
-                        if data['corresponding_author']:
-                            authors_list.append(data['corresponding_author'])
-                        if data['coauthors']:
-                            authors_list.extend(data['coauthors'].split("; "))
+                    data['selected_keywords'] = selected_categories
 
-                        investigator_name = st.selectbox("Seleccione su nombre:", authors_list)
-                        data['investigator_name'] = investigator_name
-                        data['economic_number'] = economic_number
-                        data['participation_key'] = "CA" if investigator_name == data['corresponding_author'] else f"{authors_list.index(investigator_name)}C"
+                    # Selección del investigador principal
+                    authors_list = []
+                    if data['corresponding_author']:
+                        authors_list.append(data['corresponding_author'])
+                    if data['coauthors']:
+                        authors_list.extend(data['coauthors'].split("; "))
 
-                        # Procesar el PDF si se subió
-                        pdf_filename = None
-                        if articulo_pdf is not None:
+                    investigator_name = st.selectbox("Seleccione su nombre:", authors_list)
+                    data['investigator_name'] = investigator_name
+                    data['economic_number'] = economic_number
+                    data['participation_key'] = "CA" if investigator_name == data['corresponding_author'] else f"{authors_list.index(investigator_name)}C"
+
+                    # Procesar el PDF si se subió
+                    pdf_filename = ""
+                    if articulo_pdf is not None:
+                        if not articulo_pdf.name.lower().endswith('.pdf'):
+                            st.error("El archivo debe ser un PDF válido")
+                            st.stop()
+
+                        try:
+                            timestamp = datetime.now().strftime("%Y-%m-%d-%H-%M")
+                            pdf_filename = f"ART.{timestamp}.{economic_number}.pdf"
+                            pdf_remote_path = os.path.join(CONFIG.REMOTE['DIR'], pdf_filename)
+
+                            # Verificar espacio en disco
                             try:
-                                timestamp = datetime.now().strftime("%Y-%m-%d-%H-%M")
-                                pdf_filename = f"ART.{timestamp}.{economic_number}.pdf"
-                                pdf_remote_path = os.path.join(CONFIG.REMOTE['DIR'], pdf_filename)
+                                stat = os.statvfs('/')
+                                if stat.f_bavail * stat.f_frsize < 10 * 1024 * 1024:  # 10MB mínimo
+                                    st.error("Espacio en disco insuficiente para guardar el PDF")
+                                    st.stop()
+                            except:
+                                pass  # Si no puede verificar, continuar
 
-                                # Guardar temporalmente el archivo localmente
-                                with open(pdf_filename, "wb") as f:
-                                    f.write(articulo_pdf.getbuffer())
+                            # Guardar temporalmente el archivo localmente
+                            with open(pdf_filename, "wb") as f:
+                                f.write(articulo_pdf.getbuffer())
 
-                                # Subir al servidor remoto
-                                with st.spinner("Subiendo documento del artículo..."):
-                                    upload_success = SSHManager.upload_remote_file(pdf_filename, pdf_remote_path)
+                            # Subir al servidor remoto
+                            with st.spinner("Subiendo documento del artículo..."):
+                                upload_success = SSHManager.upload_remote_file(pdf_filename, pdf_remote_path)
 
-                                if not upload_success:
-                                    st.error("Error al subir el documento del artículo. El registro se guardará sin el documento.")
-                            except Exception as e:
-                                st.error(f"Error al procesar el documento: {str(e)}")
-                                logging.error(f"Error al subir documento del artículo: {str(e)}")
-                        else:
-                            st.warning("No se subió ningún documento para este artículo")
+                            if upload_success:
+                                st.success(f"✅ Documento subido correctamente: {pdf_filename}")
+                            else:
+                                st.error("Error al subir el documento del artículo. El registro se guardará sin el documento.")
+                        except Exception as e:
+                            st.error(f"Error al procesar el documento: {str(e)}")
+                            logging.error(f"PDF Upload Error: {str(e)}")
+                            pdf_filename = ""  # Asegurar que no quede un nombre inválido
+                    else:
+                        st.warning("No se subió ningún documento para este artículo")
 
-                        if st.button("💾 Guardar registro", type="primary"):
-                            with st.spinner("Guardando datos..."):
-                                if save_to_csv(data, sni, sii):
-                                    st.balloons()
-                                    st.success("✅ Registro guardado exitosamente!")
+                    # Asignar el nombre del archivo PDF al registro
+                    data['pdf_filename'] = pdf_filename
 
-                                    # Intentar subir el archivo actualizado al servidor remoto
-                                    with st.spinner("Sincronizando con servidor remoto..."):
-                                        upload_success = SSHManager.upload_remote_file(
-                                            local_productos_filename,
-                                            os.path.join(CONFIG.REMOTE['DIR'], remote_productos_filename)
-                                        )
-                                        if not upload_success:
-                                            st.warning("No se pudo sincronizar con el servidor remoto. Los datos se guardaron localmente.")
+                    if pdf_filename:
+                        st.info(f"Archivo PDF asociado: {pdf_filename}")
+
+                    if st.button("💾 Guardar registro", type="primary"):
+                        with st.spinner("Guardando datos..."):
+                            if save_to_csv(data, sni, sii):
+                                st.balloons()
+                                st.success("✅ Registro guardado exitosamente!")
+
+                                # Intentar subir el archivo actualizado al servidor remoto
+                                with st.spinner("Sincronizando con servidor remoto..."):
+                                    upload_success = SSHManager.upload_remote_file(
+                                        local_productos_filename,
+                                        os.path.join(CONFIG.REMOTE['DIR'], remote_productos_filename)
+                                    )
+                                    if not upload_success:
+                                        st.warning("No se pudo sincronizar con el servidor remoto. Los datos se guardaron localmente.")
 
             except Exception as e:
                 st.error(f"❌ Error: {str(e)}")
