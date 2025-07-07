@@ -258,7 +258,7 @@ def sync_with_remote(economic_number):
                 'economic_number', 'nombramiento', 'sni', 'sii', 'departamento', 'autor_principal', 'tipo_participacion', 'titulo_libro',
                 'editorial', 'coautores_secundarios', 'year', 'pub_date', 'isbn_issn',
                 'numero_edicion', 'paginas', 'idiomas_disponibles',
-                'selected_keywords', 'estado'
+                'selected_keywords', 'pdf_filename', 'estado'
             ]
 
             # Verifica si el archivo local ya existe
@@ -287,7 +287,7 @@ def sync_with_remote(economic_number):
                 'economic_number', 'nombramiento', 'sni', 'sii', 'departamento', 'autor_principal', 'tipo_participacion', 'titulo_libro',
                 'editorial', 'coautores_secundarios', 'year', 'pub_date', 'isbn_issn',
                 'numero_edicion', 'paginas', 'idiomas_disponibles',
-                'selected_keywords', 'estado'
+                'selected_keywords', 'pdf_filename', 'estado'
             ]
             pd.DataFrame(columns=columns).to_csv(csv_filename, index=False)
             return False
@@ -305,7 +305,7 @@ def save_to_csv(data: dict):
     try:
         economic_number = data['economic_number']
         csv_filename = f"{CONFIG.CSV_PREFIX}{economic_number}.csv"
-        
+
         with st.spinner("Sincronizando datos con el servidor..."):
             if not sync_with_remote(economic_number):
                 st.warning("⚠️ Trabajando con copia local debido a problemas de conexión")
@@ -314,7 +314,7 @@ def save_to_csv(data: dict):
             'economic_number', 'nombramiento', 'sni', 'sii', 'departamento', 'autor_principal', 'tipo_participacion', 'titulo_libro',
             'editorial', 'coautores_secundarios', 'year', 'pub_date', 'isbn_issn',
             'numero_edicion', 'paginas', 'idiomas_disponibles',
-            'selected_keywords', 'estado'
+            'selected_keywords', 'pdf_filename', 'estado'
         ]
 
         # Verificar si el archivo existe y tiene contenido válido
@@ -329,7 +329,7 @@ def save_to_csv(data: dict):
                 )
                 # Eliminar registros con estado 'X'
                 df_existing = df_existing[df_existing['estado'] != 'X'].copy()
-                
+
                 # Verificar si el DataFrame está vacío
                 if df_existing.empty:
                     df_existing = pd.DataFrame(columns=columns)
@@ -505,14 +505,14 @@ def main():
                 'economic_number', 'nombramiento', 'sni', 'sii', 'departamento', 'autor_principal', 'tipo_participacion', 'titulo_libro',
                 'editorial', 'coautores_secundarios', 'year', 'pub_date', 'isbn_issn',
                 'numero_edicion', 'paginas', 'idiomas_disponibles',
-                'selected_keywords', 'estado'
+                'selected_keywords', 'pdf_filename', 'estado'
             ])
     else:
         libros_df = pd.DataFrame(columns=[
             'economic_number', 'nombramiento', 'sni', 'sii', 'departamento', 'autor_principal', 'tipo_participacion', 'titulo_libro',
             'editorial', 'coautores_secundarios', 'year', 'pub_date', 'isbn_issn',
             'numero_edicion', 'paginas', 'idiomas_disponibles',
-            'selected_keywords', 'estado'
+            'selected_keywords', 'pdf_filename', 'estado'
         ])
 
     # Mostrar registros existentes si los hay
@@ -640,7 +640,7 @@ def main():
                 max_selections=CONFIG.MAX_KEYWORDS
             )
 
-            # Sección para subir portada del libro (con la rutina de capitulos7.py)
+            # Sección para subir portada del libro
             st.subheader("📄 Portada del libro")
             portada_pdf = st.file_uploader(
                 "Suba la portada del libro en formato PDF:",
@@ -650,13 +650,15 @@ def main():
             st.caption("Nota: El nombre del archivo se generará automáticamente con el formato LIB.YYYY-MM-DD-HH-MM.economic_number.pdf")
 
             if st.form_submit_button("💾 Guardar nuevo registro"):
-                # Generar nombre del archivo PDF con el formato LIB.YYYY-MM-DD-HH-MM.economic_number.pdf
-                timestamp = datetime.now().strftime("%Y-%m-%d-%H-%M")
-                pdf_filename = f"LIB.{timestamp}.{economic_number}.pdf"
-                pdf_remote_path = os.path.join(CONFIG.REMOTE['DIR'], pdf_filename)
+                # Inicializar el nombre del archivo PDF
+                pdf_filename = ""
 
-                # Subir el archivo PDF si se proporcionó (rutina de capitulos7.py)
+                # Generar y subir el archivo PDF si se proporcionó
                 if portada_pdf is not None:
+                    timestamp = datetime.now().strftime("%Y-%m-%d-%H-%M")
+                    pdf_filename = f"LIB.{timestamp}.{economic_number}.pdf"
+                    pdf_remote_path = os.path.join(CONFIG.REMOTE['DIR'], pdf_filename)
+
                     try:
                         # Guardar temporalmente el archivo localmente
                         with open(pdf_filename, "wb") as f:
@@ -668,9 +670,11 @@ def main():
 
                         if not upload_success:
                             st.error("Error al subir la portada del libro. El registro se guardará sin la portada.")
+                            pdf_filename = ""
                     except Exception as e:
                         st.error(f"Error al procesar la portada: {str(e)}")
                         logging.error(f"Error al subir portada: {str(e)}")
+                        pdf_filename = ""
                 else:
                     st.warning("No se subió ninguna portada para este libro")
 
@@ -692,6 +696,7 @@ def main():
                     'paginas': paginas,
                     'idiomas_disponibles': ', '.join(idiomas_disponibles),
                     'selected_keywords': str(selected_categories),
+                    'pdf_filename': pdf_filename,  # Campo penúltimo
                     'estado': 'A'
                 }
 
