@@ -171,12 +171,13 @@ class SSHManager:
                     try:
                         sftp.stat(remote_path)
                     except FileNotFoundError:
-                        # Crear archivo local con estructura correcta
+                        # Crear archivo local con estructura correcta (incluyendo pdf_filename)
                         columns = [
                             'economic_number', 'nombramiento', 'sni', 'sii', 'departamento',
                             'titulo_presentacion', 'titulo_congreso', 'tipo_congreso', 'pais',
                             'año_congreso', 'fecha_exacta_congreso', 'rol', 
-                            'titulo_ponencia', 'linea_investigacion', 'coautores_secundarios', 'estado'
+                            'titulo_ponencia', 'linea_investigacion', 'coautores_secundarios',
+                            'pdf_filename', 'estado'  # <- Campo añadido aquí
                         ]
                         pd.DataFrame(columns=columns).to_csv(local_path, index=False)
                         logging.info(f"Archivo remoto no encontrado, creado local con estructura: {local_path}")
@@ -274,8 +275,9 @@ def sync_with_remote(economic_number):
             columns = [
                 'economic_number', 'nombramiento', 'sni', 'sii', 'departamento',
                 'titulo_presentacion', 'titulo_congreso', 'tipo_congreso', 'pais',
-                'año_congreso', 'fecha_exacta_congreso', 'rol', 
-                'titulo_ponencia', 'linea_investigacion', 'coautores_secundarios', 'estado'
+                'año_congreso', 'fecha_exacta_congreso', 'rol',
+                'titulo_ponencia', 'linea_investigacion', 'coautores_secundarios',
+                'pdf_filename', 'estado'  # <- Campo añadido aquí
             ]
 
             # Verifica si el archivo local ya existe
@@ -303,8 +305,9 @@ def sync_with_remote(economic_number):
             columns = [
                 'economic_number', 'nombramiento', 'sni', 'sii', 'departamento',
                 'titulo_presentacion', 'titulo_congreso', 'tipo_congreso', 'pais',
-                'año_congreso', 'fecha_exacta_congreso', 'rol', 
-                'titulo_ponencia', 'linea_investigacion', 'coautores_secundarios', 'estado'
+                'año_congreso', 'fecha_exacta_congreso', 'rol',
+                'titulo_ponencia', 'linea_investigacion', 'coautores_secundarios',
+                'pdf_filename', 'estado'  # <- Campo añadido aquí
             ]
             pd.DataFrame(columns=columns).to_csv(csv_filename, index=False)
             return False
@@ -322,7 +325,7 @@ def save_to_csv(data: dict):
     try:
         economic_number = data['economic_number']
         csv_filename = f"{CONFIG.CSV_PREFIX}{economic_number}.csv"
-        
+
         with st.spinner("Sincronizando datos con el servidor..."):
             if not sync_with_remote(economic_number):
                 st.warning("⚠️ Trabajando con copia local debido a problemas de conexión")
@@ -330,8 +333,9 @@ def save_to_csv(data: dict):
         columns = [
             'economic_number', 'nombramiento', 'sni', 'sii', 'departamento',
             'titulo_presentacion', 'titulo_congreso', 'tipo_congreso', 'pais',
-            'año_congreso', 'fecha_exacta_congreso', 'rol', 
-            'titulo_ponencia', 'linea_investigacion', 'coautores_secundarios', 'estado'
+            'año_congreso', 'fecha_exacta_congreso', 'rol',
+            'titulo_ponencia', 'linea_investigacion', 'coautores_secundarios',
+            'pdf_filename', 'estado'  # <- Campo añadido aquí
         ]
 
         # Verificar si el archivo existe y tiene contenido válido
@@ -346,7 +350,7 @@ def save_to_csv(data: dict):
                 )
                 # Eliminar registros con estado 'X'
                 df_existing = df_existing[df_existing['estado'] != 'X'].copy()
-                
+
                 # Verificar si el DataFrame está vacío
                 if df_existing.empty:
                     df_existing = pd.DataFrame(columns=columns)
@@ -518,14 +522,14 @@ def main():
                 'economic_number', 'nombramiento', 'sni', 'sii', 'departamento',
                 'titulo_presentacion', 'titulo_congreso', 'tipo_congreso', 'pais',
                 'año_congreso', 'fecha_exacta_congreso', 'rol',
-                'titulo_ponencia', 'linea_investigacion', 'coautores_secundarios', 'estado'
+                'titulo_ponencia', 'linea_investigacion', 'coautores_secundarios', 'pdf_filename', 'estado'
             ])
     else:
         congresos_df = pd.DataFrame(columns=[
             'economic_number', 'nombramiento', 'sni', 'sii', 'departamento',
             'titulo_presentacion', 'titulo_congreso', 'tipo_congreso', 'pais',
             'año_congreso', 'fecha_exacta_congreso', 'rol',
-            'titulo_ponencia', 'linea_investigacion', 'coautores_secundarios', 'estado'
+            'titulo_ponencia', 'linea_investigacion', 'coautores_secundarios', 'pdf_filename', 'estado'
         ])
 
     # Mostrar registros existentes si los hay
@@ -548,7 +552,7 @@ def main():
         columnas_mostrar = [
             'titulo_presentacion', 'titulo_congreso', 'tipo_congreso', 'pais',
             'año_congreso', 'fecha_exacta_congreso', 'rol',
-            'titulo_ponencia', 'linea_investigacion', 'coautores_secundarios', 'estado'
+            'titulo_ponencia', 'linea_investigacion', 'coautores_secundarios', 'pdf_filename', 'estado'
         ]
 
         # Mostrar expander con detalles completos
@@ -686,11 +690,14 @@ def main():
 
                         if not upload_success:
                             st.error("Error al subir el documento del congreso. El registro se guardará sin el documento.")
+                            pdf_filename = ""
                     except Exception as e:
                         st.error(f"Error al procesar el documento: {str(e)}")
                         logging.error(f"Error al subir documento: {str(e)}")
+                        pdf_filename = ""
                 else:
                     st.warning("No se subió ningún documento para este congreso")
+                    pdf_filename = ""
 
                 nuevo_registro = {
                     'economic_number': economic_number,
@@ -708,6 +715,7 @@ def main():
                     'titulo_ponencia': titulo_ponencia if rol in ["Ponente", "Expositor"] else "N/A",
                     'linea_investigacion': ', '.join(linea_investigacion) if linea_investigacion else "Otra",
                     'coautores_secundarios': coautores_secundarios,
+                    'pdf_filename': pdf_filename,
                     'estado': 'A'
                 }
 
