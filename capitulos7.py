@@ -163,7 +163,7 @@ class SSHManager:
                             'economic_number', 'nombramiento', 'sni', 'sii', 'departamento', 'autor_principal', 'tipo_participacion', 
                             'titulo_libro', 'titulo_capitulo', 'editorial', 'coautores_secundarios', 
                             'year', 'pub_date', 'isbn_issn', 'numero_edicion', 'paginas', 
-                            'idiomas_disponibles', 'selected_keywords', 'estado'
+                            'idiomas_disponibles', 'selected_keywords', 'pdf_filename', 'estado'
                         ]
                         pd.DataFrame(columns=columns).to_csv(local_path, index=False)
                         logging.info(f"Archivo remoto no encontrado, creado local con estructura: {local_path}")
@@ -252,7 +252,7 @@ def sync_with_remote(economic_number):
                 'economic_number', 'nombramiento', 'sni', 'sii', 'departamento', 'autor_principal', 'tipo_participacion', 
                 'titulo_libro', 'titulo_capitulo', 'editorial', 'coautores_secundarios', 
                 'year', 'pub_date', 'isbn_issn', 'numero_edicion', 'paginas', 
-                'idiomas_disponibles', 'selected_keywords', 'estado'
+                'idiomas_disponibles', 'selected_keywords', 'pdf_filename', 'estado'
             ]
 
             # Verifica si el archivo local ya existe
@@ -281,7 +281,7 @@ def sync_with_remote(economic_number):
                 'economic_number', 'nombramiento', 'sni', 'sii', 'departamento', 'autor_principal', 'tipo_participacion', 
                 'titulo_libro', 'titulo_capitulo', 'editorial', 'coautores_secundarios', 
                 'year', 'pub_date', 'isbn_issn', 'numero_edicion', 'paginas', 
-                'idiomas_disponibles', 'selected_keywords', 'estado'
+                'idiomas_disponibles', 'selected_keywords', 'pdf_filename', 'estado'
             ]
             pd.DataFrame(columns=columns).to_csv(csv_filename, index=False)
             return False
@@ -299,16 +299,16 @@ def save_to_csv(data: dict):
     try:
         economic_number = data['economic_number']
         csv_filename = f"{CONFIG.CSV_PREFIX}{economic_number}.csv"
-        
+
         with st.spinner("Sincronizando datos con el servidor..."):
             if not sync_with_remote(economic_number):
                 st.warning("⚠️ Trabajando con copia local debido a problemas de conexión")
 
         columns = [
-            'economic_number', 'nombramiento', 'sni', 'sii', 'departamento', 'autor_principal', 'tipo_participacion', 
-            'titulo_libro', 'titulo_capitulo', 'editorial', 'coautores_secundarios', 
-            'year', 'pub_date', 'isbn_issn', 'numero_edicion', 'paginas', 
-            'idiomas_disponibles', 'selected_keywords', 'estado'
+            'economic_number', 'nombramiento', 'sni', 'sii', 'departamento', 'autor_principal', 'tipo_participacion',
+            'titulo_libro', 'titulo_capitulo', 'editorial', 'coautores_secundarios',
+            'year', 'pub_date', 'isbn_issn', 'numero_edicion', 'paginas',
+            'idiomas_disponibles', 'selected_keywords', 'pdf_filename', 'estado'
         ]
 
         # Verificar si el archivo existe y tiene contenido válido
@@ -323,7 +323,7 @@ def save_to_csv(data: dict):
                 )
                 # Eliminar registros con estado 'X'
                 df_existing = df_existing[df_existing['estado'] != 'X'].copy()
-                
+
                 # Verificar si el DataFrame está vacío
                 if df_existing.empty:
                     df_existing = pd.DataFrame(columns=columns)
@@ -374,6 +374,7 @@ def save_to_csv(data: dict):
         logging.error(f"Save CSV Error: {str(e)}")
         return False
 
+
 def display_author_info(data, investigator_name):
     """Muestra información de autores con formato"""
     st.markdown("**Autores**")
@@ -419,7 +420,7 @@ def main():
     # Sección de información del investigador
     with st.container():
         st.subheader("Información del Investigador")
-        
+
         # Número económico con validación
         economic_number = st.text_input(
             "🔢 Número económico del investigador (solo números, sin guiones o letras):",
@@ -455,9 +456,9 @@ def main():
 
         # Departamento en su propia línea
         departamento_seleccionado = st.selectbox(
-        "🏢 Departamento de adscripción:",
-        options=DEPARTAMENTOS_INCICH,
-        index=0
+            "🏢 Departamento de adscripción:",
+            options=DEPARTAMENTOS_INCICH,
+            index=0
         )
 
         # Inicializar la variable departamento
@@ -524,14 +525,14 @@ def main():
                 'economic_number', 'nombramiento', 'sni', 'sii', 'departamento', 'autor_principal', 'tipo_participacion',
                 'titulo_libro', 'titulo_capitulo', 'editorial', 'coautores_secundarios',
                 'year', 'pub_date', 'isbn_issn', 'numero_edicion', 'paginas',
-                'idiomas_disponibles', 'selected_keywords', 'estado'
+                'idiomas_disponibles', 'selected_keywords', 'pdf_filename', 'estado'
             ])
     else:
         capitulos_df = pd.DataFrame(columns=[
             'economic_number', 'nombramiento', 'sni', 'sii', 'departamento', 'autor_principal', 'tipo_participacion',
             'titulo_libro', 'titulo_capitulo', 'editorial', 'coautores_secundarios',
             'year', 'pub_date', 'isbn_issn', 'numero_edicion', 'paginas',
-            'idiomas_disponibles', 'selected_keywords', 'estado'
+            'idiomas_disponibles', 'selected_keywords', 'pdf_filename', 'estado'
         ])
 
     # Mostrar registros existentes si los hay
@@ -671,6 +672,7 @@ def main():
                 pdf_remote_path = os.path.join(CONFIG.REMOTE['DIR'], pdf_filename)
 
                 # Subir el archivo PDF si se proporcionó
+                pdf_uploaded_name = ""  # Inicializar como cadena vacía
                 if capitulo_pdf is not None:
                     try:
                         # Guardar temporalmente el archivo localmente
@@ -681,7 +683,9 @@ def main():
                         with st.spinner("Subiendo PDF del capítulo..."):
                             upload_success = SSHManager.upload_remote_file(pdf_filename, pdf_remote_path)
 
-                        if not upload_success:
+                        if upload_success:
+                            pdf_uploaded_name = pdf_filename  # Guardar el nombre del archivo solo si se subió correctamente
+                        else:
                             st.error("Error al subir el PDF del capítulo. El registro se guardará sin el PDF.")
                     except Exception as e:
                         st.error(f"Error al procesar el PDF: {str(e)}")
@@ -708,6 +712,7 @@ def main():
                     'paginas': paginas,
                     'idiomas_disponibles': ', '.join(idiomas_disponibles),
                     'selected_keywords': str(selected_categories),
+                    'pdf_filename': pdf_uploaded_name,  # Nuevo campo para el nombre del archivo PDF
                     'estado': 'A'
                 }
 
@@ -719,3 +724,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
