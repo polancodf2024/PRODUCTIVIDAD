@@ -725,8 +725,8 @@ def main():
                     )
 
         with col3:
-            # Botón para descargar todos los PDFs con prefijo ART o MAN
-            if st.button("Descargar todos los PDFs (ART/MAN)"):
+            # Botón para descargar todos los PDFs con prefijo LIB
+            if st.button("Descargar todos los PDFs (LIB)"):
                 with st.spinner("Buscando archivos PDF en el servidor..."):
                     ssh = SSHManager.get_connection()
                     if ssh:
@@ -735,11 +735,11 @@ def main():
                                 sftp.chdir(CONFIG.REMOTE['DIR'])
                                 pdf_files = []
                                 for filename in sftp.listdir():
-                                    if (filename.startswith('ART') or filename.startswith('MAN')) and filename.lower().endswith('.pdf'):
+                                    if (filename.startswith('LIB')) and filename.lower().endswith('.pdf'):
                                         pdf_files.append(filename)
 
                                 if not pdf_files:
-                                    st.warning("No se encontraron archivos PDF con prefijo ART o MAN")
+                                    st.warning("No se encontraron archivos PDF con prefijo LIB")
                                 else:
                                     st.info(f"Se encontraron {len(pdf_files)} archivos PDF")
 
@@ -757,7 +757,7 @@ def main():
                                     st.download_button(
                                         label="Descargar todos los PDFs (ZIP)",
                                         data=zip_buffer,
-                                        file_name="pdfs_art_man.zip",
+                                        file_name="pdfs_lib_man.zip",
                                         mime="application/zip",
                                         key="download_all_pdfs"
                                     )
