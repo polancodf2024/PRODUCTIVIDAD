@@ -7,6 +7,7 @@ import paramiko
 import time
 import os
 import logging
+import zipfile
 from pathlib import Path
 from PIL import Image
 
@@ -289,6 +290,11 @@ def generar_tabla_resumen(unique_libros, filtered_df):
         total_idiomas = unique_libros['idiomas_disponibles'].nunique()
         datos_resumen.append(("Idiomas distintos", total_idiomas))
     
+    # 11. Formatos (si existe)
+    if 'formatos_disponibles' in unique_libros.columns:
+        total_formatos = unique_libros['formatos_disponibles'].nunique()
+        datos_resumen.append(("Formatos distintos", total_formatos))
+    
     # Crear DataFrame
     resumen_df = pd.DataFrame(datos_resumen, columns=['Categoría', 'Total'])
     
@@ -354,15 +360,20 @@ def indice_calidad_editorial(editorial):
     else:
         return 0.3  # Editoriales no clasificadas
 
-def coeficiente_internacionalizacion(idiomas):
-    """Calcula el Coeficiente de Internacionalización (CI) basado solo en idiomas"""
-    if pd.isna(idiomas):
+def coeficiente_internacionalizacion(paises, idiomas):
+    """Calcula el Coeficiente de Internacionalización (CI)"""
+    if pd.isna(paises) or pd.isna(idiomas):
         return 0.0
 
     try:
+        # Procesar países (eliminar valores vacíos)
+        paises_list = [p.strip() for p in str(paises).split(",") if p.strip()]
         # Procesar idiomas (eliminar valores vacíos)
         idiomas_list = [i.strip() for i in str(idiomas).split(",") if i.strip()]
-        return min(len(idiomas_list), 2) / 2  # Normalizado a 0-1 (máx. 2 idiomas)
+
+        score_paises = min(len(paises_list), 3) / 3  # Normalizado a 0-1 (máx. 3 países)
+        score_idiomas = min(len(idiomas_list), 2) / 2  # Normalizado a 0-1 (máx. 2 idiomas)
+        return 0.6 * score_paises + 0.4 * score_idiomas
     except:
         return 0.0
 
@@ -431,7 +442,7 @@ def main():
 
         # Verificar campos importantes
         required_columns = ['autor_principal', 'titulo_libro', 'pub_date', 'estado',
-                          'editorial', 'idiomas_disponibles', 'selected_keywords']
+                          'editorial', 'idiomas_disponibles', 'selected_keywords', 'pdf_filename']
         missing_columns = [col for col in required_columns if col not in df.columns]
 
         if missing_columns:
@@ -521,30 +532,14 @@ def main():
 
                 # Sección de portadas PDF
                 st.subheader("📄 Portadas disponibles")
-                economic_number = row['Número económico']
-                remote_pdfs = []
+                pdf_files = unique_libros_investigator['pdf_filename'].dropna().unique()
 
-                ssh = SSHManager.get_connection()
-                if ssh:
-                    try:
-                        with ssh.open_sftp() as sftp:
-                            try:
-                                remote_files = sftp.listdir(CONFIG.REMOTE['DIR'])
-                                remote_pdfs = [f for f in remote_files if f.endswith(f".{economic_number}.pdf")]
-                                remote_pdfs.sort(reverse=True)
-                            except Exception as e:
-                                st.warning(f"No se pudieron listar los archivos PDF: {str(e)}")
-                    except Exception as e:
-                        st.warning(f"Error al acceder a SFTP: {str(e)}")
-                    finally:
-                        ssh.close()
-
-                if remote_pdfs:
-                    st.info(f"Se encontraron {len(remote_pdfs)} portadas para este investigador")
+                if len(pdf_files) > 0:
+                    st.info(f"Se encontraron {len(pdf_files)} portadas para este investigador")
                     selected_pdf = st.selectbox(
                         "Seleccione una portada para ver:",
-                        remote_pdfs,
-                        key=f"pdf_selector_{economic_number}_{index}"
+                        pdf_files,
+                        key=f"pdf_selector_{row['Número económico']}_{index}"
                     )
 
                     if selected_pdf:
@@ -560,7 +555,7 @@ def main():
                                 data=pdf_bytes,
                                 file_name=selected_pdf,
                                 mime="application/pdf",
-                                key=f"download_pdf_{economic_number}_{index}"
+                                key=f"download_pdf_{row['Número económico']}_{index}"
                             )
 
                             try:
@@ -578,7 +573,7 @@ def main():
                     data=csv,
                     file_name=f"libros_{row['Investigador'].replace(' ', '_')}.csv",
                     mime='text/csv',
-                    key=f"download_csv_{economic_number}_{index}"
+                    key=f"download_csv_{row['Número económico']}_{index}"
                 )
 
         # =============================================
@@ -590,7 +585,9 @@ def main():
         with st.spinner("Calculando métricas de calidad..."):
             unique_libros = unique_libros.assign(
                 ICE=unique_libros['editorial'].apply(indice_calidad_editorial),
-                CI=unique_libros['idiomas_disponibles'].apply(coeficiente_internacionalizacion),
+                CI=unique_libros['idiomas_disponibles'].apply(
+                    lambda x: min(len(str(x).split(",")), 2) / 2 if pd.notna(x) else 0.0
+                ),
                 IRT=unique_libros['selected_keywords'].apply(indice_relevancia_tematica)
             )
             unique_libros = unique_libros.assign(
@@ -638,9 +635,9 @@ def main():
             st.markdown("""
             ### Coeficiente de Internacionalización (CI)
             **Fórmula:**
-            CI = [n° idiomas/2] (normalizado a 0-1, máximo 2 idiomas)
+            CI = (N° idiomas / 2)  # Normalizado a 0-1 (máx. 2 idiomas)
 
-            **Propósito:** Medir alcance lingüístico.
+            **Propósito:** Medir alcance lingüístico (versión simplificada sin países).
             """)
 
             st.markdown("""
@@ -706,7 +703,7 @@ def main():
         # SECCIÓN DE DESCARGAS GLOBALES
         # =============================================
         st.header("📥 Exportar Resultados")
-        col1, col2 = st.columns(2)
+        col1, col2, col3 = st.columns(3)
 
         with col1:
             csv_metricas = metricas_df.to_csv(index=False).encode('utf-8')
@@ -727,9 +724,55 @@ def main():
                         mime="text/csv"
                     )
 
+        with col3:
+            # Botón para descargar todos los PDFs con prefijo ART o MAN
+            if st.button("Descargar todos los PDFs (ART/MAN)"):
+                with st.spinner("Buscando archivos PDF en el servidor..."):
+                    ssh = SSHManager.get_connection()
+                    if ssh:
+                        try:
+                            with ssh.open_sftp() as sftp:
+                                sftp.chdir(CONFIG.REMOTE['DIR'])
+                                pdf_files = []
+                                for filename in sftp.listdir():
+                                    if (filename.startswith('ART') or filename.startswith('MAN')) and filename.lower().endswith('.pdf'):
+                                        pdf_files.append(filename)
+
+                                if not pdf_files:
+                                    st.warning("No se encontraron archivos PDF con prefijo ART o MAN")
+                                else:
+                                    st.info(f"Se encontraron {len(pdf_files)} archivos PDF")
+
+                                    # Crear un archivo ZIP con todos los PDFs
+                                    zip_buffer = io.BytesIO()
+                                    with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+                                        for pdf_file in pdf_files:
+                                            temp_path = f"temp_{pdf_file}"
+                                            remote_path = os.path.join(CONFIG.REMOTE['DIR'], pdf_file)
+                                            if SSHManager.download_remote_file(remote_path, temp_path):
+                                                zip_file.write(temp_path, pdf_file)
+                                                os.remove(temp_path)
+
+                                    zip_buffer.seek(0)
+                                    st.download_button(
+                                        label="Descargar todos los PDFs (ZIP)",
+                                        data=zip_buffer,
+                                        file_name="pdfs_art_man.zip",
+                                        mime="application/zip",
+                                        key="download_all_pdfs"
+                                    )
+                        except Exception as e:
+                            st.error(f"Error al acceder a los archivos PDF: {str(e)}")
+                            logging.error(f"Error al descargar PDFs: {str(e)}")
+                        finally:
+                            ssh.close()
+                    else:
+                        st.error("No se pudo establecer conexión con el servidor")
+
     except Exception as e:
         st.error(f"Error al procesar el archivo: {str(e)}")
         logging.error(f"Error en main: {str(e)}")
 
 if __name__ == "__main__":
     main()
+
