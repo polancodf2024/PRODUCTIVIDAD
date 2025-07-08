@@ -7,7 +7,9 @@ import paramiko
 import time
 import os
 import logging
+import zipfile
 from pathlib import Path
+from PIL import Image
 
 # Configuración de logging
 logging.basicConfig(
@@ -17,18 +19,23 @@ logging.basicConfig(
     datefmt='%Y-%m-%d %H:%M:%S'
 )
 
-# Configuración de pandas para evitar warnings
-pd.options.mode.chained_assignment = None
+# ====================
+# CATEGORÍAS DE KEYWORDS PARA TESIS
+# ====================
+KEYWORD_CATEGORIES = {
+    "Biología Celular": ["celular", "molecular", "energía", "metabolismo"],
+    "Genética": ["genética", "ADN", "ARN", "genómica"],
+    # ... (agregar más categorías relevantes para tesis)
+}
 
 # ====================
 # CONFIGURACIÓN INICIAL
 # ====================
 class Config:
     def __init__(self):
-        # Configuración SFTP usando secrets.toml
-        self.REMOTE_TESIS_FILE = f"{st.secrets['prefixes']['tesis']}total.csv"
+        # Configuración SFTP
+        self.REMOTE_TESIS_FILE = "pro_tesis_total.csv"  # Nombre del archivo remoto
         self.REMOTE_GENERADOR_PATH = f"{st.secrets['sftp']['dir']}/{st.secrets['prefixes']['generadortesis']}"
-        self.REMOTE_DIR = st.secrets["sftp"]["dir"]
         self.TIMEOUT_SECONDS = 30
         
         self.REMOTE = {
@@ -38,11 +45,16 @@ class Config:
             'PORT': st.secrets["sftp"]["port"],
             'DIR': st.secrets["sftp"]["dir"]
         }
+        
+        # Configuración de estilo
+        self.HIGHLIGHT_COLOR = "#90EE90"
+        self.LOGO_PATH = "escudo_COLOR.jpg"
+        self.COLUMN_WIDTH = "200px"  # Ancho fijo para columnas
 
 CONFIG = Config()
 
 # ==================
-# CLASE SSH MEJORADA
+# CLASE SSH MEJORADA (se mantiene igual)
 # ==================
 class SSHManager:
     MAX_RETRIES = 3
@@ -145,7 +157,7 @@ def ejecutar_generador_remoto():
                 sftp.close()
 
             # 2. Ejecutar el script en el directorio correcto
-            comando = f"cd {CONFIG.REMOTE_DIR} && bash {CONFIG.REMOTE_GENERADOR_PATH}"
+            comando = f"cd {CONFIG.REMOTE['DIR']} && bash {CONFIG.REMOTE_GENERADOR_PATH}"
             logging.info(f"Ejecutando comando: {comando}")
             
             stdin, stdout, stderr = ssh.exec_command(comando)
@@ -164,7 +176,7 @@ def ejecutar_generador_remoto():
             
             # 4. Verificar que el archivo se creó en la ubicación correcta
             sftp = ssh.open_sftp()
-            output_path = os.path.join(CONFIG.REMOTE_DIR, CONFIG.REMOTE_TESIS_FILE)
+            output_path = os.path.join(CONFIG.REMOTE['DIR'], CONFIG.REMOTE_TESIS_FILE)
             try:
                 sftp.stat(output_path)
                 file_size = sftp.stat(output_path).st_size
@@ -192,7 +204,7 @@ def ejecutar_generador_remoto():
 def sync_tesis_file():
     """Sincroniza el archivo tesis_total.csv desde el servidor remoto"""
     try:
-        remote_path = os.path.join(CONFIG.REMOTE_DIR, CONFIG.REMOTE_TESIS_FILE)
+        remote_path = os.path.join(CONFIG.REMOTE['DIR'], CONFIG.REMOTE_TESIS_FILE)
         local_path = "tesis_total.csv"
         
         with st.spinner("🔄 Sincronizando archivo tesis_total.csv desde el servidor..."):
@@ -207,9 +219,191 @@ def sync_tesis_file():
         logging.error(f"Sync Error: {str(e)}")
         return False
 
+def highlight_author(author: str, investigator_name: str) -> str:
+    """Resalta el nombre del investigador principal"""
+    if investigator_name and investigator_name.lower() == author.lower():
+        return f"<span style='background-color: {CONFIG.HIGHLIGHT_COLOR};'>{author}</span>"
+    return author
+
+def generar_tabla_resumen(unique_tesis, filtered_df):
+    """Genera una tabla consolidada con todos los totales"""
+    datos_resumen = []
+    
+    # 1. Total tesis únicas
+    total_tesis = len(unique_tesis)
+    datos_resumen.append(("Tesis únicas", total_tesis))
+    
+    # 2. Departamentos
+    total_deptos = unique_tesis['departamento'].nunique()
+    datos_resumen.append(("Departamentos distintos", total_deptos))
+    
+    # 3. Tipos de tesis
+    total_tipos = unique_tesis['tipo_tesis'].nunique()
+    datos_resumen.append(("Tipos de tesis distintos", total_tipos))
+    
+    # 4. Líneas de investigación
+    try:
+        all_keywords = []
+        for keywords in unique_tesis['selected_keywords']:
+            if pd.notna(keywords):
+                keywords_str = str(keywords).strip()
+                if keywords_str.startswith('[') and keywords_str.endswith(']'):
+                    keywords_str = keywords_str[1:-1]
+                    import re
+                    keyword_list = re.split(r",\s*(?=(?:[^']*'[^']*')*[^']*$)", keywords_str)
+                    keyword_list = [k.strip().strip("'\"") for k in keyword_list if k.strip()]
+                    all_keywords.extend(keyword_list)
+                else:
+                    keyword_list = [k.strip() for k in keywords_str.split(",") if k.strip()]
+                    all_keywords.extend(keyword_list)
+        total_keywords = len(set(all_keywords)) if all_keywords else 0
+        datos_resumen.append(("Líneas de investigación distintas", total_keywords))
+    except:
+        datos_resumen.append(("Líneas de investigación distintas", "N/D"))
+    
+    # 5. Idiomas
+    if 'idioma' in unique_tesis.columns:
+        total_idiomas = unique_tesis['idioma'].nunique()
+        datos_resumen.append(("Idiomas distintos", total_idiomas))
+    
+    # 6. Distribución temporal (años)
+    total_anios = unique_tesis['year'].nunique()
+    datos_resumen.append(("Años con tesis", total_anios))
+    
+    # 7. Nivel SNI
+    if 'sni' in unique_tesis.columns:
+        total_sni = unique_tesis['sni'].nunique()
+        datos_resumen.append(("Niveles SNI distintos", total_sni))
+    
+    # 8. Nivel SII
+    if 'sii' in unique_tesis.columns:
+        total_sii = unique_tesis['sii'].nunique()
+        datos_resumen.append(("Niveles SII distintos", total_sii))
+    
+    # 9. Nombramientos
+    if 'nombramiento' in unique_tesis.columns:
+        total_nombramientos = unique_tesis['nombramiento'].nunique()
+        datos_resumen.append(("Tipos de nombramiento distintos", total_nombramientos))
+    
+    # 10. Directores
+    if 'directores' in unique_tesis.columns:
+        total_directores = unique_tesis['directores'].nunique()
+        datos_resumen.append(("Directores distintos", total_directores))
+    
+    # Crear DataFrame
+    resumen_df = pd.DataFrame(datos_resumen, columns=['Categoría', 'Total'])
+    
+    return resumen_df
+
+def aplicar_estilo_tabla(df):
+    """Aplica estilo CSS para uniformizar el ancho de columnas"""
+    styles = []
+    for col in df.columns:
+        styles.append({
+            'selector': f'th.col_heading.col{df.columns.get_loc(col)}',
+            'props': [('width', CONFIG.COLUMN_WIDTH)]
+        })
+        styles.append({
+            'selector': f'td.col{df.columns.get_loc(col)}',
+            'props': [('width', CONFIG.COLUMN_WIDTH)]
+        })
+    return df.style.set_table_styles(styles)
+
+def mostrar_tabla_uniforme(df, titulo, ayuda=None, max_rows=10):
+    """Muestra una tabla con columnas de ancho uniforme"""
+    st.markdown(f"**{titulo}**")
+    if ayuda:
+        st.caption(ayuda)
+    
+    # Aplicar estilo CSS para uniformizar el ancho de columnas
+    st.markdown(
+        f"""
+        <style>
+            th, td {{
+                width: {CONFIG.COLUMN_WIDTH} !important;
+                min-width: {CONFIG.COLUMN_WIDTH} !important;
+                max-width: {CONFIG.COLUMN_WIDTH} !important;
+            }}
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
+    
+    st.dataframe(df.head(max_rows), hide_index=True)
+
+# ====================
+# FUNCIONES DE MÉTRICAS PARA TESIS
+# ====================
+def indice_calidad_tesis(tipo_tesis):
+    """Calcula el Índice de Calidad de Tesis (ICT) basado en el tipo de tesis"""
+    if pd.isna(tipo_tesis):
+        return 0.3
+
+    tipo_tesis = str(tipo_tesis).strip().lower()
+
+    # Definición de categorías de tesis
+    if "doctorado" in tipo_tesis:
+        return 1.0
+    elif "maestría" in tipo_tesis:
+        return 0.7
+    elif "licenciatura" in tipo_tesis:
+        return 0.5
+    else:
+        return 0.3  # Otros tipos
+
+def coeficiente_colaboracion(directores, coautores):
+    """Calcula el Coeficiente de Colaboración (CC)"""
+    try:
+        # Procesar directores
+        directores_list = [d.strip() for d in str(directores).split(",") if d.strip()] if pd.notna(directores) else []
+        # Procesar coautores
+        coautores_list = [c.strip() for c in str(coautores).split(";") if c.strip()] if pd.notna(coautores) else []
+        
+        total_colaboradores = len(directores_list) + len(coautores_list)
+        return min(total_colaboradores / 5, 1.0)  # Normalizado a 0-1 (máx. 5 colaboradores)
+    except:
+        return 0.0
+
+def indice_relevancia_tematica_tesis(keywords):
+    """Calcula el Índice de Relevancia Temática (IRT) para tesis"""
+    if pd.isna(keywords):
+        return 0.0
+
+    keywords_estrategicas = [
+        "sistemas biológicos", "celular", "molecular", "energía",
+        "genómica", "biotecnología", "investigación aplicada"
+    ]
+
+    try:
+        if isinstance(keywords, str):
+            # Limpiar y separar keywords
+            keywords_str = keywords.strip()
+            if keywords_str.startswith('[') and keywords_str.endswith(']'):
+                keywords_str = keywords_str[1:-1]
+                kw_list = [k.strip().strip("'\"") for k in keywords_str.split(",") if k.strip()]
+            else:
+                kw_list = [k.strip() for k in keywords_str.split(",") if k.strip()]
+
+            # Calcular matches con términos estratégicos
+            matches = sum(1 for kw in kw_list if any(estrategico_kw in kw.lower() for estrategico_kw in keywords_estrategicas))
+            return matches / len(kw_list) if kw_list else 0.0
+        return 0.0
+    except:
+        return 0.0
+
+# ====================
+# FUNCIÓN MAIN MODIFICADA PARA TESIS
+# ====================
 def main():
+    st.set_page_config(
+        page_title="Análisis de Tesis",
+        page_icon="📚",
+        layout="wide"
+    )
+
     # Añadir logo en la parte superior
-    st.image("escudo_COLOR.jpg", width=200)
+    if Path(CONFIG.LOGO_PATH).exists():
+        st.image(CONFIG.LOGO_PATH, width=200)
 
     st.title("Análisis de Tesis")
 
@@ -231,28 +425,20 @@ def main():
         df = pd.read_csv("tesis_total.csv", header=0, encoding='utf-8')
         df.columns = df.columns.str.strip()
 
-        # Verificación de columnas
-        logging.info(f"Columnas detectadas: {df.columns.tolist()}")
+        # Verificar campos importantes
+        required_columns = ['economic_number', 'nombramiento', 'sni', 'sii', 'departamento', 
+                          'titulo_tesis', 'tipo_tesis', 'year', 'pub_date', 'directores', 
+                          'paginas', 'idioma', 'estudiante', 'coautores', 'selected_keywords', 
+                          'pdf_filename', 'estado']
+        missing_columns = [col for col in required_columns if col not in df.columns]
 
-        # Verificar que los campos clave existen
-        required_columns = ['nombramiento', 'sni', 'sii', 'titulo_tesis', 'pub_date', 'estado', 'directores', 'economic_number']
-        if not all(col in df.columns for col in required_columns):
-            missing = set(required_columns) - set(df.columns)
-            st.error(f"El archivo no contiene las columnas requeridas. Faltan: {missing}")
+        if missing_columns:
+            st.warning(f"El archivo tesis_total.csv no contiene los campos requeridos: {', '.join(missing_columns)}")
             return
-
-        # Renombrar columnas para compatibilidad
-        column_renames = {
-            'titulo_tesis': 'tesis_title',
-            'directores': 'director_name',
-            'tipo_tesis': 'academic_level',
-            'year': 'pub_year'
-        }
-        df = df.rename(columns=column_renames)
 
         # Convertir y validar fechas
         df['pub_date'] = pd.to_datetime(df['pub_date'], errors='coerce')
-        df = df[(df['estado'] == 'A') & (df['pub_date'].notna())]
+        df = df[(df['estado'] == 'A') & (df['pub_date'].notna())].copy()
 
         if df.empty:
             st.warning("No hay tesis válidas para analizar")
@@ -260,258 +446,302 @@ def main():
 
         st.success(f"Datos cargados correctamente. Registros activos: {len(df)}")
 
-        # Obtener rangos de fechas disponibles
-        min_date = df['pub_date'].min()
-        max_date = df['pub_date'].max()
+        # Obtener rangos de años disponibles
+        min_year = df['year'].min()
+        max_year = df['year'].max()
 
-        # Selector de rango mes-año con ayuda
+        # Selector de rango de años
         st.header("📅 Selección de Periodo")
         col1, col2 = st.columns(2)
 
         with col1:
-            start_year = st.selectbox("Año inicio",
-                                   range(min_date.year, max_date.year+1),
-                                   index=0,
-                                   help="Selecciona el año inicial para el análisis.")
-            start_month = st.selectbox("Mes inicio",
-                                    range(1, 13),
-                                    index=min_date.month-1,
-                                    format_func=lambda x: datetime(1900, x, 1).strftime('%B'),
-                                    help="Selecciona el mes inicial para el análisis.")
-
+            start_year = st.selectbox("Año inicio", range(int(min_year), int(max_year)+1), index=0)
+        
         with col2:
-            end_year = st.selectbox("Año término",
-                                  range(min_date.year, max_date.year+1),
-                                  index=len(range(min_date.year, max_date.year+1))-1,
-                                  help="Selecciona el año final para el análisis.")
-            end_month = st.selectbox("Mes término",
-                                   range(1, 13),
-                                   index=max_date.month-1,
-                                   format_func=lambda x: datetime(1900, x, 1).strftime('%B'),
-                                   help="Selecciona el mes final para el análisis.")
-
-        # Calcular fechas de inicio y fin
-        start_day = 1
-        end_day = calendar.monthrange(end_year, end_month)[1]
-
-        date_start = datetime(start_year, start_month, start_day)
-        date_end = datetime(end_year, end_month, end_day)
+            end_year = st.selectbox("Año término", range(int(min_year), int(max_year)+1),
+                                 index=len(range(int(min_year), int(max_year)+1))-1)
 
         # Filtrar dataframe
-        filtered_df = df[(df['pub_date'] >= pd.to_datetime(date_start)) &
-                       (df['pub_date'] <= pd.to_datetime(date_end))]
+        filtered_df = df[(df['year'] >= start_year) & (df['year'] <= end_year)].copy()
 
-        # Obtener tesis únicas para estadísticas precisas
-        unique_tesis = filtered_df.drop_duplicates(subset=['tesis_title'])
+        # Obtener tesis únicas
+        unique_tesis = filtered_df.drop_duplicates(subset=['titulo_tesis']).copy()
 
-        st.markdown(f"**Periodo seleccionado:** {date_start.strftime('%d/%m/%Y')} - {date_end.strftime('%d/%m/%Y')}",
-                   help="Rango de fechas seleccionado para el análisis.")
-        st.markdown(f"**Registros encontrados:** {len(filtered_df)}",
-                   help="Total de registros en el periodo.")
-        st.markdown(f"**Tesis únicas:** {len(unique_tesis)}",
-                   help="Cantidad de tesis distintas, eliminando duplicados.")
+        st.markdown(f"**Periodo seleccionado:** {start_year} - {end_year}")
+        st.markdown(f"**Registros encontrados:** {len(filtered_df)}")
+        st.markdown(f"**Tesis únicas:** {len(unique_tesis)}")
 
-        duplicates_count = len(filtered_df) - len(unique_tesis)
-
-        if duplicates_count > 0:
-            if duplicates_count == 1:
-                st.warning(f"⚠️ **Nota:** Se detectó {duplicates_count} registro duplicado.")
-            else:
-                st.warning(f"⚠️ **Nota:** Se detectaron {duplicates_count} registros duplicados.")
+        if len(filtered_df) != len(unique_tesis):
+            st.warning(f"⚠️ **Nota:** Se detectaron {len(filtered_df) - len(unique_tesis)} registros duplicados de la misma tesis.")
 
         if filtered_df.empty:
             st.warning("No hay tesis en el periodo seleccionado")
             return
 
-        # Análisis consolidado en tablas
-        st.header("📊 Estadísticas Consolidadas",
-                help="Métricas generales basadas en los filtros aplicados.")
-
-        # Tabla 1: Productividad por investigador (por número económico)
-        st.subheader("🔍 Productividad por investigador",
-                   help="Muestra cuántas tesis únicas tiene cada investigador (por número económico).")
-
-        investigator_stats = filtered_df.groupby('economic_number').agg(
-            Tesis_Unicas=('tesis_title', lambda x: len(set(x))),
-            Nombramiento=('nombramiento', 'first'),
-            SNI=('sni', 'first'),
-            SII=('sii', 'first')
+        # =============================================
+        # TABLA DE PRODUCTIVIDAD POR INVESTIGADOR
+        # =============================================
+        st.header("🔍 Productividad por investigador")
+        investigator_stats = filtered_df.groupby(['economic_number', 'nombramiento', 'sni', 'sii', 'departamento']).agg(
+            Tesis_Dirigidas=('titulo_tesis', lambda x: len(set(x))),
+            Tipos_Tesis=('tipo_tesis', lambda x: ', '.join(sorted(set(x))))
         ).reset_index()
+        investigator_stats = investigator_stats.sort_values('Tesis_Dirigidas', ascending=False)
+        investigator_stats.columns = ['Número económico', 'Nombramiento', 'SNI', 'SII', 'Departamento', 'Tesis dirigidas', 'Tipos de tesis']
 
-        # Convertir a string para evitar problemas con Arrow
-        investigator_stats['economic_number'] = investigator_stats['economic_number'].astype(str)
-        investigator_stats = investigator_stats.sort_values('Tesis_Unicas', ascending=False)
-        investigator_stats.columns = ['Número Económico', 'Tesis únicas', 'Nombramiento', 'SNI', 'SII']
+        mostrar_tabla_uniforme(investigator_stats, "Productividad por investigador")
 
-        # Añadir fila de totales
-        total_row = pd.DataFrame({
-            'Número Económico': ['TOTAL'],
-            'Tesis únicas': [investigator_stats['Tesis únicas'].sum()],
-            'Nombramiento': [''],
-            'SNI': [''],
-            'SII': ['']
-        })
-        
-        investigator_stats = pd.concat([investigator_stats.head(10), total_row], ignore_index=True)
-        
-        # Mostrar tabla con configuración explícita de tipos
-        st.dataframe(
-            investigator_stats,
-            column_config={
-                "Número Económico": st.column_config.TextColumn("Número Económico"),
-                "Tesis únicas": st.column_config.NumberColumn("Tesis únicas"),
-                "Nombramiento": st.column_config.TextColumn("Nombramiento"),
-                "SNI": st.column_config.TextColumn("SNI"),
-                "SII": st.column_config.TextColumn("SII")
-            },
-            hide_index=True
-        )
-
-        # Mostrar detalles expandibles para cada investigador
+        # Detalle expandible por investigador
         for index, row in investigator_stats.iterrows():
-            if row['Número Económico'] != 'TOTAL':
-                with st.expander(f"{row['Número Económico']} - {row['Tesis únicas']} tesis"):
-                    investigator_tesis = filtered_df[filtered_df['economic_number'].astype(str) == row['Número Económico']]
-                    unique_tesis_investigator = investigator_tesis.drop_duplicates(subset=['tesis_title'])
+            with st.expander(f"{row['Número económico']} - {row['Tesis dirigidas']} tesis"):
+                investigator_tesis = filtered_df[filtered_df['economic_number'] == row['Número económico']]
+                unique_tesis_investigator = investigator_tesis.drop_duplicates(subset=['titulo_tesis'])
 
-                    # Configuración de columnas a mostrar
-                    display_columns = [
-                        'tesis_title', 'pub_date', 'director_name', 'academic_level',
-                        'nombramiento', 'sni', 'sii', 'departamento', 'paginas', 'idioma'
-                    ]
-                    display_columns = [col for col in display_columns if col in unique_tesis_investigator.columns]
+                display_columns = ['titulo_tesis', 'tipo_tesis', 'year', 'directores', 'estudiante']
+                if 'paginas' in unique_tesis_investigator.columns:
+                    display_columns.append('paginas')
+                if 'idioma' in unique_tesis_investigator.columns:
+                    display_columns.append('idioma')
 
-                    column_config = {
-                        "pub_date": st.column_config.DateColumn("Fecha publicación", format="DD/MM/YYYY"),
-                        "nombramiento": st.column_config.TextColumn("Nombramiento"),
-                        "sni": st.column_config.TextColumn("SNI"),
-                        "sii": st.column_config.TextColumn("SII"),
-                        "academic_level": st.column_config.TextColumn("Nivel Académico")
-                    }
+                st.write(f"Tesis dirigidas por {row['Número económico']}:")
+                mostrar_tabla_uniforme(unique_tesis_investigator[display_columns], "")
 
-                    st.dataframe(
-                        unique_tesis_investigator[display_columns],
-                        column_config=column_config,
-                        use_container_width=True,
-                        hide_index=True
+                # Sección de PDFs
+                st.subheader("📄 Tesis disponibles")
+                pdf_files = unique_tesis_investigator['pdf_filename'].dropna().unique()
+
+                if len(pdf_files) > 0:
+                    st.info(f"Se encontraron {len(pdf_files)} tesis en PDF para este investigador")
+                    selected_pdf = st.selectbox(
+                        "Seleccione una tesis para ver:",
+                        pdf_files,
+                        key=f"pdf_selector_{row['Número económico']}_{index}"
                     )
 
-                    # Botón de descarga
-                    csv = unique_tesis_investigator.to_csv(index=False).encode('utf-8')
-                    st.download_button(
-                        label="Descargar producción de tesis completa",
-                        data=csv,
-                        file_name=f"tesis_{row['Número Económico']}.csv",
-                        mime='text/csv',
-                        key=f"download_{index}"
-                    )
+                    if selected_pdf:
+                        temp_pdf_path = f"temp_{selected_pdf}"
+                        remote_pdf_path = os.path.join(CONFIG.REMOTE['DIR'], selected_pdf)
 
-        # Tabla 2: Directores más activos
-        st.subheader("👨‍🏫 Directores más activos",
-                   help="Listado de directores de tesis ordenados por cantidad de tesis dirigidas.")
-        director_stats = unique_tesis['director_name'].value_counts().reset_index()
-        director_stats.columns = ['Director', 'Tesis dirigidas']
+                        if SSHManager.download_remote_file(remote_pdf_path, temp_pdf_path):
+                            with open(temp_pdf_path, "rb") as f:
+                                pdf_bytes = f.read()
 
-        total_row = pd.DataFrame({
-            'Director': ['TOTAL'],
-            'Tesis dirigidas': [director_stats['Tesis dirigidas'].sum()]
-        })
-        director_stats = pd.concat([director_stats.head(10), total_row], ignore_index=True)
-        st.dataframe(director_stats, hide_index=True)
+                            st.download_button(
+                                label="Descargar esta tesis",
+                                data=pdf_bytes,
+                                file_name=selected_pdf,
+                                mime="application/pdf",
+                                key=f"download_pdf_{row['Número económico']}_{index}"
+                            )
 
-        # Tabla 3: Distribución por niveles académicos
-        st.subheader("📚 Distribución por niveles académicos",
-                   help="Clasificación de tesis según el nivel académico.")
-        level_stats = unique_tesis['academic_level'].value_counts().reset_index()
-        level_stats.columns = ['Nivel Académico', 'Tesis únicas']
+                            try:
+                                os.remove(temp_pdf_path)
+                            except:
+                                pass
+                        else:
+                            st.error("No se pudo descargar el PDF seleccionado")
+                else:
+                    st.warning("No se encontraron tesis en PDF para este investigador")
 
-        total_row = pd.DataFrame({
-            'Nivel Académico': ['TOTAL'],
-            'Tesis únicas': [level_stats['Tesis únicas'].sum()]
-        })
-        level_stats = pd.concat([level_stats, total_row], ignore_index=True)
-        st.dataframe(level_stats, hide_index=True)
-
-        # Tabla 4: Distribución temporal
-        st.subheader("🕰️ Distribución mensual de tesis",
-                    help="Evolución mensual de la producción de tesis.")
-        time_stats = unique_tesis['pub_date'].dt.strftime('%Y-%m').value_counts().sort_index().reset_index()
-        time_stats.columns = ['Mes-Año', 'Tesis únicas']
-
-        total_row = pd.DataFrame({
-            'Mes-Año': ['TOTAL'],
-            'Tesis únicas': [time_stats['Tesis únicas'].sum()]
-        })
-        time_stats = pd.concat([time_stats, total_row], ignore_index=True)
-        st.dataframe(time_stats, hide_index=True)
-
-        # Tabla 5: Distribución por nivel SNI
-        st.subheader("📊 Distribución por nivel SNI",
-                    help="Clasificación según el nivel del Sistema Nacional de Investigadores.")
-        sni_stats = unique_tesis['sni'].value_counts().reset_index()
-        sni_stats.columns = ['Nivel SNI', 'Tesis únicas']
-
-        total_row = pd.DataFrame({
-            'Nivel SNI': ['TOTAL'],
-            'Tesis únicas': [sni_stats['Tesis únicas'].sum()]
-        })
-        sni_stats = pd.concat([sni_stats, total_row], ignore_index=True)
-        st.dataframe(sni_stats, hide_index=True)
-
-        # Tabla 6: Distribución por nivel SII
-        st.subheader("📈 Distribución por nivel SII",
-                    help="Clasificación según el nivel del Sistema Institucional de Investigación.")
-        sii_stats = unique_tesis['sii'].value_counts().reset_index()
-        sii_stats.columns = ['Nivel SII', 'Tesis únicas']
-
-        total_row = pd.DataFrame({
-            'Nivel SII': ['TOTAL'],
-            'Tesis únicas': [sii_stats['Tesis únicas'].sum()]
-        })
-        sii_stats = pd.concat([sii_stats, total_row], ignore_index=True)
-        st.dataframe(sii_stats, hide_index=True)
-
-        # Tabla 7: Distribución por tipo de nombramiento
-        st.subheader("👔 Distribución por nombramientos",
-                    help="Clasificación según el nombramiento de los autores.")
-        nombramiento_stats = unique_tesis['nombramiento'].value_counts().reset_index()
-        nombramiento_stats.columns = ['Tipo de Nombramiento', 'Tesis únicas']
-
-        total_row = pd.DataFrame({
-            'Tipo de Nombramiento': ['TOTAL'],
-            'Tesis únicas': [nombramiento_stats['Tesis únicas'].sum()]
-        })
-        nombramiento_stats = pd.concat([nombramiento_stats, total_row], ignore_index=True)
-        st.dataframe(nombramiento_stats, hide_index=True)
-
-        # Tabla 8: Departamentos con más tesis
-        st.subheader("🏛️ Distribución por departamento",
-                    help="Clasificación según el departamento académico.")
-        depto_stats = unique_tesis['departamento'].value_counts().reset_index()
-        depto_stats.columns = ['Departamento', 'Tesis únicas']
-
-        total_row = pd.DataFrame({
-            'Departamento': ['TOTAL'],
-            'Tesis únicas': [depto_stats['Tesis únicas'].sum()]
-        })
-        depto_stats = pd.concat([depto_stats, total_row], ignore_index=True)
-        st.dataframe(depto_stats, hide_index=True)
-
-        # Descargar archivo completo
-        st.header("📥 Descargar Datos Completos")
-        if Path("tesis_total.csv").exists():
-            with open("tesis_total.csv", "rb") as file:
-                btn = st.download_button(
-                    label="Descargar archivo pro_tesis_total.csv completo",
-                    data=file,
-                    file_name="pro_tesis_total.csv",
-                    mime="text/csv",
-                    help="Descarga el archivo CSV completo con todos los datos"
+                csv = unique_tesis_investigator.to_csv(index=False).encode('utf-8')
+                st.download_button(
+                    label="Descargar producción de tesis en CSV",
+                    data=csv,
+                    file_name=f"tesis_{row['Número económico']}.csv",
+                    mime='text/csv',
+                    key=f"download_csv_{row['Número económico']}_{index}"
                 )
-            if btn:
-                st.success("Descarga iniciada")
-        else:
-            st.warning("El archivo tesis_total.csv no está disponible para descargar")
+
+        # =============================================
+        # SECCIÓN DE MÉTRICAS DE CALIDAD
+        # =============================================
+        st.header("📊 Métricas de Calidad de Tesis")
+
+        # Calcular métricas para cada tesis única
+        with st.spinner("Calculando métricas de calidad..."):
+            unique_tesis = unique_tesis.assign(
+                ICT=unique_tesis['tipo_tesis'].apply(indice_calidad_tesis),
+                CC=unique_tesis.apply(lambda x: coeficiente_colaboracion(x['directores'], x['coautores']), axis=1),
+                IRT=unique_tesis['selected_keywords'].apply(indice_relevancia_tematica_tesis)
+            )
+            unique_tesis = unique_tesis.assign(
+                PI=0.5 * unique_tesis['ICT'] + 0.3 * unique_tesis['CC'] + 0.2 * unique_tesis['IRT']
+            )
+
+        # Mostrar tabla de resultados por investigador
+        st.subheader("Métricas por Investigador")
+        metrics_by_investigator = unique_tesis.groupby('economic_number').agg({
+            'ICT': 'mean',
+            'CC': 'mean',
+            'IRT': 'mean',
+            'PI': 'mean',
+            'titulo_tesis': 'count'
+        }).reset_index()
+
+        metrics_by_investigator.columns = [
+            'Número económico',
+            'ICT Promedio',
+            'CC Promedio',
+            'IRT Promedio',
+            'PI Promedio',
+            'Tesis Evaluadas'
+        ]
+
+        metrics_by_investigator = metrics_by_investigator.sort_values('PI Promedio', ascending=False)
+        metrics_by_investigator = metrics_by_investigator.round(2)
+
+        mostrar_tabla_uniforme(metrics_by_investigator, "Resumen de Métricas por Investigador")
+
+        # Botón para explicación de métricas
+        with st.expander("ℹ️ Explicación de las Métricas", expanded=False):
+            st.markdown("""
+            ### Índice de Calidad de Tesis (ICT)
+            **Fórmula:**
+            Clasificación de tesis por nivel académico:
+            - **1.0**: Doctorado
+            - **0.7**: Maestría
+            - **0.5**: Licenciatura
+            - **0.3**: Otros tipos
+
+            **Propósito:** Evaluar el nivel académico de la tesis.
+            """)
+
+            st.markdown("""
+            ### Coeficiente de Colaboración (CC)
+            **Fórmula:**
+            CC = (N° directores + coautores) / 5  # Normalizado a 0-1 (máx. 5 colaboradores)
+
+            **Propósito:** Medir el grado de colaboración en la tesis.
+            """)
+
+            st.markdown("""
+            ### Índice de Relevancia Temática (IRT)
+            **Fórmula:**
+            IRT = (N° palabras clave estratégicas) / (Total palabras clave)
+
+            **Propósito:** Evaluar relación con áreas estratégicas de investigación.
+            """)
+
+            st.markdown("""
+            ### Puntaje Integrado (PI)
+            **Fórmula:**
+            PI = (0.5 × ICT) + (0.3 × CC) + (0.2 × IRT)
+
+            **Interpretación:**
+            0.8-1.0: Excelente | 0.6-0.79: Bueno | 0.4-0.59: Aceptable | <0.4: Bajo
+            """)
+
+        # Mostrar tabla completa de tesis con métricas
+        st.subheader("Resultados Detallados por Tesis")
+        metricas_df = unique_tesis[[
+            'titulo_tesis', 'economic_number', 'tipo_tesis',
+            'ICT', 'CC', 'IRT', 'PI'
+        ]].sort_values('PI', ascending=False)
+
+        metricas_df.columns = [
+            'Título', 'Número económico', 'Tipo de tesis',
+            'Calidad (ICT)', 'Colaboración (CC)',
+            'Relevancia (IRT)', 'Puntaje Integrado (PI)'
+        ]
+
+        metricas_df = metricas_df.round(2)
+        mostrar_tabla_uniforme(metricas_df, "")
+
+        # =============================================
+        # TOP 5 TESIS POR CALIDAD
+        # =============================================
+        st.header("🏆 Tesis Destacadas")
+        top_tesis = unique_tesis.nlargest(5, 'PI')[[
+            'titulo_tesis', 'economic_number', 'tipo_tesis', 'PI', 'ICT', 'CC', 'IRT'
+        ]]
+        top_tesis.columns = [
+            'Título', 'Número económico', 'Tipo de tesis',
+            'Puntaje Integrado', 'Calidad',
+            'Colaboración', 'Relevancia'
+        ]
+
+        mostrar_tabla_uniforme(top_tesis.round(2), "Top 5 tesis por Calidad Integral")
+
+        # Botón para criterios de selección
+        with st.expander("ℹ️ Criterios de Selección", expanded=False):
+            st.markdown("""
+            **Tesis destacadas** se seleccionan por mayor Puntaje Integrado (PI) que combina:
+            - 50% Calidad académica (ICT)
+            - 30% Colaboración (CC)
+            - 20% Relevancia temática (IRT)
+
+            Las tesis con PI ≥ 0.8 tienen calidad excepcional en los tres aspectos evaluados.
+            """)
+
+        # =============================================
+        # SECCIÓN DE DESCARGAS GLOBALES
+        # =============================================
+        st.header("📥 Exportar Resultados")
+        col1, col2, col3 = st.columns(3)
+
+        with col1:
+            csv_metricas = metricas_df.to_csv(index=False).encode('utf-8')
+            st.download_button(
+                label="Descargar métricas de calidad (CSV)",
+                data=csv_metricas,
+                file_name="metricas_calidad_tesis.csv",
+                mime='text/csv'
+            )
+
+        with col2:
+            if Path("tesis_total.csv").exists():
+                with open("tesis_total.csv", "rb") as file:
+                    st.download_button(
+                        label="Descargar dataset completo",
+                        data=file,
+                        file_name="tesis_total.csv",
+                        mime="text/csv"
+                    )
+
+        with col3:
+            # Botón para descargar todos los PDFs con prefijo TES
+            if st.button("Descargar todos los PDFs (TES)"):
+                with st.spinner("Buscando archivos PDF en el servidor..."):
+                    ssh = SSHManager.get_connection()
+                    if ssh:
+                        try:
+                            with ssh.open_sftp() as sftp:
+                                sftp.chdir(CONFIG.REMOTE['DIR'])
+                                pdf_files = []
+                                for filename in sftp.listdir():
+                                    if (filename.startswith('TES')) and filename.lower().endswith('.pdf'):
+                                        pdf_files.append(filename)
+
+                                if not pdf_files:
+                                    st.warning("No se encontraron archivos PDF con prefijo TES")
+                                else:
+                                    st.info(f"Se encontraron {len(pdf_files)} archivos PDF")
+
+                                    # Crear un archivo ZIP con todos los PDFs
+                                    zip_buffer = io.BytesIO()
+                                    with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+                                        for pdf_file in pdf_files:
+                                            temp_path = f"temp_{pdf_file}"
+                                            remote_path = os.path.join(CONFIG.REMOTE['DIR'], pdf_file)
+                                            if SSHManager.download_remote_file(remote_path, temp_path):
+                                                zip_file.write(temp_path, pdf_file)
+                                                os.remove(temp_path)
+
+                                    zip_buffer.seek(0)
+                                    st.download_button(
+                                        label="Descargar todos los PDFs (ZIP)",
+                                        data=zip_buffer,
+                                        file_name="pdfs_tesis.zip",
+                                        mime="application/zip",
+                                        key="download_all_pdfs"
+                                    )
+                        except Exception as e:
+                            st.error(f"Error al acceder a los archivos PDF: {str(e)}")
+                            logging.error(f"Error al descargar PDFs: {str(e)}")
+                        finally:
+                            ssh.close()
+                    else:
+                        st.error("No se pudo establecer conexión con el servidor")
 
     except Exception as e:
         st.error(f"Error al procesar el archivo: {str(e)}")
