@@ -7,6 +7,7 @@ import paramiko
 import time
 import os
 import logging
+import zipfile
 from pathlib import Path
 from PIL import Image
 
@@ -15,8 +16,17 @@ logging.basicConfig(
     filename='monitoreo_congresos.log',
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
-    datefmt='%Y-%m-%d'
+    datefmt='%Y-%m-%d %H:%M:%S'
 )
+
+# ====================
+# CATEGORÍAS DE KEYWORDS PARA CONGRESOS
+# ====================
+KEYWORD_CATEGORIES = {
+    "Cardiología": ["cardio", "corazón", "miocardio", "arritmia", "isquemia", "hipertensión", "ECG", "insuficiencia cardíaca"],
+    "Neurología": ["neuro", "cerebro", "ictus", "alzheimer", "parkinson", "demencia"],
+    # ... (puedes agregar más categorías relevantes)
+}
 
 # ====================
 # CONFIGURACIÓN INICIAL
@@ -39,11 +49,12 @@ class Config:
         # Configuración de estilo
         self.HIGHLIGHT_COLOR = "#90EE90"
         self.LOGO_PATH = "escudo_COLOR.jpg"
+        self.COLUMN_WIDTH = "200px"  # Ancho fijo para todas las columnas
 
 CONFIG = Config()
 
 # ==================
-# CLASE SSH MEJORADA
+# CLASE SSH MEJORADA (se mantiene igual)
 # ==================
 class SSHManager:
     MAX_RETRIES = 3
@@ -191,33 +202,213 @@ def ejecutar_generador_remoto():
             ssh.close()
 
 def sync_congresos_file():
-    """Sincroniza el archivo congresos_total.csv desde el servidor remoto"""
+    """Sincroniza el archivo pro_congresos_total.csv desde el servidor remoto"""
     try:
         remote_path = os.path.join(CONFIG.REMOTE['DIR'], CONFIG.REMOTE_CONGRESOS_FILE)
-        local_path = "congresos_total.csv"
+        local_path = "pro_congresos_total.csv"
         
-        with st.spinner("🔄 Sincronizando archivo congresos_total.csv desde el servidor..."):
+        with st.spinner("🔄 Sincronizando archivo pro_congresos_total.csv desde el servidor..."):
             if SSHManager.download_remote_file(remote_path, local_path):
-                st.success("✅ Archivo congresos_total.csv sincronizado correctamente")
+                st.success("✅ Archivo pro_congresos_total.csv sincronizado correctamente")
                 return True
             else:
-                st.error("❌ No se pudo descargar el archivo congresos_total.csv del servidor")
+                st.error("❌ No se pudo descargar el archivo pro_congresos_total.csv del servidor")
                 return False
     except Exception as e:
         st.error(f"❌ Error en sincronización: {str(e)}")
         logging.error(f"Sync Error: {str(e)}")
         return False
 
-def highlight_participant(name: str, investigator_name: str) -> str:
+def highlight_author(author: str, investigator_name: str) -> str:
     """Resalta el nombre del investigador principal"""
-    if investigator_name and investigator_name.lower() == name.lower():
-        return f"<span style='background-color: {CONFIG.HIGHLIGHT_COLOR};'>{name}</span>"
-    return name
+    if investigator_name and investigator_name.lower() == author.lower():
+        return f"<span style='background-color: {CONFIG.HIGHLIGHT_COLOR};'>{author}</span>"
+    return author
+
+def generar_tabla_resumen(unique_congresos, filtered_df):
+    """Genera una tabla consolidada con todos los totales"""
+    datos_resumen = []
+    
+    # 1. Total presentaciones únicas
+    total_presentaciones = len(unique_congresos)
+    datos_resumen.append(("Presentaciones únicas", total_presentaciones))
+    
+    # 2. Congresos distintos
+    total_congresos = unique_congresos['titulo_congreso'].nunique()
+    datos_resumen.append(("Congresos distintos", total_congresos))
+    
+    # 3. Tipos de congreso
+    total_tipos = unique_congresos['tipo_congreso'].nunique()
+    datos_resumen.append(("Tipos de congreso distintos", total_tipos))
+    
+    # 4. Países
+    total_paises = unique_congresos['pais'].nunique()
+    datos_resumen.append(("Países distintos", total_paises))
+    
+    # 5. Líneas de investigación
+    try:
+        all_keywords = []
+        for keywords in unique_congresos['linea_investigacion']:
+            if pd.notna(keywords):
+                keywords_str = str(keywords).strip()
+                keyword_list = [k.strip() for k in keywords_str.split(",") if k.strip()]
+                all_keywords.extend(keyword_list)
+        total_keywords = len(set(all_keywords)) if all_keywords else 0
+        datos_resumen.append(("Líneas de investigación distintas", total_keywords))
+    except:
+        datos_resumen.append(("Líneas de investigación distintas", "N/D"))
+    
+    # 6. Departamentos
+    if 'departamento' in unique_congresos.columns:
+        total_deptos = unique_congresos['departamento'].nunique()
+        datos_resumen.append(("Departamentos distintos", total_deptos))
+    
+    # 7. Años con participación
+    total_años = unique_congresos['año_congreso'].nunique()
+    datos_resumen.append(("Años con participación", total_años))
+    
+    # 8. Nivel SNI
+    if 'sni' in unique_congresos.columns:
+        total_sni = unique_congresos['sni'].nunique()
+        datos_resumen.append(("Niveles SNI distintos", total_sni))
+    
+    # 9. Nivel SII
+    if 'sii' in unique_congresos.columns:
+        total_sii = unique_congresos['sii'].nunique()
+        datos_resumen.append(("Niveles SII distintos", total_sii))
+    
+    # 10. Nombramientos
+    if 'nombramiento' in unique_congresos.columns:
+        total_nombramientos = unique_congresos['nombramiento'].nunique()
+        datos_resumen.append(("Tipos de nombramiento distintos", total_nombramientos))
+    
+    # 11. Roles
+    if 'rol' in unique_congresos.columns:
+        total_roles = unique_congresos['rol'].nunique()
+        datos_resumen.append(("Roles distintos", total_roles))
+    
+    # Crear DataFrame
+    resumen_df = pd.DataFrame(datos_resumen, columns=['Categoría', 'Total'])
+    
+    return resumen_df
+
+def aplicar_estilo_tabla(df):
+    """Aplica estilo CSS para uniformizar el ancho de columnas"""
+    styles = []
+    for col in df.columns:
+        styles.append({
+            'selector': f'th.col_heading.col{df.columns.get_loc(col)}',
+            'props': [('width', CONFIG.COLUMN_WIDTH)]
+        })
+        styles.append({
+            'selector': f'td.col{df.columns.get_loc(col)}',
+            'props': [('width', CONFIG.COLUMN_WIDTH)]
+        })
+    return df.style.set_table_styles(styles)
+
+def mostrar_tabla_uniforme(df, titulo, ayuda=None, max_rows=10):
+    """Muestra una tabla con columnas de ancho uniforme"""
+    st.markdown(f"**{titulo}**")
+    if ayuda:
+        st.caption(ayuda)
+    
+    # Aplicar estilo CSS para uniformizar el ancho de columnas
+    st.markdown(
+        f"""
+        <style>
+            th, td {{
+                width: {CONFIG.COLUMN_WIDTH} !important;
+                min-width: {CONFIG.COLUMN_WIDTH} !important;
+                max-width: {CONFIG.COLUMN_WIDTH} !important;
+            }}
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
+    
+    st.dataframe(df.head(max_rows), hide_index=True)
+
+# ====================
+# FUNCIONES DE MÉTRICAS PARA CONGRESOS
+# ====================
+def indice_prestigio_congreso(titulo_congreso, tipo_congreso):
+    """Calcula el Índice de Prestigio del Congreso (IPC)"""
+    if pd.isna(titulo_congreso) or pd.isna(tipo_congreso):
+        return 0.3
+
+    titulo_congreso = str(titulo_congreso).lower()
+    tipo_congreso = str(tipo_congreso).lower()
+
+    # Congresos internacionales conocidos
+    congresos_tier1 = [
+        'american heart', 'european society of cardiology', 
+        'world congress of cardiology', 'international congress'
+    ]
+    
+    # Congresos nacionales importantes
+    congresos_tier2 = [
+        'congreso nacional', 'sociedad mexicana', 
+        'reunión anual', 'simposio nacional'
+    ]
+
+    # Asignar puntaje según tipo y nombre del congreso
+    if tipo_congreso == 'internacional':
+        if any(keyword in titulo_congreso for keyword in congresos_tier1):
+            return 1.0
+        return 0.7
+    elif tipo_congreso == 'nacional':
+        if any(keyword in titulo_congreso for keyword in congresos_tier2):
+            return 0.6
+        return 0.4
+    else:
+        return 0.3  # Congresos locales o no clasificados
+
+def coeficiente_internacionalizacion(pais, tipo_congreso):
+    """Calcula el Coeficiente de Internacionalización (CI) para congresos"""
+    if pd.isna(pais) or pd.isna(tipo_congreso):
+        return 0.0
+
+    tipo_congreso = str(tipo_congreso).lower()
+    pais = str(pais).strip()
+
+    # Países con mayor prestigio en investigación
+    paises_tier1 = ['Estados Unidos', 'Reino Unido', 'Alemania', 'Japón', 'Canadá']
+    paises_tier2 = ['Francia', 'Italia', 'España', 'Australia', 'Suiza']
+
+    if tipo_congreso == 'internacional':
+        if pais in paises_tier1:
+            return 1.0
+        elif pais in paises_tier2:
+            return 0.8
+        else:
+            return 0.6
+    else:
+        return 0.3  # Congresos nacionales o locales
+
+def indice_relevancia_tematica(linea_investigacion):
+    """Calcula el Índice de Relevancia Temática (IRT) para cardiología"""
+    if pd.isna(linea_investigacion):
+        return 0.0
+
+    keywords_cardio = [
+        "cardíaco", "miocardio", "arritmia", "isquemia",
+        "hipertensión", "ECG", "insuficiencia cardíaca",
+        "coronario", "válvula", "aterosclerosis", "angina"
+    ]
+
+    try:
+        if isinstance(linea_investigacion, str):
+            linea_investigacion = linea_investigacion.lower()
+            matches = sum(1 for kw in keywords_cardio if kw in linea_investigacion)
+            return min(matches / len(keywords_cardio), 1.0)  # Normalizado a 0-1
+        return 0.0
+    except:
+        return 0.0
 
 def main():
     st.set_page_config(
         page_title="Análisis de Congresos",
-        page_icon="🎤",
+        page_icon="📊",
         layout="wide"
     )
 
@@ -225,40 +416,39 @@ def main():
     if Path(CONFIG.LOGO_PATH).exists():
         st.image(CONFIG.LOGO_PATH, width=200)
 
-    st.title("Análisis de Congresos")
+    st.title("Análisis de Participación en Congresos")
 
     # Paso 1: Ejecutar generador remoto para actualizar datos
     if not ejecutar_generador_remoto():
         st.warning("⚠️ Continuando con datos existentes (pueden no estar actualizados)")
 
-    # Paso 2: Sincronizar archivo congresos_total.csv
+    # Paso 2: Sincronizar archivo pro_congresos_total.csv
     if not sync_congresos_file():
-        st.warning("⚠️ Trabajando con copia local de congresos_total.csv debido a problemas de conexión")
+        st.warning("⚠️ Trabajando con copia local de pro_congresos_total.csv debido a problemas de conexión")
 
     # Verificar si el archivo local existe
-    if not Path("congresos_total.csv").exists():
-        st.error("No se encontró el archivo congresos_total.csv")
+    if not Path("pro_congresos_total.csv").exists():
+        st.error("No se encontró el archivo pro_congresos_total.csv")
         return
 
     try:
         # Leer y procesar el archivo
-        df = pd.read_csv("congresos_total.csv", header=0, encoding='utf-8')
-        df.columns = df.columns.str.strip()  # Limpiar espacios en nombres de columnas
+        df = pd.read_csv("pro_congresos_total.csv", header=0, encoding='utf-8')
+        df.columns = df.columns.str.strip()
 
-        # Verificación de columnas (para diagnóstico)
-        logging.info(f"Columnas detectadas: {df.columns.tolist()}")
-
-        # Verificar que los campos importantes existen
-        required_columns = ['economic_number', 'titulo_congreso', 'fecha_exacta_congreso', 'estado']
+        # Verificar campos importantes
+        required_columns = ['economic_number', 'titulo_presentacion', 'titulo_congreso', 
+                          'tipo_congreso', 'pais', 'año_congreso', 'fecha_exacta_congreso',
+                          'rol', 'linea_investigacion', 'pdf_filename', 'estado']
         missing_columns = [col for col in required_columns if col not in df.columns]
 
         if missing_columns:
-            st.warning(f"El archivo congresos_total.csv no contiene los campos requeridos: {', '.join(missing_columns)}")
+            st.warning(f"El archivo pro_congresos_total.csv no contiene los campos requeridos: {', '.join(missing_columns)}")
             return
 
         # Convertir y validar fechas
         df['fecha_exacta_congreso'] = pd.to_datetime(df['fecha_exacta_congreso'], errors='coerce')
-        df = df[(df['estado'] == 'A') & (df['fecha_exacta_congreso'].notna())]
+        df = df[df['estado'] == 'A'].copy()
 
         if df.empty:
             st.warning("No hay congresos válidos para analizar")
@@ -270,306 +460,307 @@ def main():
         min_date = df['fecha_exacta_congreso'].min()
         max_date = df['fecha_exacta_congreso'].max()
 
-        # Selector de rango mes-año con ayuda
+        # Selector de rango de fechas
         st.header("📅 Selección de Periodo")
         col1, col2 = st.columns(2)
 
         with col1:
-            start_year = st.selectbox("Año inicio",
-                                   range(min_date.year, max_date.year+1),
-                                   index=0,
-                                   help="Selecciona el año inicial para el análisis.")
-            start_month = st.selectbox("Mes inicio",
-                                    range(1, 13),
-                                    index=min_date.month-1,
-                                    format_func=lambda x: datetime(1900, x, 1).strftime('%B'),
-                                    help="Selecciona el mes inicial para el análisis.")
+            start_date = st.date_input("Fecha inicio", min_date)
 
         with col2:
-            end_year = st.selectbox("Año término",
-                                  range(min_date.year, max_date.year+1),
-                                  index=len(range(min_date.year, max_date.year+1))-1,
-                                  help="Selecciona el año final para el análisis.")
-            end_month = st.selectbox("Mes término",
-                                   range(1, 13),
-                                   index=max_date.month-1,
-                                   format_func=lambda x: datetime(1900, x, 1).strftime('%B'),
-                                   help="Selecciona el mes final para el análisis.")
-
-        # Calcular fechas de inicio y fin
-        start_day = 1
-        end_day = calendar.monthrange(end_year, end_month)[1]
-
-        date_start = datetime(start_year, start_month, start_day)
-        date_end = datetime(end_year, end_month, end_day)
+            end_date = st.date_input("Fecha término", max_date)
 
         # Filtrar dataframe
-        filtered_df = df[(df['fecha_exacta_congreso'] >= pd.to_datetime(date_start)) &
-                       (df['fecha_exacta_congreso'] <= pd.to_datetime(date_end))]
+        filtered_df = df[(df['fecha_exacta_congreso'] >= pd.to_datetime(start_date)) &
+                       (df['fecha_exacta_congreso'] <= pd.to_datetime(end_date))].copy()
 
-        # Obtener congresos únicos para estadísticas precisas
-        unique_congresos = filtered_df.drop_duplicates(subset=['titulo_congreso'])
+        # Obtener presentaciones únicas (basado en título de presentación)
+        unique_congresos = filtered_df.drop_duplicates(subset=['titulo_presentacion']).copy()
 
-        st.markdown(f"**Periodo seleccionado:** {date_start.strftime('%d/%m/%Y')} - {date_end.strftime('%d/%m/%Y')}",
-                   help="Rango de fechas seleccionado para el análisis.")
-        st.markdown(f"**Registros encontrados:** {len(filtered_df)}",
-                   help="Total de registros en el periodo, incluyendo posibles duplicados del mismo congreso.")
-        st.markdown(f"**Congresos únicos:** {len(unique_congresos)}",
-                   help="Cantidad de congresos distintos, eliminando duplicados.")
-
-        if len(filtered_df) != len(unique_congresos):
-            st.warning(f"⚠️ **Nota:** Se detectaron {len(filtered_df) - len(unique_congresos)} registros duplicados del mismo congreso.")
+        st.markdown(f"**Periodo seleccionado:** {start_date.strftime('%d/%m/%Y')} - {end_date.strftime('%d/%m/%Y')}")
+        st.markdown(f"**Registros encontrados:** {len(filtered_df)}")
+        st.markdown(f"**Presentaciones únicas:** {len(unique_congresos)}")
 
         if filtered_df.empty:
             st.warning("No hay congresos en el periodo seleccionado")
             return
 
-        # Análisis consolidado en tablas
-        st.header("📊 Estadísticas Consolidadas",
-                help="Métricas generales basadas en los filtros aplicados.")
-
-        # Tabla 1: Participación por investigador
-        st.subheader("🔍 Participación por investigador",
-                   help="Muestra cuántos congresos únicos tiene cada investigador y su rol de participación.")
-
-        # Crear dataframe con información de participación
-        investigator_stats = filtered_df.groupby('economic_number').agg(
-            Congresos_Unicos=('titulo_congreso', lambda x: len(set(x))),
-            Rol_Participacion=('rol', lambda x: ', '.join(sorted(set(x)))),
-            Nombre=('nombramiento', 'first')  # Asumimos que nombramiento es único por economic_number
+        # =============================================
+        # TABLA DE PRODUCTIVIDAD POR INVESTIGADOR
+        # =============================================
+        st.header("🔍 Productividad por investigador")
+        investigator_stats = filtered_df.groupby(['economic_number']).agg(
+            Presentaciones_Unicas=('titulo_presentacion', lambda x: len(set(x))),
+            Congresos_Distintos=('titulo_congreso', 'nunique'),
+            Paises_Visitados=('pais', 'nunique'),
+            Roles=('rol', lambda x: ', '.join(sorted(set(x))))
         ).reset_index()
+        
+        # Agregar información de nombramiento, SNI, SII si existe
+        if 'nombramiento' in df.columns and 'sni' in df.columns and 'sii' in df.columns:
+            investigator_info = df[['economic_number', 'nombramiento', 'sni', 'sii']].drop_duplicates()
+            investigator_stats = pd.merge(investigator_stats, investigator_info, on='economic_number', how='left')
+        
+        investigator_stats = investigator_stats.sort_values('Presentaciones_Unicas', ascending=False)
+        investigator_stats.columns = ['Número económico', 'Presentaciones únicas', 'Congresos distintos', 
+                                    'Países visitados', 'Roles', 'Nombramiento', 'SNI', 'SII']
 
-        investigator_stats = investigator_stats.sort_values('Congresos_Unicos', ascending=False)
-        investigator_stats.columns = ['Número Económico', 'Congresos únicos', 'Rol de participación', 'Nombramiento']
+        mostrar_tabla_uniforme(investigator_stats, "Productividad por investigador")
 
-        # Añadir fila de totales
-        total_row = pd.DataFrame({
-            'Número Económico': ['TOTAL'],
-            'Congresos únicos': [investigator_stats['Congresos únicos'].sum()],
-            'Rol de participación': [''],
-            'Nombramiento': ['']
-        })
-        investigator_stats = pd.concat([investigator_stats.head(10), total_row], ignore_index=True)
-
-        # Mostrar tabla con enlaces clickeables
+        # Detalle expandible por investigador
         for index, row in investigator_stats.iterrows():
-            if row['Número Económico'] != 'TOTAL':
-                # Crear un expander para cada investigador
-                with st.expander(f"{row['Número Económico']} - {row['Congresos únicos']} congresos"):
-                    # Filtrar los congresos del investigador
-                    investigator_congresos = filtered_df[filtered_df['economic_number'] == row['Número Económico']]
-                    unique_congresos_investigator = investigator_congresos.drop_duplicates(subset=['titulo_congreso'])
+            with st.expander(f"{row['Número económico']} - {row['Presentaciones únicas']} presentaciones"):
+                investigator_congresos = filtered_df[filtered_df['economic_number'] == row['Número económico']]
+                unique_congresos_investigator = investigator_congresos.drop_duplicates(subset=['titulo_presentacion'])
 
-                    # Mostrar los congresos
-                    display_columns = ['titulo_congreso', 'institucion', 'tipo_congreso', 'pais',
-                                     'año_congreso', 'fecha_exacta_congreso', 'rol', 'titulo_ponencia']
+                display_columns = ['titulo_presentacion', 'titulo_congreso', 'tipo_congreso', 
+                                 'pais', 'fecha_exacta_congreso', 'rol']
+                if 'sni' in unique_congresos_investigator.columns and 'sii' in unique_congresos_investigator.columns:
+                    display_columns.extend(['sni', 'sii'])
+                if 'nombramiento' in unique_congresos_investigator.columns:
+                    display_columns.append('nombramiento')
 
-                    st.write(f"Congresos de {row['Número Económico']}:")
-                    st.dataframe(unique_congresos_investigator[display_columns])
+                st.write(f"Presentaciones de {row['Número económico']}:")
+                mostrar_tabla_uniforme(unique_congresos_investigator[display_columns], "")
 
-                    # Opción para descargar en CSV
-                    csv = unique_congresos_investigator.to_csv(index=False).encode('utf-8')
-                    st.download_button(
-                        label="Descargar participación en congresos (CSV)",
-                        data=csv,
-                        file_name=f"congresos_{row['Número Económico']}.csv",
-                        mime='text/csv',
-                        key=f"download_{index}"
+                # Sección de archivos PDF
+                st.subheader("📄 Archivos disponibles")
+                pdf_files = unique_congresos_investigator['pdf_filename'].dropna().unique()
+
+                if len(pdf_files) > 0:
+                    st.info(f"Se encontraron {len(pdf_files)} archivos para este investigador")
+                    selected_pdf = st.selectbox(
+                        "Seleccione un archivo para ver:",
+                        pdf_files,
+                        key=f"pdf_selector_{row['Número económico']}_{index}"
                     )
 
-        # Tabla 2: Instituciones organizadoras más frecuentes
-        st.subheader("🏛️ Instituciones organizadoras",
-                   help="Listado de instituciones que organizaron congresos, ordenadas por frecuencia.")
-        institucion_stats = unique_congresos.groupby('institucion').agg(
-            Total_Congresos=('institucion', 'size')
-        ).reset_index()
-        institucion_stats = institucion_stats.sort_values('Total_Congresos', ascending=False)
-        institucion_stats.columns = ['Institución', 'Congresos únicos']
+                    if selected_pdf:
+                        temp_pdf_path = f"temp_{selected_pdf}"
+                        remote_pdf_path = os.path.join(CONFIG.REMOTE['DIR'], selected_pdf)
 
-        # Añadir fila de totales
-        total_row = pd.DataFrame({
-            'Institución': ['TOTAL'],
-            'Congresos únicos': [institucion_stats['Congresos únicos'].sum()]
-        })
-        institucion_stats = pd.concat([institucion_stats.head(10), total_row], ignore_index=True)
-        st.dataframe(institucion_stats, hide_index=True)
+                        if SSHManager.download_remote_file(remote_pdf_path, temp_pdf_path):
+                            with open(temp_pdf_path, "rb") as f:
+                                pdf_bytes = f.read()
 
-        # Tabla 3: Tipos de congreso más comunes
-        st.subheader("🌍 Tipo de congreso",
-                   help="Distribución de congresos por tipo (Nacional/Internacional).")
-        tipo_stats = unique_congresos['tipo_congreso'].value_counts().reset_index()
-        tipo_stats.columns = ['Tipo de Congreso', 'Congresos únicos']
+                            st.download_button(
+                                label="Descargar este archivo",
+                                data=pdf_bytes,
+                                file_name=selected_pdf,
+                                mime="application/pdf",
+                                key=f"download_pdf_{row['Número económico']}_{index}"
+                            )
 
-        # Añadir fila de totales
-        total_row = pd.DataFrame({
-            'Tipo de Congreso': ['TOTAL'],
-            'Congresos únicos': [tipo_stats['Congresos únicos'].sum()]
-        })
-        tipo_stats = pd.concat([tipo_stats, total_row], ignore_index=True)
-        st.dataframe(tipo_stats, hide_index=True)
+                            try:
+                                os.remove(temp_pdf_path)
+                            except:
+                                pass
+                        else:
+                            st.error("No se pudo descargar el PDF seleccionado")
+                else:
+                    st.warning("No se encontraron archivos PDF para este investigador")
 
-        # Tabla 4: Países más frecuentes
-        st.subheader("📍 Países donde se realizaron",
-                   help="Distribución de congresos por país de realización.")
-        pais_stats = unique_congresos['pais'].value_counts().reset_index()
-        pais_stats.columns = ['País', 'Congresos únicos']
-
-        # Añadir fila de totales
-        total_row = pd.DataFrame({
-            'País': ['TOTAL'],
-            'Congresos únicos': [pais_stats['Congresos únicos'].sum()]
-        })
-        pais_stats = pd.concat([pais_stats, total_row], ignore_index=True)
-        st.dataframe(pais_stats, hide_index=True)
-
-        # Tabla 5: Roles de participación
-        st.subheader("🎭 Roles de participación",
-                   help="Distribución de los roles de participación en los congresos.")
-        rol_stats = filtered_df['rol'].value_counts().reset_index()
-        rol_stats.columns = ['Rol', 'Participaciones']
-
-        # Añadir fila de totales
-        total_row = pd.DataFrame({
-            'Rol': ['TOTAL'],
-            'Participaciones': [rol_stats['Participaciones'].sum()]
-        })
-        rol_stats = pd.concat([rol_stats, total_row], ignore_index=True)
-        st.dataframe(rol_stats, hide_index=True)
-
-        # Tabla 6: Líneas de investigación más frecuentes
-        st.subheader("🧪 Líneas de investigación",
-                   help="Líneas de investigación más frecuentes en los congresos.")
-        try:
-            all_keywords = []
-            for keywords in unique_congresos['linea_investigacion']:
-                if pd.notna(keywords):
-                    # Procesamiento de palabras clave
-                    keywords_str = str(keywords).strip()
-                    # Si la línea ya está entre comillas, tomarla como una sola
-                    if (keywords_str.startswith('"') and keywords_str.endswith('"')) or \
-                       (keywords_str.startswith("'") and keywords_str.endswith("'")):
-                        all_keywords.append(keywords_str[1:-1])
-                    else:
-                        # Si no está entre comillas, agregar toda la cadena como una sola línea
-                        all_keywords.append(keywords_str)
-
-            keyword_stats = pd.Series(all_keywords).value_counts().reset_index()
-            keyword_stats.columns = ['Línea de investigación', 'Frecuencia']
-
-            # Añadir fila de totales
-            total_row = pd.DataFrame({
-                'Línea de investigación': ['TOTAL'],
-                'Frecuencia': [keyword_stats['Frecuencia'].sum()]
-            })
-            keyword_stats = pd.concat([keyword_stats.head(10), total_row], ignore_index=True)
-            st.dataframe(keyword_stats, hide_index=True)
-        except Exception as e:
-            st.warning(f"No se pudieron procesar las líneas de investigación: {str(e)}")
-            logging.error(f"Error procesando líneas de investigación: {str(e)}")
-
-        # Tabla 7: Distribución por departamentos
-        if 'departamento' in unique_congresos.columns:
-            st.subheader("🏢 Departamentos de adscripción",
-                       help="Distribución de congresos por departamento de adscripción del participante.")
-            depto_stats = unique_congresos['departamento'].value_counts().reset_index()
-            depto_stats.columns = ['Departamento', 'Congresos únicos']
-
-            # Añadir fila de totales
-            total_row = pd.DataFrame({
-                'Departamento': ['TOTAL'],
-                'Congresos únicos': [depto_stats['Congresos únicos'].sum()]
-            })
-            depto_stats = pd.concat([depto_stats, total_row], ignore_index=True)
-            st.dataframe(depto_stats, hide_index=True)
-        else:
-            st.warning("El campo 'departamento' no está disponible en los datos")
-
-        # Tabla 8: Distribución temporal
-        st.subheader("🕰️ Distribución mensual",
-                    help="Evolución mensual de participación en congresos en el periodo seleccionado.")
-
-        # Convertir a formato "YYYY-MM"
-        time_stats = unique_congresos['fecha_exacta_congreso'].dt.to_period('M').astype(str).value_counts().sort_index().reset_index()
-        time_stats.columns = ['Mes-Año', 'Congresos únicos']
-
-        # Añadir fila de totales
-        total_row = pd.DataFrame({
-            'Mes-Año': ['TOTAL'],
-            'Congresos únicos': [time_stats['Congresos únicos'].sum()]
-        })
-        time_stats = pd.concat([time_stats, total_row], ignore_index=True)
-        st.dataframe(time_stats, hide_index=True)
-
-        # Tabla 9: Distribución por nivel SNI
-        if 'sni' in unique_congresos.columns:
-            st.subheader("📊 Nivel SNI de participantes",
-                        help="Distribución de participación en congresos por nivel SNI.")
-            sni_stats = unique_congresos['sni'].value_counts().reset_index()
-            sni_stats.columns = ['Nivel SNI', 'Congresos únicos']
-
-            # Añadir fila de totales
-            total_row = pd.DataFrame({
-                'Nivel SNI': ['TOTAL'],
-                'Congresos únicos': [sni_stats['Congresos únicos'].sum()]
-            })
-            sni_stats = pd.concat([sni_stats, total_row], ignore_index=True)
-            st.dataframe(sni_stats, hide_index=True)
-        else:
-            st.warning("El campo 'sni' no está disponible en los datos")
-
-        # Tabla 10: Distribución por nivel SII
-        if 'sii' in unique_congresos.columns:
-            st.subheader("📈 Nivel SII de participantes",
-                        help="Distribución de participación en congresos por nivel SII.")
-            sii_stats = unique_congresos['sii'].value_counts().reset_index()
-            sii_stats.columns = ['Nivel SII', 'Congresos únicos']
-
-            # Añadir fila de totales
-            total_row = pd.DataFrame({
-                'Nivel SII': ['TOTAL'],
-                'Congresos únicos': [sii_stats['Congresos únicos'].sum()]
-            })
-            sii_stats = pd.concat([sii_stats, total_row], ignore_index=True)
-            st.dataframe(sii_stats, hide_index=True)
-        else:
-            st.warning("El campo 'sii' no está disponible en los datos")
-
-        # Tabla 11: Distribución por nombramiento
-        if 'nombramiento' in unique_congresos.columns:
-            st.subheader("👔 Tipo de nombramiento",
-                        help="Distribución de participación en congresos por tipo de nombramiento.")
-            nombramiento_stats = unique_congresos['nombramiento'].value_counts().reset_index()
-            nombramiento_stats.columns = ['Tipo de Nombramiento', 'Congresos únicos']
-
-            # Añadir fila de totales
-            total_row = pd.DataFrame({
-                'Tipo de Nombramiento': ['TOTAL'],
-                'Congresos únicos': [nombramiento_stats['Congresos únicos'].sum()]
-            })
-            nombramiento_stats = pd.concat([nombramiento_stats, total_row], ignore_index=True)
-            st.dataframe(nombramiento_stats, hide_index=True)
-        else:
-            st.warning("El campo 'nombramiento' no está disponible en los datos")
-
-        # ==========================================
-        # SECCIÓN: DESCARGAR ARCHIVO COMPLETO
-        # ==========================================
-        st.header("📥 Descargar Datos Completos")
-
-        # Opción para descargar el archivo pro_congresos_total.csv
-        if Path("congresos_total.csv").exists():
-            with open("congresos_total.csv", "rb") as file:
-                btn = st.download_button(
-                    label="Descargar archivo pro_congresos_total.csv completo",
-                    data=file,
-                    file_name="pro_congresos_total.csv",
-                    mime="text/csv",
-                    help="Descarga el archivo CSV completo con todos los datos de congresos"
+                csv = unique_congresos_investigator.to_csv(index=False).encode('utf-8')
+                st.download_button(
+                    label="Descargar participación en congresos (CSV)",
+                    data=csv,
+                    file_name=f"congresos_{row['Número económico']}.csv",
+                    mime='text/csv',
+                    key=f"download_csv_{row['Número económico']}_{index}"
                 )
-            if btn:
-                st.success("Descarga iniciada")
-        else:
-            st.warning("El archivo congresos_total.csv no está disponible para descargar")
+
+        # =============================================
+        # SECCIÓN DE MÉTRICAS DE CALIDAD
+        # =============================================
+        st.header("📊 Métricas de Calidad de Participación")
+
+        # Calcular métricas para cada presentación única
+        with st.spinner("Calculando métricas de calidad..."):
+            unique_congresos = unique_congresos.assign(
+                IPC=unique_congresos.apply(lambda x: indice_prestigio_congreso(x['titulo_congreso'], x['tipo_congreso']), axis=1),
+                CI=unique_congresos.apply(lambda x: coeficiente_internacionalizacion(x['pais'], x['tipo_congreso']), axis=1),
+                IRT=unique_congresos['linea_investigacion'].apply(indice_relevancia_tematica)
+            )
+            unique_congresos = unique_congresos.assign(
+                PI=0.5 * unique_congresos['IPC'] + 0.3 * unique_congresos['CI'] + 0.2 * unique_congresos['IRT']
+            )
+
+        # Mostrar tabla de resultados por investigador
+        st.subheader("Métricas por Investigador")
+        metrics_by_investigator = unique_congresos.groupby('economic_number').agg({
+            'IPC': 'mean',
+            'CI': 'mean',
+            'IRT': 'mean',
+            'PI': 'mean',
+            'titulo_presentacion': 'count'
+        }).reset_index()
+
+        metrics_by_investigator.columns = [
+            'Número económico',
+            'Prestigio Congreso (IPC) Promedio',
+            'Internacionalización (CI) Promedio',
+            'Relevancia Temática (IRT) Promedio',
+            'Puntaje Integrado (PI) Promedio',
+            'Presentaciones Evaluadas'
+        ]
+
+        metrics_by_investigator = metrics_by_investigator.sort_values('Puntaje Integrado (PI) Promedio', ascending=False)
+        metrics_by_investigator = metrics_by_investigator.round(2)
+
+        mostrar_tabla_uniforme(metrics_by_investigator, "Resumen de Métricas por Investigador")
+
+        # Botón para explicación de métricas
+        with st.expander("ℹ️ Explicación de las Métricas", expanded=False):
+            st.markdown("""
+            ### Índice de Prestigio del Congreso (IPC)
+            **Fórmula:**
+            Clasificación de congresos en 4 niveles con valores de 0.3 a 1.0
+            - **1.0**: Congresos internacionales de alto prestigio
+            - **0.7**: Congresos internacionales generales
+            - **0.6**: Congresos nacionales importantes
+            - **0.4**: Congresos nacionales generales
+            - **0.3**: Otros eventos
+
+            **Propósito:** Evaluar el prestigio del congreso donde se participó.
+            """)
+
+            st.markdown("""
+            ### Coeficiente de Internacionalización (CI)
+            **Fórmula:**
+            - Internacional: 0.6-1.0 (según país)
+            - Nacional: 0.3
+
+            **Propósito:** Medir alcance geográfico de la participación.
+            """)
+
+            st.markdown("""
+            ### Índice de Relevancia Temática (IRT)
+            **Fórmula:**
+            IRT = (N° términos de cardiología) / (Total términos relevantes)
+
+            **Propósito:** Evaluar relación con área de cardiología.
+            """)
+
+            st.markdown("""
+            ### Puntaje Integrado (PI)
+            **Fórmula:**
+            PI = (0.5 × IPC) + (0.3 × CI) + (0.2 × IRT)
+
+            **Interpretación:**
+            0.8-1.0: Excelente | 0.6-0.79: Bueno | 0.4-0.59: Aceptable | <0.4: Bajo
+            """)
+
+        # Mostrar tabla completa de presentaciones con métricas
+        st.subheader("Resultados Detallados por Presentación")
+        metricas_df = unique_congresos[[
+            'titulo_presentacion', 'economic_number', 'titulo_congreso', 'tipo_congreso',
+            'IPC', 'CI', 'IRT', 'PI'
+        ]].sort_values('PI', ascending=False)
+
+        metricas_df.columns = [
+            'Título Presentación', 'Número económico', 'Congreso', 'Tipo Congreso',
+            'Prestigio Congreso (IPC)', 'Internacionalización (CI)',
+            'Relevancia Temática (IRT)', 'Puntaje Integrado (PI)'
+        ]
+
+        metricas_df = metricas_df.round(2)
+        mostrar_tabla_uniforme(metricas_df, "")
+
+        # =============================================
+        # TOP 5 PRESENTACIONES POR CALIDAD
+        # =============================================
+        st.header("🏆 Presentaciones Destacadas")
+        top_presentaciones = unique_congresos.nlargest(5, 'PI')[[
+            'titulo_presentacion', 'economic_number', 'titulo_congreso', 'PI', 'IPC', 'CI', 'IRT'
+        ]]
+        top_presentaciones.columns = [
+            'Título Presentación', 'Número económico', 'Congreso',
+            'Puntaje Integrado', 'Prestigio Congreso',
+            'Internacionalización', 'Relevancia Temática'
+        ]
+
+        mostrar_tabla_uniforme(top_presentaciones.round(2), "Top 5 presentaciones por Calidad Integral")
+
+        # Botón para criterios de selección
+        with st.expander("ℹ️ Criterios de Selección", expanded=False):
+            st.markdown("""
+            **Presentaciones destacadas** se seleccionan por mayor Puntaje Integrado (PI) que combina:
+            - 50% Prestigio del congreso (IPC)
+            - 30% Internacionalización (CI)
+            - 20% Relevancia temática (IRT)
+
+            Las presentaciones con PI ≥ 0.8 tienen calidad excepcional en los tres aspectos evaluados.
+            """)
+
+        # =============================================
+        # SECCIÓN DE DESCARGAS GLOBALES
+        # =============================================
+        st.header("📥 Exportar Resultados")
+        col1, col2, col3 = st.columns(3)
+
+        with col1:
+            csv_metricas = metricas_df.to_csv(index=False).encode('utf-8')
+            st.download_button(
+                label="Descargar métricas de calidad (CSV)",
+                data=csv_metricas,
+                file_name="metricas_calidad_congresos.csv",
+                mime='text/csv'
+            )
+
+        with col2:
+            if Path("pro_congresos_total.csv").exists():
+                with open("pro_congresos_total.csv", "rb") as file:
+                    st.download_button(
+                        label="Descargar dataset completo",
+                        data=file,
+                        file_name="pro_congresos_total.csv",
+                        mime="text/csv"
+                    )
+
+        with col3:
+            # Botón para descargar todos los PDFs con prefijo CON
+            if st.button("Descargar todos los PDFs (CON)"):
+                with st.spinner("Buscando archivos PDF en el servidor..."):
+                    ssh = SSHManager.get_connection()
+                    if ssh:
+                        try:
+                            with ssh.open_sftp() as sftp:
+                                sftp.chdir(CONFIG.REMOTE['DIR'])
+                                pdf_files = []
+                                for filename in sftp.listdir():
+                                    if (filename.startswith('CON')) and filename.lower().endswith('.pdf'):
+                                        pdf_files.append(filename)
+
+                                if not pdf_files:
+                                    st.warning("No se encontraron archivos PDF con prefijo CON")
+                                else:
+                                    st.info(f"Se encontraron {len(pdf_files)} archivos PDF")
+
+                                    # Crear un archivo ZIP con todos los PDFs
+                                    zip_buffer = io.BytesIO()
+                                    with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+                                        for pdf_file in pdf_files:
+                                            temp_path = f"temp_{pdf_file}"
+                                            remote_path = os.path.join(CONFIG.REMOTE['DIR'], pdf_file)
+                                            if SSHManager.download_remote_file(remote_path, temp_path):
+                                                zip_file.write(temp_path, pdf_file)
+                                                os.remove(temp_path)
+
+                                    zip_buffer.seek(0)
+                                    st.download_button(
+                                        label="Descargar todos los PDFs (ZIP)",
+                                        data=zip_buffer,
+                                        file_name="pdfs_congresos.zip",
+                                        mime="application/zip",
+                                        key="download_all_pdfs"
+                                    )
+                        except Exception as e:
+                            st.error(f"Error al acceder a los archivos PDF: {str(e)}")
+                            logging.error(f"Error al descargar PDFs: {str(e)}")
+                        finally:
+                            ssh.close()
+                    else:
+                        st.error("No se pudo establecer conexión con el servidor")
 
     except Exception as e:
         st.error(f"Error al procesar el archivo: {str(e)}")
